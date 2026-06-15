@@ -20,12 +20,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!conversation) return apiError("Conversation not found", 404);
 
   const [messages, total] = await Promise.all([
-    Message.find({ conversationId: id })
+    Message.find({ conversationId: id, companyId: ctx.companyId })
       .populate("senderId", "name avatar role")
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: 1 }),
-    Message.countDocuments({ conversationId: id }),
+    Message.countDocuments({ conversationId: id, companyId: ctx.companyId }),
   ]);
 
   return apiSuccess({ messages, total, page, limit });

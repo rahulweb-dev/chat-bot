@@ -49,9 +49,22 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
 
   const lead = await Lead.create({
-    ...body,
     companyId: ctx.companyId,
+    name: body.name,
+    email: body.email,
+    phone: body.phone,
+    company: body.company,
+    title: body.title,
+    website: body.website,
+    source: body.source || "MANUAL",
     stage: body.stage || "NEW",
+    score: typeof body.score === "number" ? Math.min(100, Math.max(0, body.score)) : 50,
+    value: body.value,
+    currency: body.currency,
+    tags: Array.isArray(body.tags) ? body.tags.slice(0, 20) : [],
+    assignedTo: body.assignedTo,
+    notes: [],
+    customFields: body.customFields,
   });
 
   if (lead.assignedTo) {

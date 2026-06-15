@@ -60,8 +60,14 @@ export async function POST(request: NextRequest) {
     systemInstruction: systemPrompt,
   });
 
-  const result = await chat.sendMessage(message);
-  const response = result.response.text();
+  let response: string;
+  try {
+    const result = await chat.sendMessage(message);
+    response = result.response.text();
+  } catch (err) {
+    console.error("Gemini API error:", err instanceof Error ? err.message : "unknown");
+    return apiError("AI service temporarily unavailable. Please try again.", 503);
+  }
 
   await incrementUsage(ctx.companyId, "aiMessages");
 

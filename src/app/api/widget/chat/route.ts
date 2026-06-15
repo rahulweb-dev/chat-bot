@@ -30,6 +30,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: "apiKey and message required" }, { status: 400, headers: CORS });
   }
 
+  if (typeof message !== "string" || message.length > 2000) {
+    return NextResponse.json({ success: false, error: "Message too long (max 2000 chars)" }, { status: 400, headers: CORS });
+  }
+
   await connectDB();
   const company = await Company.findOne({ apiKey, isActive: true });
   if (!company) return NextResponse.json({ success: false, error: "Invalid API key" }, { status: 401, headers: CORS });

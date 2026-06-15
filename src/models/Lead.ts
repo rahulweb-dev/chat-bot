@@ -85,6 +85,7 @@ const LeadSchema = new Schema<ILead>(
 LeadSchema.index({ companyId: 1, stage: 1 });
 LeadSchema.index({ companyId: 1, assignedTo: 1 });
 LeadSchema.index({ companyId: 1, email: 1 });
+LeadSchema.index({ companyId: 1, createdAt: -1 });
 
 const Lead: Model<ILead> = mongoose.models.Lead || mongoose.model<ILead>("Lead", LeadSchema);
 export default Lead;

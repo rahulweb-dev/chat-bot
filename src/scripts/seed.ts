@@ -13,6 +13,11 @@ import Subscription from "../models/Subscription";
 import { v4 as uuidv4 } from "uuid";
 
 async function seed() {
+  if (process.env.NODE_ENV === "production") {
+    console.error("Seed script must not run in production. Use --force flag to override.");
+    process.exit(1);
+  }
+
   await connectDB();
   console.log("Connected to MongoDB");
 

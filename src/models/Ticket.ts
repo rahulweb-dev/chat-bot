@@ -102,6 +102,7 @@ const TicketSchema = new Schema<ITicket>(
 TicketSchema.index({ companyId: 1, status: 1 });
 TicketSchema.index({ companyId: 1, assignedTo: 1 });
 TicketSchema.index({ companyId: 1, ticketNumber: 1 }, { unique: true });
+TicketSchema.index({ companyId: 1, createdAt: -1 });
 
 const Ticket: Model<ITicket> = mongoose.models.Ticket || mongoose.model<ITicket>("Ticket", TicketSchema);
 export default Ticket;

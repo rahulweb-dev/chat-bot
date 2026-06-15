@@ -14,15 +14,16 @@ export async function POST(request: NextRequest) {
   // Always return success to prevent email enumeration
   if (!user) return apiSuccess({}, "If an account exists, a reset link has been sent");
 
-  const token = crypto.randomBytes(32).toString("hex");
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
   const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
   await User.findByIdAndUpdate(user._id, {
-    passwordResetToken: token,
+    passwordResetToken: hashedToken,
     passwordResetExpires: expires,
   });
 
-  const resetUrl = `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/reset-password?token=${token}`;
+  const resetUrl = `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/reset-password?token=${rawToken}`;
 
   // Send email if configured
   try {
