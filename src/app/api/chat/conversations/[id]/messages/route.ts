@@ -71,5 +71,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const populated = await message.populate("senderId", "name avatar role");
+
+  // Emit real-time event to the conversation room (visitor widget + other agents)
+  try {
+    const { getIO } = require("@/server/socket") as { getIO: () => import("socket.io").Server | undefined };
+    getIO()?.to(`conversation:${id}`).emit("message:new", populated);
+    getIO()?.to(`company:${ctx.companyId}`).emit("conversation:updated", {
+      conversationId: id,
+      lastMessage: content,
+      lastMessageAt: new Date(),
+    });
+  } catch { /* Socket not available in serverless */ }
+
   return apiSuccess(populated, "Message sent", 201);
 }

@@ -117,7 +117,7 @@ export default function ChatbotsPage() {
   // Test Bot state
   const [testMsgs, setTestMsgs] = useState<TestMsg[]>([]);
   const [testInput, setTestInput] = useState("");
-  const [testSession, setTestSession] = useState<{ flow: string; step: string; collected: Record<string, string> }>({ flow: "INITIAL", step: "", collected: {} });
+  const [testSession, setTestSession] = useState<{ flow: string; step: string; collected: Record<string, string> }>({ flow: "INITIAL", step: "", collected: { name: "Test" } });
   const [testBusy, setTestBusy] = useState(false);
   const [testOpts, setTestOpts] = useState<string[]>([]);
   const testEndRef = useRef<HTMLDivElement>(null);
@@ -130,13 +130,13 @@ export default function ChatbotsPage() {
     if (!text.trim() || testBusy) return;
     setTestInput("");
     setTestOpts([]);
-    setTestMsgs((m) => [...m, { role: "user", text }]);
+    if (text !== "__INIT__") setTestMsgs((m) => [...m, { role: "user", text }]);
     setTestBusy(true);
     try {
       const r = await fetch("/api/chatbots/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, sessionData: testSession }),
+        body: JSON.stringify({ message: text, sessionData: testSession, chatbotId: configBot?._id }),
       });
       const d = await r.json();
       if (d.success) {
@@ -161,9 +161,8 @@ export default function ChatbotsPage() {
   function resetTest() {
     setTestMsgs([]);
     setTestOpts([]);
-    setTestSession({ flow: "INITIAL", step: "", collected: {} });
+    setTestSession({ flow: "INITIAL", step: "", collected: { name: "Test" } });
     setTestInput("");
-    // Auto start
     setTimeout(() => testSend("__INIT__"), 100);
   }
 

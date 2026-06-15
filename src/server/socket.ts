@@ -42,15 +42,34 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
 
     if (!token) return next(new Error("Authentication required"));
 
+    // Try JWT first (API / mobile clients)
     try {
       const decoded = verifyToken(token);
       socket.userId = decoded.id;
       socket.userRole = decoded.role;
       socket.companyId = decoded.companyId;
-      next();
+      return next();
     } catch {
-      next(new Error("Invalid token"));
+      // fall through to userId lookup
     }
+
+    // Fallback: NextAuth dashboard passes user._id as the token
+    try {
+      await connectDB();
+      const user = await User.findById(token)
+        .select("role companyId isActive")
+        .lean() as { role: string; companyId?: unknown; isActive: boolean } | null;
+      if (user?.isActive) {
+        socket.userId = token;
+        socket.userRole = user.role;
+        socket.companyId = (user.companyId as { toString(): string } | undefined)?.toString();
+        return next();
+      }
+    } catch {
+      // invalid ObjectId format or DB error
+    }
+
+    return next(new Error("Invalid token"));
   });
 
   io.on("connection", (socket: AuthenticatedSocket) => {

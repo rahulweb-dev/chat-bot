@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Send, Paperclip, Mic, MoreVertical, UserPlus, Tag,
-  StickyNote, Bot, Info, CheckCheck, Check, Phone, Mail,
+  StickyNote, Info, CheckCheck, Check, Phone, Mail,
   Smile, X,
 } from "lucide-react";
 import { cn, timeAgo, getInitials, formatDate } from "@/lib/utils";
@@ -57,9 +57,6 @@ export function ChatWindow({ conversationId, onSend, onTyping, onToggleDetails, 
   const { messages: storeMessages, typingUsers } = useChatStore();
   const [input, setInput] = useState("");
   const [isNote, setIsNote] = useState(false);
-  const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
-  const [showAI, setShowAI] = useState(false);
-
   const { data: conv } = useQuery({
     queryKey: ["conversation", conversationId],
     queryFn: async () => {
@@ -109,35 +106,6 @@ export function ChatWindow({ conversationId, onSend, onTyping, onToggleDetails, 
     }
   };
 
-  const handleAISuggest = async () => {
-    setShowAI(true);
-    try {
-      const res = await fetch("/api/ai/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: "Suggest 3 reply options for the agent",
-          conversationHistory: messages.slice(-5).map((m) => ({
-            role: m.senderType === "VISITOR" ? "user" : "agent",
-            content: m.content,
-          })),
-          mode: "suggest_replies",
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        try {
-          const suggestions = JSON.parse(data.data.response);
-          setAiSuggestions(Array.isArray(suggestions) ? suggestions : []);
-        } catch {
-          setAiSuggestions([data.data.response]);
-        }
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   const resolveConversation = async () => {
     await fetch(`/api/chat/conversations/${conversationId}`, {
       method: "PATCH",
@@ -171,9 +139,6 @@ export function ChatWindow({ conversationId, onSend, onTyping, onToggleDetails, 
         </div>
 
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleAISuggest} title="AI Suggestions">
-            <Bot className="w-4 h-4 text-indigo-500" />
-          </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onToggleDetails}>
             <Info className="w-4 h-4" />
           </Button>
@@ -281,30 +246,6 @@ export function ChatWindow({ conversationId, onSend, onTyping, onToggleDetails, 
         )}
         <div ref={messagesEndRef} />
       </div>
-
-      {showAI && aiSuggestions.length > 0 && (
-        <div className="border-t bg-indigo-50 p-3 shrink-0">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-indigo-700 flex items-center gap-1">
-              <Bot className="w-3.5 h-3.5" /> AI Suggested Replies
-            </span>
-            <button onClick={() => setShowAI(false)} className="text-gray-400 hover:text-gray-600">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            {aiSuggestions.map((s, i) => (
-              <button
-                key={i}
-                onClick={() => { setInput(s); setShowAI(false); }}
-                className="text-xs bg-white border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-full hover:bg-indigo-100 transition-colors"
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className={cn("border-t bg-white p-3 shrink-0", isNote && "bg-yellow-50 border-yellow-200")}>
         {isNote && (

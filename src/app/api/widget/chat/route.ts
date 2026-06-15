@@ -2,10 +2,37 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { processFlow, SessionData } from "@/lib/chatbot-flow";
 import Company from "@/models/Company";
+import ApiKey from "@/models/ApiKey";
 import Conversation from "@/models/Conversation";
 import Message from "@/models/Message";
 import Lead from "@/models/Lead";
 import Ticket from "@/models/Ticket";
+
+async function resolveCompany(apiKey: string) {
+  let company = await Company.findOne({ apiKey, isActive: true });
+  if (company) return company;
+  const keyDoc = await ApiKey.findOne({ key: apiKey, isActive: true });
+  if (keyDoc) {
+    company = await Company.findOne({ _id: keyDoc.companyId, isActive: true });
+    if (company) {
+      ApiKey.findByIdAndUpdate(keyDoc._id, { lastUsedAt: new Date(), $inc: { requestCount: 1 } }).catch(() => {});
+      return company;
+    }
+  }
+  return null;
+}
+
+function emitNotification(companyId: string, data: Record<string, unknown>) {
+  try {
+    // getIO() returns the Socket.IO server when running with the custom server (server.ts).
+    // On serverless (Vercel) it returns undefined — the catch handles that safely.
+    const { getIO } = require("@/server/socket") as { getIO: () => import("socket.io").Server | undefined };
+    const ioInstance = getIO();
+    ioInstance?.to(`company:${companyId}`).emit("notification:new", data);
+  } catch {
+    // Socket server not available (serverless environment)
+  }
+}
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -35,10 +62,29 @@ export async function POST(request: NextRequest) {
   }
 
   await connectDB();
-  const company = await Company.findOne({ apiKey, isActive: true });
+  const company = await resolveCompany(apiKey);
   if (!company) return NextResponse.json({ success: false, error: "Invalid API key" }, { status: 401, headers: CORS });
 
   const companyId = company._id.toString();
+
+  // If a live agent is handling this conversation, skip the bot entirely
+  if (conversationId && message !== "__INIT__") {
+    const conv = await Conversation.findOne({ _id: conversationId, companyId }).select("assignedTo metadata").lean() as { assignedTo?: unknown; metadata?: { needsAgent?: boolean } } | null;
+    if (conv?.assignedTo || conv?.metadata?.needsAgent) {
+      await Message.create({ companyId, conversationId, senderType: "VISITOR", type: "TEXT", content: message, isDelivered: true }).catch(() => {});
+      await Conversation.findByIdAndUpdate(conversationId, { lastMessageAt: new Date(), $inc: { messageCount: 1 } }).catch(() => {});
+      // Emit real-time for agent dashboard
+      try {
+        const { getIO } = require("@/server/socket") as { getIO: () => import("socket.io").Server | undefined };
+        const msg = await Message.findOne({ conversationId, content: message, senderType: "VISITOR" }).sort({ createdAt: -1 });
+        getIO()?.to(`conversation:${conversationId}`).emit("message:new", msg);
+        getIO()?.to(`company:${companyId}`).emit("conversation:updated", { conversationId, lastMessage: message, lastMessageAt: new Date() });
+      } catch { /* Socket not available */ }
+      const session: SessionData = sessionData?.flow ? sessionData : { flow: "INITIAL", step: "", collected: {} };
+      return NextResponse.json({ success: true, data: { messages: [], quickReplies: [], action: "NONE", sideEffect: {}, sessionData: session } }, { headers: CORS });
+    }
+  }
+
   const session: SessionData = sessionData?.flow ? sessionData : { flow: "INITIAL", step: "", collected: {} };
   const result = processFlow(message, session);
 
@@ -49,7 +95,18 @@ export async function POST(request: NextRequest) {
     for (const msg of result.messages) {
       await Message.create({ companyId, conversationId, senderType: "BOT", type: "TEXT", content: msg, isDelivered: true }).catch(() => {});
     }
-    await Conversation.findByIdAndUpdate(conversationId, { lastMessageAt: new Date(), $inc: { messageCount: result.messages.length + 1 } }).catch(() => {});
+
+    // Update visitor name/phone in the conversation when the IDENTIFY flow collects them
+    const collected = result.sessionData.collected;
+    const visitorUpdate: Record<string, string> = {};
+    if (collected.name) visitorUpdate["visitor.name"] = collected.name;
+    if (collected.phone) visitorUpdate["visitor.phone"] = collected.phone;
+
+    await Conversation.findByIdAndUpdate(conversationId, {
+      lastMessageAt: new Date(),
+      $inc: { messageCount: result.messages.length + 1 },
+      ...(Object.keys(visitorUpdate).length ? visitorUpdate : {}),
+    }).catch(() => {});
   }
 
   let sideEffect: Record<string, unknown> = {};
@@ -69,6 +126,12 @@ export async function POST(request: NextRequest) {
           activities: [{ type: "CHAT", description: `Widget lead: ${ld.type}`, createdAt: new Date() }],
         });
         sideEffect = { type: "lead_created", leadId: lead._id };
+        emitNotification(companyId, {
+          type: "lead",
+          conversationId,
+          message: `New lead from ${ld.name || "Visitor"}`,
+          name: ld.name || "Visitor",
+        });
       }
     } catch (e) { console.error("Lead:", e); }
   }
@@ -87,12 +150,24 @@ export async function POST(request: NextRequest) {
         await Lead.create({ companyId, conversationId, name: ld.name || "Visitor", phone: ld.phone, source: "CHAT_WIDGET", stage: "NEW", score: 50, currency: "INR", tags: ["SERVICE", "AUTO_DEALERSHIP"] }).catch(() => {});
       }
       sideEffect = { type: "ticket_created", ticketId: ticket._id, ticketNumber: ticket.ticketNumber };
+      emitNotification(companyId, {
+        type: "ticket",
+        conversationId,
+        message: `New service ticket: ${td.subject || "Service request"}`,
+        name: ld?.name || "Visitor",
+      });
     } catch (e) { console.error("Ticket:", e); }
   }
 
   if (result.action === "ASSIGN_AGENT" && conversationId) {
     await Conversation.findByIdAndUpdate(conversationId, { "metadata.needsAgent": true }).catch(() => {});
     sideEffect = { type: "agent_requested" };
+    emitNotification(companyId, {
+      type: "agent_request",
+      conversationId,
+      message: `${ld?.name || "Visitor"} is requesting a live agent`,
+      name: ld?.name || "Visitor",
+    });
   }
 
   return NextResponse.json({

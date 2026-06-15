@@ -1,14 +1,17 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Copy, Check, Code, Palette, Eye, GitBranch, ChevronDown, ChevronRight, Tag, Ticket, UserCheck, ArrowRight } from "lucide-react";
+import {
+  MessageSquare, Copy, Check, Code, Palette, Eye, GitBranch,
+  ChevronDown, ChevronRight, Tag, Ticket, UserCheck, ArrowRight, RotateCcw,
+} from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
-// ── Flow definition (mirrors chatbot-flow.ts MAIN_MENU — Ashok Leyland) ───────
+// ── Flow definition (mirrors chatbot-flow.ts MAIN_MENU — Ashok Leyland) ──────
 const FLOWS = [
   {
     key: "find_vehicle", label: "🚛 Find a Vehicle", color: "#6366f1", bg: "#ede9fe",
@@ -116,214 +119,259 @@ const FLOWS = [
 ];
 
 const OUTCOME_LABELS: Record<string, { label: string; color: string; icon: typeof Tag }> = {
-  CREATE_LEAD:   { label: "Lead Created",   color: "text-green-700 bg-green-100 border-green-200",  icon: Tag },
+  CREATE_LEAD:   { label: "Lead Created",   color: "text-green-700 bg-green-100 border-green-200",   icon: Tag },
   CREATE_TICKET: { label: "Ticket Created", color: "text-orange-700 bg-orange-100 border-orange-200", icon: Ticket },
   ASSIGN_AGENT:  { label: "Agent Assigned", color: "text-indigo-700 bg-indigo-100 border-indigo-200", icon: UserCheck },
-  NONE:          { label: "Back to Menu",   color: "text-gray-600 bg-gray-100 border-gray-200",     icon: ArrowRight },
+  NONE:          { label: "Back to Menu",   color: "text-gray-600 bg-gray-100 border-gray-200",      icon: ArrowRight },
 };
 
-// ── Pixel-perfect widget preview (matches widget.js CSS exactly) ────────────
-function WidgetPreview({
-  color, theme, welcomeMessage, companyName, screen,
-}: {
-  color: string; theme: string; welcomeMessage: string; companyName: string; screen: "form" | "chat";
+// ── Live chatbot flow preview (uses session auth — no API key needed) ──────────
+type ChatMsg = { from: "bot" | "user"; text: string; time: string };
+
+function ChatbotFlowPreview({ color, theme, companyName }: {
+  color: string; theme: string; companyName: string;
 }) {
-  const dark = theme === "DARK";
+  const dark  = theme === "DARK";
   const BG    = dark ? "#1f2937" : "#ffffff";
   const BG2   = dark ? "#111827" : "#f9fafb";
   const BORD  = dark ? "#374151" : "#e5e7eb";
   const TXT   = dark ? "#f9fafb" : "#111827";
   const MUTED = dark ? "#9ca3af" : "#6b7280";
 
-  const mainMenu = [
-    "🚛 Find a Vehicle", "💰 Get On-Road Price", "📄 Download Brochure",
-    "🚗 Book Test Drive", "🛠️ Service & Support", "🔧 Spare Parts",
-    "💳 Finance & EMI", "📍 Find Dealer", "📞 Request Callback", "💬 Chat with Agent",
-  ];
+  const [msgs, setMsgs]     = useState<ChatMsg[]>([]);
+  const [qrs, setQRs]       = useState<string[]>([]);
+  const [sess, setSess]     = useState<Record<string, unknown>>({});
+  const [input, setInput]   = useState("");
+  const [typing, setTyping] = useState(false);
+  const [resetKey, setResetKey] = useState(0);
+  const [error, setError]   = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef  = useRef<HTMLTextAreaElement>(null);
+
+  const ts = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [msgs, typing, qrs]);
+
+  // Auto-start chatbot flow on mount / reset
+  useEffect(() => {
+    let cancelled = false;
+    setMsgs([]); setQRs([]); setSess({}); setInput(""); setError(""); setTyping(true);
+
+    (async () => {
+      try {
+        const res  = await fetch("/api/widget/preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: "__INIT__", sessionData: {} }),
+        });
+        const data = await res.json();
+        if (cancelled) return;
+        if (data.success) {
+          for (const text of (data.data.messages as string[])) {
+            if (cancelled) return;
+            await new Promise<void>((r) => setTimeout(r, 300));
+            if (!cancelled) setMsgs((p) => [...p, { from: "bot", text, time: ts() }]);
+          }
+          if (!cancelled) {
+            setQRs(data.data.quickReplies || []);
+            setSess(data.data.sessionData || {});
+          }
+        } else {
+          if (!cancelled) setError(data.error || "Could not load chatbot flow");
+        }
+      } catch {
+        if (!cancelled) setError("Network error — make sure the dev server is running");
+      }
+      if (!cancelled) {
+        setTyping(false);
+        setTimeout(() => inputRef.current?.focus(), 120);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey]);
+
+  const send = async (msg: string) => {
+    const text = msg.trim();
+    if (!text || typing) return;
+    const snapshot = sess;
+    setMsgs((p) => [...p, { from: "user", text, time: ts() }]);
+    setQRs([]);
+    setInput("");
+    setTyping(true);
+    try {
+      const res  = await fetch("/api/widget/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text, sessionData: snapshot }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        for (const m of (data.data.messages as string[])) {
+          await new Promise<void>((r) => setTimeout(r, 300));
+          setMsgs((p) => [...p, { from: "bot", text: m, time: ts() }]);
+        }
+        setQRs(data.data.quickReplies || []);
+        setSess(data.data.sessionData || {});
+      } else {
+        setMsgs((p) => [...p, { from: "bot", text: "⚠️ " + (data.error || "Error"), time: ts() }]);
+      }
+    } catch {
+      setMsgs((p) => [...p, { from: "bot", text: "⚠️ Connection error. Please try again.", time: ts() }]);
+    }
+    setTyping(false);
+    setTimeout(() => inputRef.current?.focus(), 60);
+  };
 
   return (
     <div style={{
       display: "flex", flexDirection: "column",
       background: BG, borderRadius: "18px",
-      boxShadow: "0 12px 48px rgba(0,0,0,.2)",
+      boxShadow: "0 12px 48px rgba(0,0,0,.18)",
       border: `1px solid ${BORD}`, overflow: "hidden",
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      minHeight: 500,
     }}>
-      {/* ── Header (exact widget.js #sf-head) ── */}
-      <div style={{
-        background: color, padding: "14px 16px",
-        display: "flex", alignItems: "center", gap: "10px", flexShrink: 0,
-      }}>
-        {/* avatar */}
-        <div style={{
-          width: 40, height: 40, borderRadius: "50%",
-          background: "rgba(255,255,255,.18)",
-          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-        }}>
+      {/* ── Header ── */}
+      <div style={{ background: color, padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, flexShrink: 0, position: "relative" }}>
+        <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(255,255,255,.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <svg viewBox="0 0 24 24" style={{ width: 20, height: 20, fill: "white" }}>
             <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
           </svg>
         </div>
-        {/* info */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ color: "white", fontWeight: 700, fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {companyName || "Support"}
+            {companyName || "Ashok Leyland"}
           </div>
           <div style={{ color: "rgba(255,255,255,.78)", fontSize: 11.5, marginTop: 2, display: "flex", alignItems: "center", gap: 5 }}>
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", display: "inline-block", flexShrink: 0 }} />
-            We reply in minutes
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
+            Chatbot Active
           </div>
         </div>
-        {/* close button */}
-        <button style={{
-          background: "none", border: "none", color: "rgba(255,255,255,.8)",
-          cursor: "pointer", padding: 5, borderRadius: 6, lineHeight: 0, flexShrink: 0,
-        }}>
-          <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-            <path d="M18 6L6 18M6 6l12 12" />
+        {/* Restart button */}
+        <button
+          onClick={() => setResetKey((k) => k + 1)}
+          title="Restart conversation"
+          style={{ background: "rgba(255,255,255,.2)", border: "none", borderRadius: 6, color: "white", cursor: "pointer", padding: "5px 9px", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+          <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+            <path d="M1 4v6h6M23 20v-6h-6" /><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15" />
           </svg>
+          Restart
         </button>
       </div>
 
-      {/* ── Visitor Form (sf-form) ── */}
-      {screen === "form" && (
-        <div style={{
-          flex: 1, display: "flex", flexDirection: "column",
-          justifyContent: "center", alignItems: "center",
-          padding: "28px 24px", background: BG2, gap: 18,
-        }}>
-          <h3 style={{ fontSize: 17, fontWeight: 700, color: TXT, textAlign: "center", lineHeight: 1.4 }}>
-            👋 Welcome!
-          </h3>
-          <p style={{ fontSize: 13, color: MUTED, textAlign: "center", lineHeight: 1.5 }}>
-            Please introduce yourself so we can assist you better.
-          </p>
-          <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 5 }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: TXT }}>Your Name *</label>
-            <input placeholder="John Doe" style={{
-              width: "100%", border: `1.5px solid ${BORD}`, borderRadius: 10,
-              padding: "10px 14px", fontSize: 13.5, color: TXT, background: BG, outline: "none",
-            }} />
-          </div>
-          <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 5 }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: TXT }}>Phone / Email</label>
-            <input placeholder="+91 98765 43210" style={{
-              width: "100%", border: `1.5px solid ${BORD}`, borderRadius: 10,
-              padding: "10px 14px", fontSize: 13.5, color: TXT, background: BG, outline: "none",
-            }} />
-          </div>
-          <button style={{
-            width: "100%", padding: 12, background: color, color: "white",
-            border: "none", borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: "pointer",
-          }}>
-            Start Chatting →
+      {/* ── Error state ── */}
+      {error && !typing && msgs.length === 0 && (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 12, background: BG2 }}>
+          <div style={{ fontSize: 28 }}>⚠️</div>
+          <p style={{ fontSize: 13, color: MUTED, textAlign: "center", lineHeight: 1.6 }}>{error}</p>
+          <button onClick={() => setResetKey((k) => k + 1)} style={{ padding: "9px 20px", background: color, color: "white", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+            Try Again
           </button>
         </div>
       )}
 
-      {/* ── Chat View (sf-msgs + sf-opts + sf-foot) ── */}
-      {screen === "chat" && (
-        <>
-          {/* Messages area */}
-          <div style={{
-            flex: 1, overflowY: "auto", padding: "14px 14px 8px",
-            display: "flex", flexDirection: "column", gap: 10,
-            background: BG2, minHeight: 140,
-          }}>
-            {/* Bot welcome bubble */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+      {/* ── Chat messages ── */}
+      {(!error || msgs.length > 0) && (
+        <div ref={scrollRef} style={{
+          flex: 1, overflowY: "auto", padding: "14px 14px 8px",
+          display: "flex", flexDirection: "column", gap: 10,
+          background: BG2, minHeight: 240, maxHeight: 340,
+        }}>
+          {msgs.map((m, i) => (
+            <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.from === "user" ? "flex-end" : "flex-start" }}>
               <div style={{
-                maxWidth: "85%", padding: "10px 14px",
-                borderRadius: "18px 18px 18px 4px",
-                fontSize: 13.5, lineHeight: 1.6, wordBreak: "break-word",
-                background: BG, color: TXT,
-                border: `1px solid ${BORD}`,
+                maxWidth: "84%", padding: "9px 13px",
+                borderRadius: m.from === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                fontSize: 13, lineHeight: 1.55, wordBreak: "break-word", whiteSpace: "pre-wrap",
+                background: m.from === "user" ? color : BG,
+                color: m.from === "user" ? "white" : TXT,
+                border: m.from === "user" ? "none" : `1px solid ${BORD}`,
                 boxShadow: "0 1px 4px rgba(0,0,0,.06)",
               }}>
-                Hi! 👋 {welcomeMessage}
+                {m.text}
               </div>
-              <div style={{ fontSize: 10, color: MUTED, marginTop: 3, paddingLeft: 3 }}>
-                {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-              </div>
-            </div>
-
-            {/* Bot second message */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-              <div style={{
-                maxWidth: "85%", padding: "10px 14px",
-                borderRadius: "18px 18px 18px 4px",
-                fontSize: 13.5, lineHeight: 1.6,
-                background: BG, color: TXT,
-                border: `1px solid ${BORD}`,
-                boxShadow: "0 1px 4px rgba(0,0,0,.06)",
-              }}>
-                Please select from the options below:
-              </div>
-              <div style={{ fontSize: 10, color: MUTED, marginTop: 3, paddingLeft: 3 }}>
-                {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              <div style={{ fontSize: 10, color: MUTED, marginTop: 3, paddingLeft: m.from === "bot" ? 3 : 0, paddingRight: m.from === "user" ? 3 : 0 }}>
+                {m.time}
               </div>
             </div>
-          </div>
-
-          {/* Quick reply options (sf-opts) */}
-          <div style={{
-            padding: "10px 14px 12px", background: BG2,
-            borderTop: `1px solid ${BORD}`,
-            display: "flex", flexDirection: "column", gap: 6, flexShrink: 0,
-            maxHeight: 210, overflowY: "auto",
-          }}>
-            {mainMenu.map((opt) => (
-              <button key={opt} style={{
-                width: "100%", padding: "10px 14px", borderRadius: 10,
-                border: `1.5px solid ${color}`,
-                background: "transparent", color: color,
-                fontSize: 13.5, fontWeight: 500, cursor: "pointer",
-                textAlign: "left", lineHeight: 1.3,
-              }}>
-                {opt}
-              </button>
-            ))}
-          </div>
-
-          {/* Footer (sf-foot) */}
-          <div style={{
-            padding: "10px 12px", borderTop: `1px solid ${BORD}`,
-            display: "flex", gap: 8, alignItems: "flex-end",
-            background: BG, flexShrink: 0,
-          }}>
-            <textarea rows={1} placeholder="Type a message…" style={{
-              flex: 1, border: `1.5px solid ${BORD}`, borderRadius: 22,
-              padding: "10px 16px", fontSize: 13, outline: "none",
-              background: BG2, color: TXT, resize: "none", maxHeight: 90, lineHeight: 1.4,
-            }} />
-            <button style={{
-              width: 38, height: 38, flexShrink: 0, borderRadius: "50%",
-              background: color, border: "none", cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, fill: "white" }}>
-                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-              </svg>
-            </button>
-          </div>
-        </>
+          ))}
+          {/* Typing indicator */}
+          {typing && (
+            <div style={{ display: "flex" }}>
+              <div style={{ padding: "10px 14px", borderRadius: "18px 18px 18px 4px", background: BG, border: `1px solid ${BORD}`, display: "flex", gap: 4, alignItems: "center" }}>
+                {[0, 1, 2].map((d) => (
+                  <span key={d} style={{ width: 6, height: 6, borderRadius: "50%", background: MUTED, display: "inline-block", animation: `sfb 1.2s ${d * 0.2}s infinite ease-in-out` }} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
-      {/* Powered by footer */}
+      {/* ── Quick reply buttons ── */}
+      {qrs.length > 0 && !typing && (
+        <div style={{ padding: "8px 12px 10px", background: BG2, borderTop: `1px solid ${BORD}`, display: "flex", flexDirection: "column", gap: 5, flexShrink: 0, maxHeight: 200, overflowY: "auto" }}>
+          {qrs.map((opt) => (
+            <button
+              key={opt}
+              onClick={() => send(opt)}
+              style={{ width: "100%", padding: "9px 13px", borderRadius: 10, border: `1.5px solid ${color}`, background: "transparent", color: color, fontSize: 13, fontWeight: 500, cursor: "pointer", textAlign: "left", lineHeight: 1.3 }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = color + "14")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Text input footer ── */}
+      <div style={{ padding: "10px 12px", borderTop: `1px solid ${BORD}`, display: "flex", gap: 8, alignItems: "flex-end", background: BG, flexShrink: 0 }}>
+        <textarea
+          ref={inputRef}
+          rows={1}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
+          placeholder={typing ? "Bot is typing…" : "Type a message… (Enter to send)"}
+          disabled={typing}
+          style={{ flex: 1, border: `1.5px solid ${BORD}`, borderRadius: 22, padding: "9px 14px", fontSize: 13, outline: "none", background: BG2, color: TXT, resize: "none", maxHeight: 80, lineHeight: 1.4, fontFamily: "inherit", opacity: typing ? 0.55 : 1 }}
+        />
+        <button
+          onClick={() => send(input)}
+          disabled={typing || !input.trim()}
+          style={{ width: 38, height: 38, flexShrink: 0, borderRadius: "50%", background: (!typing && input.trim()) ? color : BORD, border: "none", cursor: (!typing && input.trim()) ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.2s" }}>
+          <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, fill: "white" }}>
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+          </svg>
+        </button>
+      </div>
+
       <div style={{ textAlign: "center", fontSize: 10, color: MUTED, padding: "4px 0 6px" }}>
         Powered by <span style={{ color }}>SupportFlow</span>
       </div>
+
+      <style>{`
+        @keyframes sfb {
+          0%,80%,100% { transform:translateY(0); opacity:.45; }
+          40% { transform:translateY(-5px); opacity:1; }
+        }
+      `}</style>
     </div>
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+// ── Main page ──────────────────────────────────────────────────────────────────
 export default function WidgetBuilderPage() {
   const qc = useQueryClient();
-  const [copied, setCopied] = useState(false);
-  const [previewScreen, setPreviewScreen] = useState<"form" | "chat">("chat");
+  const [copied, setCopied]           = useState(false);
   const [expandedFlow, setExpandedFlow] = useState<string | null>(null);
-  const [settings, setSettings] = useState({
+  const [settings, setSettings]       = useState({
     theme: "LIGHT" as "LIGHT" | "DARK",
     primaryColor: "#6366f1",
     position: "BOTTOM_RIGHT" as "BOTTOM_RIGHT" | "BOTTOM_LEFT",
@@ -367,7 +415,7 @@ export default function WidgetBuilderPage() {
   });
 
   const widgetKey = apiKeys?.[0]?.key || "YOUR_API_KEY";
-  const appUrl = typeof window !== "undefined" ? window.location.origin : "https://your-domain.com";
+  const appUrl    = typeof window !== "undefined" ? window.location.origin : "https://your-domain.com";
 
   const snippetCode = `<!-- SupportFlow Widget -->
 <script>
@@ -392,11 +440,11 @@ export default function WidgetBuilderPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Widget Builder</h1>
-        <p className="text-gray-500 text-sm mt-1">Customize, preview and deploy your chat widget</p>
+        <p className="text-gray-500 text-sm mt-1">Customize your chat widget and test the chatbot flow live</p>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-        {/* ── Left: Settings Tabs ──────────────────────────────────────────── */}
+        {/* ── Left: Settings Tabs ─────────────────────────────────────────── */}
         <div className="xl:col-span-3 space-y-4">
           <Tabs defaultValue="appearance">
             <TabsList className="grid grid-cols-4 w-full">
@@ -410,7 +458,6 @@ export default function WidgetBuilderPage() {
             <TabsContent value="appearance" className="space-y-4 mt-4">
               <Card className="border-0 shadow-sm">
                 <CardContent className="p-4 space-y-5">
-                  {/* Theme */}
                   <div>
                     <label className="text-sm font-medium">Theme</label>
                     <div className="flex gap-3 mt-2">
@@ -427,7 +474,6 @@ export default function WidgetBuilderPage() {
                     </div>
                   </div>
 
-                  {/* Primary Color */}
                   <div>
                     <label className="text-sm font-medium">Primary Color</label>
                     <div className="flex items-center gap-3 mt-2 flex-wrap">
@@ -447,7 +493,6 @@ export default function WidgetBuilderPage() {
                     </div>
                   </div>
 
-                  {/* Position */}
                   <div>
                     <label className="text-sm font-medium">Widget Position</label>
                     <div className="flex gap-3 mt-2">
@@ -464,7 +509,6 @@ export default function WidgetBuilderPage() {
                     </div>
                   </div>
 
-                  {/* Show Avatar toggle */}
                   <div className="flex items-center justify-between pt-1">
                     <div>
                       <p className="text-sm font-medium">Show Agent Avatar</p>
@@ -504,25 +548,23 @@ export default function WidgetBuilderPage() {
             {/* ── Chat Flow ── */}
             <TabsContent value="flow" className="mt-4">
               <div className="space-y-4">
-                {/* Start node */}
                 <div className="flex flex-col items-center gap-0">
                   <div className="bg-indigo-600 text-white rounded-2xl px-6 py-3 text-sm font-semibold shadow-md w-full max-w-sm text-center">
                     🟢 Chat Starts
-                    <p className="text-indigo-200 text-xs font-normal mt-0.5">Visitor fills name + phone</p>
+                    <p className="text-indigo-200 text-xs font-normal mt-0.5">Visitor opens widget</p>
                   </div>
                   <div className="w-0.5 h-5 bg-gray-300" />
                   <div className="bg-gray-100 border border-gray-200 rounded-2xl px-6 py-3 text-sm font-medium shadow-sm w-full max-w-sm text-center text-gray-700">
-                    👋 {settings.welcomeMessage}
+                    👋 Welcome to Ashok Leyland!
                     <p className="text-gray-400 text-xs font-normal mt-0.5">Bot welcome message</p>
                   </div>
                   <div className="w-0.5 h-5 bg-gray-300" />
                   <div className="bg-white border-2 border-indigo-200 rounded-2xl px-6 py-3 text-sm font-semibold shadow-sm w-full max-w-sm text-center text-indigo-700">
-                    📋 Main Menu — Choose an option
+                    📋 Main Menu — 10 options
                   </div>
                   <div className="w-0.5 h-5 bg-gray-300" />
                 </div>
 
-                {/* Flow cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {FLOWS.map((flow) => {
                     const isOpen = expandedFlow === flow.key;
@@ -532,26 +574,20 @@ export default function WidgetBuilderPage() {
                       <div key={flow.key}
                         className="rounded-2xl border overflow-hidden shadow-sm transition-shadow hover:shadow-md"
                         style={{ borderColor: flow.color + "44" }}>
-                        {/* Card header */}
                         <button
                           onClick={() => setExpandedFlow(isOpen ? null : flow.key)}
                           className="w-full flex items-center justify-between p-3 text-left transition-colors"
                           style={{ backgroundColor: flow.bg }}>
-                          <span className="font-semibold text-sm" style={{ color: flow.color }}>
-                            {flow.label}
-                          </span>
+                          <span className="font-semibold text-sm" style={{ color: flow.color }}>{flow.label}</span>
                           {isOpen
                             ? <ChevronDown className="w-4 h-4 shrink-0" style={{ color: flow.color }} />
                             : <ChevronRight className="w-4 h-4 shrink-0" style={{ color: flow.color }} />}
                         </button>
-
-                        {/* Expanded steps */}
                         {isOpen && (
                           <div className="bg-white p-3 space-y-2 border-t" style={{ borderColor: flow.color + "22" }}>
                             {flow.steps.map((step, i) => (
                               <div key={i} className="flex items-start gap-2">
-                                <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5"
-                                  style={{ backgroundColor: flow.color }}>
+                                <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5" style={{ backgroundColor: flow.color }}>
                                   {i + 1}
                                 </div>
                                 <div className="flex-1">
@@ -559,19 +595,14 @@ export default function WidgetBuilderPage() {
                                   {step.opts.length > 0 && (
                                     <div className="flex flex-wrap gap-1 mt-1">
                                       {step.opts.map((o) => (
-                                        <span key={o} className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
-                                          {o}
-                                        </span>
+                                        <span key={o} className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{o}</span>
                                       ))}
                                     </div>
                                   )}
-                                  {step.input && (
-                                    <span className="text-[10px] text-gray-400 italic">✏️ Free text input</span>
-                                  )}
+                                  {step.input && <span className="text-[10px] text-gray-400 italic">✏️ Free text input</span>}
                                 </div>
                               </div>
                             ))}
-                            {/* Outcome */}
                             <div className={`flex items-center gap-1.5 mt-2 pt-2 border-t text-xs font-semibold px-2 py-1 rounded-lg ${outcome.color} border`}>
                               <OutcomeIcon className="w-3.5 h-3.5" />
                               {outcome.label}
@@ -584,7 +615,7 @@ export default function WidgetBuilderPage() {
                 </div>
 
                 <p className="text-xs text-gray-400 text-center pt-2">
-                  Click any flow card to see its steps • Flow logic is in <code className="bg-gray-100 px-1 rounded">src/lib/chatbot-flow.ts</code>
+                  Click any flow to see steps · Test the full flow in the Live Preview →
                 </p>
               </div>
             </TabsContent>
@@ -625,36 +656,30 @@ export default function WidgetBuilderPage() {
           </Button>
         </div>
 
-        {/* ── Right: Pixel-perfect widget preview ─────────────────────────── */}
+        {/* ── Right: Live Chatbot Flow Preview ──────────────────────────────── */}
         <div className="xl:col-span-2">
           <div className="sticky top-4 space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold flex items-center gap-1.5">
-                <Eye className="w-4 h-4 text-indigo-500" /> Live Preview
+                <Eye className="w-4 h-4 text-indigo-500" />
+                Live Chatbot Preview
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full leading-none ml-1">
+                  ● LIVE
+                </span>
               </p>
-              {/* Screen toggle */}
-              <div className="flex bg-gray-100 rounded-lg p-0.5 text-xs">
-                <button onClick={() => setPreviewScreen("form")}
-                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${previewScreen === "form" ? "bg-white shadow text-gray-800" : "text-gray-500"}`}>
-                  Visitor Form
-                </button>
-                <button onClick={() => setPreviewScreen("chat")}
-                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${previewScreen === "chat" ? "bg-white shadow text-gray-800" : "text-gray-500"}`}>
-                  Chat View
-                </button>
-              </div>
+              <span className="text-[11px] text-gray-400 flex items-center gap-1">
+                <RotateCcw className="w-3 h-3" /> Click Restart to reset
+              </span>
             </div>
 
-            <WidgetPreview
+            <ChatbotFlowPreview
               color={settings.primaryColor}
               theme={settings.theme}
-              welcomeMessage={settings.welcomeMessage}
-              companyName={companyData?.name || "Support"}
-              screen={previewScreen}
+              companyName={companyData?.name || "Ashok Leyland"}
             />
 
             <p className="text-center text-xs text-gray-400">
-              Preview matches your live widget exactly
+              This is the real chatbot flow · Click buttons or type to navigate · No DB entries created
             </p>
           </div>
         </div>

@@ -90,11 +90,11 @@ function reset(col: Record<string, string>): SessionData {
   return { flow: "INITIAL", step: "", collected: col };
 }
 
-function mainMenu(): BotResponse {
+function mainMenu(col: Record<string, string> = {}): BotResponse {
   return {
     messages: ["👋 Welcome to Ashok Leyland!\n\nHow can we help you today? Please select an option:"],
     quickReplies: MAIN_MENU,
-    sessionData: { flow: "INITIAL", step: "", collected: {} },
+    sessionData: { flow: "INITIAL", step: "", collected: col },
     action: "NONE",
   };
 }
@@ -184,22 +184,93 @@ export function processFlow(input: string, session: SessionData): BotResponse {
   const s   = session;
   const col = { ...s.collected };
 
-  if (match(inp, "Main Menu") || match(inp, "Start Over") || match(inp, "Go Back")) return mainMenu();
+  if (match(inp, "Main Menu") || match(inp, "Start Over") || match(inp, "Go Back")) return mainMenu(col);
+
+  // ── IDENTIFY (first-time visitor: collect name then phone conversationally) ─
+  if (s.flow === "IDENTIFY") {
+    if (s.step === "ask_name") {
+      if (!inp || inp.length < 2) {
+        return { messages: ["Please enter your name (at least 2 characters):"], quickReplies: [], sessionData: { flow: "IDENTIFY", step: "ask_name", collected: col }, action: "NONE" };
+      }
+      col.name = inp;
+      return { messages: [`Nice to meet you, ${col.name}! 😊\n\nCould you share your mobile number?`], quickReplies: [], sessionData: { flow: "IDENTIFY", step: "ask_phone", collected: col }, action: "NONE" };
+    }
+    if (s.step === "ask_phone") {
+      if (!isPhone(inp)) {
+        return { messages: ["⚠️ Please enter a valid 10-digit mobile number:"], quickReplies: [], sessionData: { flow: "IDENTIFY", step: "ask_phone", collected: col }, action: "NONE" };
+      }
+      col.phone = inp;
+      return {
+        messages: [`Thank you, ${col.name}! ✅`, `🚛 Welcome to Ashok Leyland!\n\nHow can I help you today?`],
+        quickReplies: MAIN_MENU,
+        sessionData: { flow: "INITIAL", step: "", collected: col },
+        action: "NONE",
+      };
+    }
+  }
 
   // ── INITIAL ────────────────────────────────────────────────────────────────
   if (!s.flow || s.flow === "INITIAL" || !s.step) {
-    if (inp === "__INIT__") return mainMenu();
-    if (match(inp, "Find a Vehicle"))    return ask("FIND_VEHICLE",  "ask_type",         col, "What type of vehicle are you looking for?", VEHICLE_TYPES);
-    if (match(inp, "On-Road Price"))     return ask("ON_ROAD_PRICE", "ask_vehicle",       col, "Which Ashok Leyland vehicle?", AL_VEHICLES);
-    if (match(inp, "Download Brochure")) return ask("BROCHURE",      "ask_vehicle",       col, "Which vehicle brochure would you like?", AL_VEHICLES);
-    if (match(inp, "Book Test Drive"))   return ask("TEST_DRIVE",    "ask_vehicle",       col, "Which vehicle for the test drive?", AL_VEHICLES);
-    if (match(inp, "Service"))           return ask("SERVICE",       "ask_service_type",  col, "How can we help with service?", SERVICE_OPTIONS);
-    if (match(inp, "Spare Parts"))       return ask("SPARE_PARTS",   "ask_vehicle",       col, "Which vehicle do you need parts for?", AL_VEHICLES);
-    if (match(inp, "Finance"))           return ask("FINANCE_EMI",   "ask_vehicle",       col, "Which vehicle are you financing?", AL_VEHICLES);
-    if (match(inp, "Find Dealer"))       return ask("FIND_DEALER",   "ask_city",          col, "📍 Which city are you in?", CITIES);
-    if (match(inp, "Request Callback") || match(inp, "Callback")) return ask("CALLBACK", "ask_name", col, "Sure! May I have your name?", []);
-    if (match(inp, "Chat with Agent"))   return ask("CHAT_AGENT",    "ask_category",      col, "How can our agent help you?", AGENT_CATEGORIES);
-    return mainMenu();
+    if (inp === "__INIT__") {
+      if (!col.name) {
+        // First-time: start conversational identify flow
+        return {
+          messages: ["👋 Hi! Welcome to Ashok Leyland!\n\nI'm Lexi, your virtual assistant. May I know your name?"],
+          quickReplies: [],
+          sessionData: { flow: "IDENTIFY", step: "ask_name", collected: col },
+          action: "NONE",
+        };
+      }
+      // Returning visitor — personalised welcome
+      return {
+        messages: [`👋 Welcome back, ${col.name}!\n\nHow can I help you today?`],
+        quickReplies: MAIN_MENU,
+        sessionData: { flow: "INITIAL", step: "", collected: col },
+        action: "NONE",
+      };
+    }
+    if (match(inp, "Find a Vehicle") || match(inp, "find vehicle") || match(inp, "looking for") || match(inp, "i want") || match(inp, "i need") || match(inp, "want to buy") || match(inp, "purchase")) {
+      // If they mentioned a specific vehicle, pre-fill it
+      const mentioned = AL_VEHICLES.find(v => inp.toLowerCase().includes(v.toLowerCase()));
+      if (mentioned) {
+        col.vehicle = mentioned;
+        return ask("ON_ROAD_PRICE", "ask_variant", col, `Great choice! Which variant of ${mentioned}?`, ["Base", "Standard", "Plus", "Premium", "Not Sure"]);
+      }
+      return ask("FIND_VEHICLE", "ask_type", col, "What type of vehicle are you looking for?", VEHICLE_TYPES);
+    }
+    if (match(inp, "On-Road Price") || match(inp, "price") || match(inp, "cost") || match(inp, "how much") || match(inp, "rate")) {
+      const mentioned = AL_VEHICLES.find(v => inp.toLowerCase().includes(v.toLowerCase()));
+      if (mentioned) { col.vehicle = mentioned; return ask("ON_ROAD_PRICE", "ask_variant", col, `Which variant of ${mentioned}?`, ["Base", "Standard", "Plus", "Premium", "Not Sure"]); }
+      return ask("ON_ROAD_PRICE", "ask_vehicle", col, "Which Ashok Leyland vehicle?", AL_VEHICLES);
+    }
+    if (match(inp, "Download Brochure") || match(inp, "brochure") || match(inp, "catalogue") || match(inp, "catalog")) {
+      const mentioned = AL_VEHICLES.find(v => inp.toLowerCase().includes(v.toLowerCase()));
+      if (mentioned) { col.vehicle = mentioned; }
+      return ask("BROCHURE", col.vehicle ? (col.name && col.phone ? "ask_email" : col.name ? "ask_phone" : "ask_name") : "ask_vehicle", col, col.vehicle ? (col.name && col.phone ? "Your email address:" : col.name ? "Your mobile number:" : "Your name:") : "Which vehicle brochure?", col.vehicle ? [] : AL_VEHICLES);
+    }
+    if (match(inp, "Book Test Drive") || match(inp, "test drive") || match(inp, "test ride") || match(inp, "test")) {
+      const mentioned = AL_VEHICLES.find(v => inp.toLowerCase().includes(v.toLowerCase()));
+      if (mentioned) { col.vehicle = mentioned; return ask("TEST_DRIVE", "ask_dealer", col, "Select your preferred dealer city:", CITIES); }
+      return ask("TEST_DRIVE", "ask_vehicle", col, "Which vehicle for the test drive?", AL_VEHICLES);
+    }
+    if (match(inp, "Service") || match(inp, "repair") || match(inp, "maintenance") || match(inp, "breakdown") || match(inp, "servic")) return ask("SERVICE", "ask_service_type", col, "How can we help with service?", SERVICE_OPTIONS);
+    if (match(inp, "Spare Parts") || match(inp, "spare") || match(inp, "parts") || match(inp, "spares"))  return ask("SPARE_PARTS", "ask_vehicle", col, "Which vehicle do you need parts for?", AL_VEHICLES);
+    if (match(inp, "Finance") || match(inp, "emi") || match(inp, "loan") || match(inp, "finance"))       return ask("FINANCE_EMI", "ask_vehicle", col, "Which vehicle are you financing?", AL_VEHICLES);
+    if (match(inp, "Find Dealer") || match(inp, "dealer") || match(inp, "showroom") || match(inp, "location")) return ask("FIND_DEALER", "ask_city", col, "📍 Which city are you in?", CITIES);
+    if (match(inp, "Request Callback") || match(inp, "Callback") || match(inp, "call me") || match(inp, "call back")) {
+      if (col.name && col.phone) return ask("CALLBACK", "ask_time", col, `${col.name}, when's the best time for us to call you?`, [...TIMES, "Anytime"]);
+      return ask("CALLBACK", "ask_name", col, "Sure! May I have your name?", []);
+    }
+    if (match(inp, "Chat with Agent") || match(inp, "agent") || match(inp, "human") || match(inp, "talk to") || match(inp, "speak")) return ask("CHAT_AGENT", "ask_category", col, "How can our agent help you?", AGENT_CATEGORIES);
+
+    // Check if user typed a vehicle name directly
+    const directVehicle = AL_VEHICLES.find(v => inp.toLowerCase().includes(v.toLowerCase()));
+    if (directVehicle) {
+      col.vehicle = directVehicle;
+      return ask("ON_ROAD_PRICE", "ask_variant", col, `Great! Which variant of ${directVehicle} are you interested in?`, ["Base", "Standard", "Plus", "Premium", "Not Sure"]);
+    }
+
+    return mainMenu(col);
   }
 
   // ── FIND VEHICLE ───────────────────────────────────────────────────────────
@@ -217,7 +288,7 @@ export function processFlow(input: string, session: SessionData): BotResponse {
       };
     }
     if (s.step === "after_rec") {
-      if (match(inp, "Download Brochure")) return ask("BROCHURE", "ask_name", col, "Please share your name for the brochure:", []);
+      if (match(inp, "Download Brochure")) return ask("BROCHURE", col.name ? (col.phone ? "ask_email" : "ask_phone") : "ask_name", col, col.name ? (col.phone ? "Your email:" : "Your mobile number:") : "Please share your name:", []);
       if (match(inp, "Get Quote"))         return ask("ON_ROAD_PRICE", "ask_variant", col, "Which variant? (Base / Standard / Plus / Premium)", ["Base", "Standard", "Plus", "Premium"]);
       if (match(inp, "Book Test Drive"))   return ask("TEST_DRIVE", "ask_dealer", col, "Select your preferred dealer city:", CITIES);
       if (match(inp, "Finance"))           return ask("FINANCE_EMI", "ask_price", col, "What is the vehicle price? (in Lakhs, e.g. 9 for ₹9L)", []);
@@ -239,7 +310,7 @@ export function processFlow(input: string, session: SessionData): BotResponse {
       };
     }
     if (s.step === "after_price") {
-      if (match(inp, "Download Brochure")) return ask("BROCHURE", "ask_name", col, "Please share your name:", []);
+      if (match(inp, "Download Brochure")) return ask("BROCHURE", col.name ? (col.phone ? "ask_email" : "ask_phone") : "ask_name", col, col.name ? (col.phone ? "Your email:" : "Your mobile number:") : "Please share your name:", []);
       if (match(inp, "Book Test Drive"))   return ask("TEST_DRIVE", "ask_dealer", col, "Select preferred dealer city:", CITIES);
       if (match(inp, "Chat with Agent"))   return escalate(col, `Pricing: ${col.vehicle}`);
     }
@@ -247,8 +318,17 @@ export function processFlow(input: string, session: SessionData): BotResponse {
 
   // ── DOWNLOAD BROCHURE ──────────────────────────────────────────────────────
   if (s.flow === "BROCHURE") {
-    if (s.step === "ask_vehicle") { col.vehicle = inp; return ask("BROCHURE", "ask_name",  col, "Your name:", []); }
-    if (s.step === "ask_name")    { col.name = inp;    return ask("BROCHURE", "ask_phone", col, "Your mobile number:", []); }
+    if (s.step === "ask_vehicle") {
+      col.vehicle = inp;
+      if (col.name && col.phone) return ask("BROCHURE", "ask_email", col, "Your email address:", []);
+      if (col.name)              return ask("BROCHURE", "ask_phone", col, "Your mobile number:", []);
+      return ask("BROCHURE", "ask_name", col, "Your name:", []);
+    }
+    if (s.step === "ask_name") {
+      col.name = inp;
+      if (col.phone) return ask("BROCHURE", "ask_email", col, "Your email address:", []);
+      return ask("BROCHURE", "ask_phone", col, "Your mobile number:", []);
+    }
     if (s.step === "ask_phone") {
       if (!isPhone(inp)) return ask("BROCHURE", "ask_phone", col, "⚠️ Please enter a valid 10-digit mobile number:", []);
       col.phone = inp;  return ask("BROCHURE", "ask_email", col, "Your email address:", []);
@@ -271,8 +351,17 @@ export function processFlow(input: string, session: SessionData): BotResponse {
     if (s.step === "ask_vehicle") { col.vehicle = inp; return ask("TEST_DRIVE", "ask_dealer", col, "Select your preferred dealer city:", CITIES); }
     if (s.step === "ask_dealer")  { col.dealerCity = inp; return ask("TEST_DRIVE", "ask_date", col, "Preferred date?", DATES); }
     if (s.step === "ask_date")    { col.date = inp;       return ask("TEST_DRIVE", "ask_time", col, "Preferred time slot?", TIMES); }
-    if (s.step === "ask_time")    { col.time = inp;       return ask("TEST_DRIVE", "ask_name", col, "Your name:", []); }
-    if (s.step === "ask_name")    { col.name = inp;       return ask("TEST_DRIVE", "ask_phone", col, "Your mobile number:", []); }
+    if (s.step === "ask_time") {
+      col.time = inp;
+      if (col.name && col.phone) return ask("TEST_DRIVE", "ask_email", col, "Your email address:", []);
+      if (col.name)              return ask("TEST_DRIVE", "ask_phone", col, "Your mobile number:", []);
+      return ask("TEST_DRIVE", "ask_name", col, "Your name:", []);
+    }
+    if (s.step === "ask_name") {
+      col.name = inp;
+      if (col.phone) return ask("TEST_DRIVE", "ask_email", col, "Your email address:", []);
+      return ask("TEST_DRIVE", "ask_phone", col, "Your mobile number:", []);
+    }
     if (s.step === "ask_phone") {
       if (!isPhone(inp)) return ask("TEST_DRIVE", "ask_phone", col, "⚠️ Please enter a valid 10-digit mobile number:", []);
       col.phone = inp;  return ask("TEST_DRIVE", "ask_email", col, "Your email address:", []);
@@ -331,9 +420,34 @@ export function processFlow(input: string, session: SessionData): BotResponse {
 
   // ── SPARE PARTS ────────────────────────────────────────────────────────────
   if (s.flow === "SPARE_PARTS") {
-    if (s.step === "ask_vehicle")  { col.vehicle = inp;      return ask("SPARE_PARTS", "ask_category", col, "Select part category:", PART_CATEGORIES); }
-    if (s.step === "ask_category") { col.partCategory = inp; return ask("SPARE_PARTS", "ask_name",     col, "Your name:", []); }
-    if (s.step === "ask_name")     { col.name = inp;         return ask("SPARE_PARTS", "ask_phone",    col, "Your mobile number:", []); }
+    if (s.step === "ask_vehicle") { col.vehicle = inp; return ask("SPARE_PARTS", "ask_category", col, "Select part category:", PART_CATEGORIES); }
+    if (s.step === "ask_category") {
+      col.partCategory = inp;
+      if (col.name && col.phone) {
+        return {
+          messages: [`✅ Spare Parts Enquiry Submitted!\n\n👤 ${col.name}\n📞 ${col.phone}\n🚛 ${col.vehicle}\n🔩 ${col.partCategory}\n\nOur parts team will contact you within 4 hours. 🙏`],
+          quickReplies: ["🛠️ Book Service", "💬 Chat with Agent", "🔙 Main Menu"],
+          sessionData: reset(col),
+          action: "CREATE_LEAD",
+          leadData: { ...col, type: "SPARE_PARTS", score: "55" },
+        };
+      }
+      if (col.name) return ask("SPARE_PARTS", "ask_phone", col, "Your mobile number:", []);
+      return ask("SPARE_PARTS", "ask_name", col, "Your name:", []);
+    }
+    if (s.step === "ask_name") {
+      col.name = inp;
+      if (col.phone) {
+        return {
+          messages: [`✅ Spare Parts Enquiry Submitted!\n\n👤 ${col.name}\n📞 ${col.phone}\n🚛 ${col.vehicle}\n🔩 ${col.partCategory}\n\nOur parts team will contact you within 4 hours. 🙏`],
+          quickReplies: ["🛠️ Book Service", "💬 Chat with Agent", "🔙 Main Menu"],
+          sessionData: reset(col),
+          action: "CREATE_LEAD",
+          leadData: { ...col, type: "SPARE_PARTS", score: "55" },
+        };
+      }
+      return ask("SPARE_PARTS", "ask_phone", col, "Your mobile number:", []);
+    }
     if (s.step === "ask_phone") {
       if (!isPhone(inp)) return ask("SPARE_PARTS", "ask_phone", col, "⚠️ Please enter a valid mobile number:", []);
       col.phone = inp;
@@ -394,7 +508,11 @@ export function processFlow(input: string, session: SessionData): BotResponse {
 
   // ── REQUEST CALLBACK ───────────────────────────────────────────────────────
   if (s.flow === "CALLBACK") {
-    if (s.step === "ask_name")  { col.name = inp; return ask("CALLBACK", "ask_phone", col, "Your mobile number:", []); }
+    if (s.step === "ask_name") {
+      col.name = inp;
+      if (col.phone) return ask("CALLBACK", "ask_time", col, "Preferred callback time:", [...TIMES, "Anytime"]);
+      return ask("CALLBACK", "ask_phone", col, "Your mobile number:", []);
+    }
     if (s.step === "ask_phone") {
       if (!isPhone(inp)) return ask("CALLBACK", "ask_phone", col, "⚠️ Please enter a valid 10-digit mobile number:", []);
       col.phone = inp;  return ask("CALLBACK", "ask_time", col, "Preferred callback time:", [...TIMES, "Anytime"]);
@@ -413,20 +531,25 @@ export function processFlow(input: string, session: SessionData): BotResponse {
 
   // ── CHAT WITH AGENT ────────────────────────────────────────────────────────
   if (s.flow === "CHAT_AGENT") {
-    if (s.step === "ask_category") { col.category = inp; return ask("CHAT_AGENT", "ask_name",  col, "Your name:", []); }
-    if (s.step === "ask_name")     { col.name = inp;     return ask("CHAT_AGENT", "ask_phone", col, "Your mobile number:", []); }
+    if (s.step === "ask_category") {
+      col.category = inp;
+      // If name+phone already collected via IDENTIFY, skip straight to city
+      if (col.name && col.phone) return ask("CHAT_AGENT", "ask_city", col, "Which city are you in?", CITIES);
+      if (col.name)              return ask("CHAT_AGENT", "ask_phone", col, "Your mobile number:", []);
+      return ask("CHAT_AGENT", "ask_name", col, "Your name:", []);
+    }
+    if (s.step === "ask_name") {
+      col.name = inp;
+      if (col.phone) return ask("CHAT_AGENT", "ask_city", col, "Your city:", CITIES);
+      return ask("CHAT_AGENT", "ask_phone", col, "Your mobile number:", []);
+    }
     if (s.step === "ask_phone") {
       if (!isPhone(inp)) return ask("CHAT_AGENT", "ask_phone", col, "⚠️ Please enter a valid mobile number:", []);
-      col.phone = inp;  return ask("CHAT_AGENT", "ask_email", col, "Your email address:", []);
+      col.phone = inp;
+      return ask("CHAT_AGENT", "ask_city", col, "Your city:", CITIES);
     }
-    if (s.step === "ask_email") { col.email = inp; return ask("CHAT_AGENT", "ask_city", col, "Your city:", CITIES); }
-    if (s.step === "ask_city")  { col.city = inp;  return escalate(col, col.category); }
+    if (s.step === "ask_city") { col.city = inp; return escalate(col, col.category); }
   }
 
-  return {
-    messages: ["I didn't quite get that. 😊\n\nPlease select an option:"],
-    quickReplies: MAIN_MENU,
-    sessionData: { flow: "INITIAL", step: "", collected: col },
-    action: "NONE",
-  };
+  return mainMenu(col);
 }
