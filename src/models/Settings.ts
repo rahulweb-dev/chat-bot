@@ -152,7 +152,6 @@ const SettingsSchema = new Schema<ISettings>(
   { timestamps: true }
 );
 
-SettingsSchema.index({ companyId: 1 });
 
 const Settings: Model<ISettings> = mongoose.models.Settings || mongoose.model<ISettings>("Settings", SettingsSchema);
 export default Settings;

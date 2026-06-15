@@ -115,8 +115,6 @@ const CompanySchema = new Schema<ICompany>(
   { timestamps: true }
 );
 
-CompanySchema.index({ slug: 1 });
-CompanySchema.index({ apiKey: 1 });
 CompanySchema.index({ isActive: 1 });
 
 const Company: Model<ICompany> = mongoose.models.Company || mongoose.model<ICompany>("Company", CompanySchema);
