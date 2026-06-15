@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Automobile Dealership — Knowledge Base Document</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #1a1a1a; background: #f5f5f5; padding: 20px; }
+  .page { background: white; max-width: 800px; margin: 0 auto; padding: 48px; box-shadow: 0 4px 24px rgba(0,0,0,.1); }
+  h1 { font-size: 22px; color: #1e3a5f; border-bottom: 3px solid #6366f1; padding-bottom: 12px; margin-bottom: 20px; }
+  h2 { font-size: 15px; color: #6366f1; margin-top: 24px; margin-bottom: 8px; background: #f0f0ff; padding: 6px 10px; border-left: 4px solid #6366f1; }
+  h3 { font-size: 13px; color: #333; margin-top: 14px; margin-bottom: 5px; font-weight: bold; }
+  p, li { font-size: 12px; line-height: 1.7; color: #333; }
+  ul, ol { padding-left: 20px; }
+  li { margin-bottom: 3px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; }
+  th { background: #6366f1; color: white; padding: 7px 10px; text-align: left; }
+  td { border: 1px solid #ddd; padding: 6px 10px; }
+  tr:nth-child(even) td { background: #f9f9ff; }
+  .badge { display: inline-block; background: #e0e7ff; color: #6366f1; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: bold; }
+  .note { background: #fff7ed; border-left: 4px solid #f59e0b; padding: 8px 12px; margin: 10px 0; font-size: 11px; }
+  .print-btn { display: block; margin: 20px auto; padding: 12px 32px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+  .print-btn:hover { background: #4f46e5; }
+  @media print {
+    body { background: white; padding: 0; }
+    .page { box-shadow: none; padding: 20px; }
+    .print-btn { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+
+  <h1>🚗 Automobile Dealership — Complete Knowledge Base</h1>
+  <p style="color:#888;font-size:11px;margin-bottom:4px;">Document Type: Knowledge Base &nbsp;|&nbsp; Category: Automobile Dealership &nbsp;|&nbsp; Version: 1.0</p>
+  <p style="color:#888;font-size:11px;">This document contains all information required to train the dealership AI chatbot.</p>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <h2>1. COMPANY OVERVIEW</h2>
+  <p><strong>Dealership Name:</strong> AutoPrime Motors Pvt. Ltd.</p>
+  <p><strong>Established:</strong> 2005</p>
+  <p><strong>Authorized For:</strong> Hyundai, Maruti Suzuki, Tata Motors, Kia</p>
+  <p><strong>Tagline:</strong> "Drive Your Dream"</p>
+
+  <h3>Showroom Locations</h3>
+  <table>
+    <tr><th>Branch</th><th>Address</th><th>Phone</th><th>Timings</th></tr>
+    <tr><td>Main Showroom</td><td>Road No. 12, Banjara Hills, Hyderabad – 500034</td><td>040-12345678</td><td>Mon–Sat 9AM–7PM, Sun 10AM–5PM</td></tr>
+    <tr><td>HITEC City Branch</td><td>Plot 45, Gachibowli, HITEC City, Hyderabad – 500081</td><td>040-87654321</td><td>Mon–Sat 9AM–7PM, Sun 10AM–5PM</td></tr>
+    <tr><td>Secunderabad Branch</td><td>S.D. Road, Secunderabad – 500003</td><td>040-11223344</td><td>Mon–Sat 9AM–7PM</td></tr>
+  </table>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <h2>2. VEHICLE MODELS & PRICE LIST (On-Road Hyderabad, 2024–25)</h2>
+
+  <h3>🔹 Hyundai Models</h3>
+  <table>
+    <tr><th>Model</th><th>Category</th><th>Variant</th><th>On-Road Price</th><th>Mileage</th></tr>
+    <tr><td>Hyundai i20</td><td>Hatchback</td><td>Magna MT</td><td>₹9.2L</td><td>20.35 kmpl</td></tr>
+    <tr><td>Hyundai i20</td><td>Hatchback</td><td>Sportz Turbo DCT</td><td>₹12.8L</td><td>20 kmpl</td></tr>
+    <tr><td>Hyundai Verna</td><td>Sedan</td><td>EX MT</td><td>₹12.5L</td><td>21.9 kmpl</td></tr>
+    <tr><td>Hyundai Verna</td><td>Sedan</td><td>SX Turbo IVT</td><td>₹18.9L</td><td>20 kmpl</td></tr>
+    <tr><td>Hyundai Creta</td><td>SUV</td><td>E MT</td><td>₹12.1L</td><td>17.4 kmpl</td></tr>
+    <tr><td>Hyundai Creta</td><td>SUV</td><td>SX(O) Turbo DCT</td><td>₹23.5L</td><td>16.8 kmpl</td></tr>
+    <tr><td>Hyundai Ioniq 5</td><td>Electric</td><td>Standard Range</td><td>₹47.1L</td><td>385 km range</td></tr>
+    <tr><td>Hyundai Ioniq 5</td><td>Electric</td><td>Long Range</td><td>₹53.5L</td><td>631 km range</td></tr>
+  </table>
+
+  <h3>🔹 Maruti Suzuki Models</h3>
+  <table>
+    <tr><th>Model</th><th>Category</th><th>Variant</th><th>On-Road Price</th><th>Mileage</th></tr>
+    <tr><td>Maruti Swift</td><td>Hatchback</td><td>LXi MT</td><td>₹6.9L</td><td>24.8 kmpl</td></tr>
+    <tr><td>Maruti Swift</td><td>Hatchback</td><td>ZXi+ AMT</td><td>₹9.8L</td><td>25.7 kmpl</td></tr>
+    <tr><td>Maruti WagonR</td><td>Hatchback</td><td>LXi 1.0</td><td>₹6.2L</td><td>24.4 kmpl</td></tr>
+    <tr><td>Maruti Brezza</td><td>SUV</td><td>LXi MT</td><td>₹9.3L</td><td>19.8 kmpl</td></tr>
+    <tr><td>Maruti Brezza</td><td>SUV</td><td>ZXi+ AMT</td><td>₹14.9L</td><td>19.8 kmpl</td></tr>
+    <tr><td>Maruti Ciaz</td><td>Sedan</td><td>Sigma MT</td><td>₹10.5L</td><td>20.6 kmpl</td></tr>
+  </table>
+
+  <h3>🔹 Tata Motors Models</h3>
+  <table>
+    <tr><th>Model</th><th>Category</th><th>Variant</th><th>On-Road Price</th><th>Mileage</th></tr>
+    <tr><td>Tata Tiago</td><td>Hatchback</td><td>XE MT</td><td>₹5.8L</td><td>23.84 kmpl</td></tr>
+    <tr><td>Tata Nexon</td><td>SUV</td><td>Smart MT</td><td>₹9.0L</td><td>17.44 kmpl</td></tr>
+    <tr><td>Tata Nexon</td><td>SUV</td><td>Creative Plus AMT</td><td>₹17.5L</td><td>17.44 kmpl</td></tr>
+    <tr><td>Tata Nexon EV</td><td>Electric</td><td>Medium Range</td><td>₹16.2L</td><td>325 km range</td></tr>
+    <tr><td>Tata Nexon EV</td><td>Electric</td><td>Long Range Max</td><td>₹21.8L</td><td>465 km range</td></tr>
+    <tr><td>Tata Punch</td><td>Micro SUV</td><td>Pure MT</td><td>₹7.1L</td><td>18.8 kmpl</td></tr>
+  </table>
+
+  <h3>🔹 Kia Models</h3>
+  <table>
+    <tr><th>Model</th><th>Category</th><th>Variant</th><th>On-Road Price</th><th>Mileage</th></tr>
+    <tr><td>Kia Seltos</td><td>SUV</td><td>HTE MT</td><td>₹11.8L</td><td>18.4 kmpl</td></tr>
+    <tr><td>Kia Seltos</td><td>SUV</td><td>GTX+ DCT</td><td>₹23.1L</td><td>16.5 kmpl</td></tr>
+    <tr><td>Kia Sonet</td><td>Compact SUV</td><td>HTE MT</td><td>₹8.2L</td><td>18.4 kmpl</td></tr>
+    <tr><td>Kia Carens</td><td>MPV</td><td>Premium MT</td><td>₹13.4L</td><td>20.0 kmpl</td></tr>
+  </table>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <h2>3. CURRENT OFFERS & PROMOTIONS (Valid June–September 2025)</h2>
+  <table>
+    <tr><th>Offer Type</th><th>Applicable On</th><th>Benefit</th></tr>
+    <tr><td>Cash Discount</td><td>All Models</td><td>Up to ₹50,000</td></tr>
+    <tr><td>Exchange Bonus</td><td>Any old vehicle trade-in</td><td>Up to ₹30,000</td></tr>
+    <tr><td>Corporate Discount</td><td>IT / Govt employees</td><td>Up to ₹20,000</td></tr>
+    <tr><td>Loyalty Bonus</td><td>Existing customers</td><td>Up to ₹15,000</td></tr>
+    <tr><td>Independence Day Offer</td><td>All vehicles</td><td>Free accessories worth ₹10,000</td></tr>
+    <tr><td>0% Finance Scheme</td><td>Select models</td><td>0% EMI for 12 months (T&C apply)</td></tr>
+    <tr><td>EV Subsidy</td><td>Electric vehicles</td><td>FAME-II subsidy up to ₹1.5L</td></tr>
+  </table>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <h2>4. FINANCE & EMI OPTIONS</h2>
+  <p>We partner with leading banks: <strong>HDFC Bank, ICICI Bank, SBI, Axis Bank, Kotak Mahindra</strong></p>
+
+  <h3>EMI Calculator Reference (8.5% p.a.)</h3>
+  <table>
+    <tr><th>Loan Amount</th><th>24 Months EMI</th><th>36 Months EMI</th><th>60 Months EMI</th><th>84 Months EMI</th></tr>
+    <tr><td>₹3,00,000</td><td>₹13,651</td><td>₹9,499</td><td>₹6,140</td><td>₹4,641</td></tr>
+    <tr><td>₹5,00,000</td><td>₹22,752</td><td>₹15,832</td><td>₹10,234</td><td>₹7,735</td></tr>
+    <tr><td>₹8,00,000</td><td>₹36,404</td><td>₹25,330</td><td>₹16,374</td><td>₹12,376</td></tr>
+    <tr><td>₹12,00,000</td><td>₹54,605</td><td>₹37,995</td><td>₹24,562</td><td>₹18,565</td></tr>
+    <tr><td>₹15,00,000</td><td>₹68,256</td><td>₹47,494</td><td>₹30,702</td><td>₹23,206</td></tr>
+  </table>
+
+  <h3>Finance Process</h3>
+  <ol>
+    <li>Choose your vehicle and variant</li>
+    <li>Submit: Aadhaar, PAN, last 3 months salary slip / ITR, 6 months bank statement</li>
+    <li>Loan approval in 2–4 hours (same-day possible)</li>
+    <li>Down payment: minimum 10–20% of on-road price</li>
+    <li>Vehicle delivery after loan disbursement</li>
+  </ol>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <h2>5. TEST DRIVE INFORMATION</h2>
+  <ul>
+    <li>Test drives available: Monday to Saturday 9AM–6PM, Sunday 10AM–4PM</li>
+    <li>Duration: 30–45 minutes (city drive + highway stretch)</li>
+    <li>Valid driving licence required</li>
+    <li>Test drives are FREE — no charge</li>
+    <li>Available at all 3 showroom locations</li>
+    <li>Book online via website or WhatsApp on <strong>+91 98765 43210</strong></li>
+    <li>Same-day test drive slots available (subject to availability)</li>
+  </ul>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <h2>6. SERVICE & MAINTENANCE</h2>
+
+  <h3>Service Packages</h3>
+  <table>
+    <tr><th>Package</th><th>What's Included</th><th>Cost (Approx.)</th></tr>
+    <tr><td>Basic Service</td><td>Engine oil + filter change, check-up</td><td>₹2,500 – ₹4,000</td></tr>
+    <tr><td>Standard Service</td><td>Basic + air filter, AC check, tyre rotation</td><td>₹4,000 – ₹7,000</td></tr>
+    <tr><td>Comprehensive Service</td><td>Standard + brake flush, coolant, battery, full inspection</td><td>₹7,000 – ₹12,000</td></tr>
+    <tr><td>Annual Package</td><td>3 services/year + free pick & drop</td><td>₹15,000 – ₹20,000</td></tr>
+  </table>
+
+  <h3>Service Schedule</h3>
+  <ul>
+    <li>First free service: 1,000 km or 1 month (whichever is earlier)</li>
+    <li>Second free service: 10,000 km or 6 months</li>
+    <li>Third free service: 20,000 km or 12 months</li>
+    <li>Periodic service thereafter: every 10,000 km or 6 months</li>
+  </ul>
+
+  <h3>Service Process</h3>
+  <ol>
+    <li>Book appointment via chatbot, website, or call</li>
+    <li>Drop vehicle at service centre by 9AM</li>
+    <li>Job card created, estimated cost shared</li>
+    <li>Work completed: typically same day or next day</li>
+    <li>SMS/WhatsApp notification when ready</li>
+    <li>Pick up vehicle, pay at counter</li>
+  </ol>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <h2>7. EXCHANGE / TRADE-IN PROGRAM</h2>
+  <ul>
+    <li>We accept all brands and models for exchange</li>
+    <li>Free vehicle evaluation — no obligation to buy</li>
+    <li>Exchange bonus: up to ₹30,000 over market value</li>
+    <li>Evaluation criteria: Age, condition, mileage, service history</li>
+    <li>Documents required: RC book, insurance, PUC, service book</li>
+    <li>Instant offer — no waiting</li>
+  </ul>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <h2>8. INSURANCE</h2>
+  <ul>
+    <li>Partnered with: New India Assurance, HDFC ERGO, Bajaj Allianz, ICICI Lombard</li>
+    <li>Zero depreciation cover available</li>
+    <li>Cashless claims at our service centre</li>
+    <li>Annual comprehensive insurance: 2%–3% of IDV</li>
+    <li>Third-party insurance: Mandatory, renew annually</li>
+    <li>NCB (No Claim Bonus): up to 50% discount on renewal</li>
+  </ul>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <h2>9. ACCESSORIES CATALOG</h2>
+  <table>
+    <tr><th>Category</th><th>Items</th><th>Price Range</th></tr>
+    <tr><td>Exterior</td><td>Body kit, alloy wheels (15"–18"), sunroof, chrome package, spoiler</td><td>₹5,000 – ₹80,000</td></tr>
+    <tr><td>Interior</td><td>Seat covers, floor mats (3D), steering cover, ambient lighting, wood trim</td><td>₹2,000 – ₹25,000</td></tr>
+    <tr><td>Safety</td><td>360° camera, parking sensors, TPMS, dash cam, blind spot monitor</td><td>₹3,000 – ₹35,000</td></tr>
+    <tr><td>Electronics</td><td>Android Auto/Apple CarPlay, 10" screen, JBL speakers, GPS tracker</td><td>₹8,000 – ₹50,000</td></tr>
+    <tr><td>Protection</td><td>PPF (film), ceramic coating, underbody coating, rust-proofing</td><td>₹10,000 – ₹80,000</td></tr>
+  </table>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <h2>10. FREQUENTLY ASKED QUESTIONS (FAQ)</h2>
+
+  <h3>Q: What documents do I need to buy a car?</h3>
+  <p>A: Aadhaar card, PAN card, 2 passport photos, address proof, and income proof (salary slips / ITR) for finance. Cash buyers need only Aadhaar and PAN.</p>
+
+  <h3>Q: How long does delivery take after booking?</h3>
+  <p>A: In-stock vehicles: 2–5 days. Out-of-stock/custom colour: 4–8 weeks depending on variant. We will inform you of the exact date at the time of booking.</p>
+
+  <h3>Q: Can I negotiate the price?</h3>
+  <p>A: Prices are as per manufacturer guidelines. However, we offer the best combination of cash discount + exchange bonus + accessories. Speak to our sales executive for the best deal.</p>
+
+  <h3>Q: Is extended warranty available?</h3>
+  <p>A: Yes. We offer 1-year and 2-year extended warranty plans. Hyundai standard warranty: 3 years / 1,00,000 km. Tata: 3 years/1,25,000 km. Maruti: 2 years/40,000 km.</p>
+
+  <h3>Q: Do you offer home delivery?</h3>
+  <p>A: Yes, home delivery available within Hyderabad limits at no extra charge. Outside city: ₹2,000–5,000 transport charges apply.</p>
+
+  <h3>Q: Can I cancel my booking?</h3>
+  <p>A: Bookings can be cancelled within 7 days. Booking amount (₹11,000–₹25,000) is refunded within 10 working days. After 7 days, cancellation charges may apply.</p>
+
+  <h3>Q: Do you buy old cars without selling a new one?</h3>
+  <p>A: Yes. We have a dedicated used car team. We evaluate and buy your car at the best market price even if you don't purchase from us.</p>
+
+  <h3>Q: What is the booking amount?</h3>
+  <p>A: ₹11,000 for hatchbacks/sedans, ₹21,000 for SUVs, ₹31,000 for premium/EV models.</p>
+
+  <h3>Q: How do I check delivery status?</h3>
+  <p>A: Call our showroom or WhatsApp us at +91 98765 43210 with your booking reference number.</p>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <h2>11. CONTACT INFORMATION</h2>
+  <table>
+    <tr><th>Channel</th><th>Contact</th><th>Hours</th></tr>
+    <tr><td>Sales WhatsApp</td><td>+91 98765 43210</td><td>9AM–8PM daily</td></tr>
+    <tr><td>Service Booking</td><td>+91 98765 43211</td><td>8AM–6PM Mon–Sat</td></tr>
+    <tr><td>Customer Care</td><td>1800-XXX-XXXX (toll free)</td><td>24×7</td></tr>
+    <tr><td>Email</td><td>info@autoprimemotors.in</td><td>Response within 4 hours</td></tr>
+    <tr><td>Website</td><td>www.autoprimemotors.in</td><td>Always available</td></tr>
+  </table>
+
+  <div class="note">
+    <strong>Note for Chatbot Training:</strong> This document contains pricing, offers, and information as of June 2025. Update regularly as prices and offers change. The chatbot uses this document to answer customer questions about vehicles, pricing, financing, service, and exchange.
+  </div>
+
+  <br />
+  <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+
+</div>
+</body>
+</html>
