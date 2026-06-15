@@ -74,7 +74,6 @@ const UserSchema = new Schema<IUser>(
   { timestamps: true }
 );
 
-UserSchema.index({ email: 1 });
 UserSchema.index({ companyId: 1 });
 UserSchema.index({ role: 1 });
 UserSchema.index({ companyId: 1, role: 1 });
