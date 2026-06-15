@@ -8,97 +8,108 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageSquare, Copy, Check, Code, Palette, Eye, GitBranch, ChevronDown, ChevronRight, Tag, Ticket, UserCheck, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
-// ── Flow definition (mirrors chatbot-flow.ts MAIN_MENU) ──────────────────────
+// ── Flow definition (mirrors chatbot-flow.ts MAIN_MENU — Ashok Leyland) ───────
 const FLOWS = [
   {
-    key: "buy_car", label: "🚗 Buy a New Car", color: "#6366f1", bg: "#ede9fe",
+    key: "find_vehicle", label: "🚛 Find a Vehicle", color: "#6366f1", bg: "#ede9fe",
     steps: [
-      { q: "What type of car?",   opts: ["Hatchback", "Sedan", "SUV", "Electric"] },
-      { q: "Which model?",        opts: ["Auto-suggested by category"] },
-      { q: "💰 Price range shown", opts: [] },
-      { q: "Your name?",          opts: [], input: true },
-      { q: "Phone number?",       opts: [], input: true },
+      { q: "Vehicle type?",      opts: ["Light CV", "Intermediate CV", "Heavy Duty", "Bus", "Electric"] },
+      { q: "Usage purpose?",     opts: ["Logistics", "Cargo", "Construction", "Agriculture", "E-commerce"] },
+      { q: "Payload required?",  opts: ["Under 2T", "2-5T", "5-10T", "10-20T", "Above 20T"] },
+      { q: "Fuel preference?",   opts: ["Diesel", "CNG", "Electric", "Not Sure"] },
+      { q: "🚛 AI recommendation shown", opts: [] },
     ],
     outcome: "CREATE_LEAD",
   },
   {
-    key: "servicing", label: "🔧 Car Servicing", color: "#0ea5e9", bg: "#e0f2fe",
+    key: "on_road_price", label: "💰 Get On-Road Price", color: "#f59e0b", bg: "#fef3c7",
     steps: [
-      { q: "Service type?",       opts: ["Periodic Service", "Repairs", "Body Work", "Tyres / Battery"] },
-      { q: "Vehicle number?",     opts: [], input: true },
-      { q: "Your name?",          opts: [], input: true },
-      { q: "Phone number?",       opts: [], input: true },
-    ],
-    outcome: "CREATE_TICKET",
-  },
-  {
-    key: "used_car", label: "🔄 Buy / Sell Used Car", color: "#8b5cf6", bg: "#ede9fe",
-    steps: [
-      { q: "Buy or sell?",        opts: ["Looking to Buy", "Looking to Sell"] },
-      { q: "Vehicle details?",    opts: [], input: true },
-      { q: "Your name?",          opts: [], input: true },
-      { q: "Phone number?",       opts: [], input: true },
-    ],
-    outcome: "CREATE_LEAD",
-  },
-  {
-    key: "insurance", label: "🛡️ Insurance Renewal", color: "#f59e0b", bg: "#fef3c7",
-    steps: [
-      { q: "Vehicle number?",     opts: [], input: true },
-      { q: "Current insurer?",    opts: ["LIC", "HDFC ERGO", "Bajaj", "Other"] },
-      { q: "Your name?",          opts: [], input: true },
-      { q: "Phone number?",       opts: [], input: true },
-    ],
-    outcome: "CREATE_LEAD",
-  },
-  {
-    key: "test_drive", label: "📅 Book a Test Drive", color: "#22c55e", bg: "#dcfce7",
-    steps: [
-      { q: "Which car model?",    opts: ["Hatchback", "Sedan", "SUV", "EV"] },
-      { q: "Preferred date?",     opts: [], input: true },
-      { q: "Your name?",          opts: [], input: true },
-      { q: "Phone number?",       opts: [], input: true },
-    ],
-    outcome: "CREATE_LEAD",
-  },
-  {
-    key: "showroom", label: "🏢 Showroom Visit", color: "#ec4899", bg: "#fce7f3",
-    steps: [
-      { q: "Preferred location?", opts: ["Andheri", "Bandra", "Thane", "Other"] },
-      { q: "Your name?",          opts: [], input: true },
-      { q: "Phone number?",       opts: [], input: true },
-    ],
-    outcome: "CREATE_LEAD",
-  },
-  {
-    key: "offers", label: "🎁 Current Offers", color: "#f97316", bg: "#ffedd5",
-    steps: [
-      { q: "📢 EMI, exchange & seasonal offers shown", opts: [] },
+      { q: "Select vehicle?",    opts: ["Dost+", "Ecomet 912", "AVTR 4940", "Circuit S"] },
+      { q: "Select variant?",    opts: ["Base", "Standard", "Plus", "Premium"] },
+      { q: "Your city?",         opts: ["Mumbai", "Delhi", "Chennai", "Bangalore"] },
+      { q: "💰 Estimated price shown", opts: [] },
     ],
     outcome: "NONE",
   },
   {
-    key: "accessories", label: "🔩 Accessories", color: "#64748b", bg: "#f1f5f9",
+    key: "brochure", label: "📄 Download Brochure", color: "#0ea5e9", bg: "#e0f2fe",
     steps: [
-      { q: "🛒 Accessories catalog shown", opts: [] },
+      { q: "Select vehicle?",    opts: ["Dost+", "Ecomet 912", "AVTR 4940", "Circuit S"] },
+      { q: "Your name?",         opts: [], input: true },
+      { q: "Mobile number?",     opts: [], input: true },
+      { q: "Email address?",     opts: [], input: true },
+      { q: "Your city?",         opts: ["Mumbai", "Delhi", "Chennai", "Hyderabad"] },
     ],
-    outcome: "NONE",
+    outcome: "CREATE_LEAD",
   },
   {
-    key: "complaint", label: "📝 Complaint / Feedback", color: "#ef4444", bg: "#fee2e2",
+    key: "test_drive", label: "🚗 Book Test Drive", color: "#22c55e", bg: "#dcfce7",
     steps: [
-      { q: "Describe your issue?", opts: [], input: true },
-      { q: "Vehicle number?",      opts: [], input: true },
-      { q: "Your name?",           opts: [], input: true },
-      { q: "Phone number?",        opts: [], input: true },
+      { q: "Select vehicle?",    opts: ["Dost+", "Ecomet 912", "AVTR 4940", "Other"] },
+      { q: "Dealer city?",       opts: ["Mumbai", "Delhi", "Chennai", "Hyderabad"] },
+      { q: "Preferred date?",    opts: ["Today", "Tomorrow", "This Saturday", "This Sunday"] },
+      { q: "Time slot?",         opts: ["9–11 AM", "11–1 PM", "2–4 PM", "4–6 PM"] },
+      { q: "Your name?",         opts: [], input: true },
+      { q: "Mobile number?",     opts: [], input: true },
+    ],
+    outcome: "CREATE_LEAD",
+  },
+  {
+    key: "service", label: "🛠️ Service & Support", color: "#8b5cf6", bg: "#ede9fe",
+    steps: [
+      { q: "Service type?",      opts: ["Book Service", "AMC Plans", "Breakdown", "Status"] },
+      { q: "Vehicle number?",    opts: [], input: true },
+      { q: "Dealer city?",       opts: ["Mumbai", "Delhi", "Chennai", "Hyderabad"] },
+      { q: "Preferred date?",    opts: ["Today", "Tomorrow", "This Saturday"] },
     ],
     outcome: "CREATE_TICKET",
   },
   {
-    key: "agent", label: "💬 Chat with Live Agent", color: "#6366f1", bg: "#ede9fe",
+    key: "spare_parts", label: "🔧 Spare Parts", color: "#ec4899", bg: "#fce7f3",
     steps: [
-      { q: "Your name?",           opts: [], input: true },
-      { q: "Phone number?",        opts: [], input: true },
+      { q: "Select vehicle?",    opts: ["Dost+", "Ecomet 912", "AVTR 4940", "Circuit S"] },
+      { q: "Part category?",     opts: ["Engine", "Battery", "Brakes", "Suspension", "Filters"] },
+      { q: "Your name?",         opts: [], input: true },
+      { q: "Mobile number?",     opts: [], input: true },
+    ],
+    outcome: "CREATE_LEAD",
+  },
+  {
+    key: "finance", label: "💳 Finance & EMI", color: "#f97316", bg: "#ffedd5",
+    steps: [
+      { q: "Select vehicle?",    opts: ["Dost+", "Ecomet 912", "AVTR 4940"] },
+      { q: "Vehicle price? (₹L)", opts: [], input: true },
+      { q: "Down payment? (₹L)", opts: [], input: true },
+      { q: "Loan tenure?",       opts: ["12 Months", "24 Months", "36 Months", "48 Months", "60 Months"] },
+      { q: "💳 EMI calculation shown", opts: [] },
+    ],
+    outcome: "NONE",
+  },
+  {
+    key: "find_dealer", label: "📍 Find Dealer", color: "#14b8a6", bg: "#f0fdfa",
+    steps: [
+      { q: "Your city?",         opts: ["Mumbai", "Delhi", "Chennai", "Bangalore", "Hyderabad"] },
+      { q: "📍 Dealer info shown", opts: [] },
+    ],
+    outcome: "NONE",
+  },
+  {
+    key: "callback", label: "📞 Request Callback", color: "#64748b", bg: "#f1f5f9",
+    steps: [
+      { q: "Your name?",         opts: [], input: true },
+      { q: "Mobile number?",     opts: [], input: true },
+      { q: "Preferred time?",    opts: ["9–11 AM", "11–1 PM", "2–4 PM", "4–6 PM", "Anytime"] },
+    ],
+    outcome: "CREATE_LEAD",
+  },
+  {
+    key: "agent", label: "💬 Chat with Agent", color: "#6366f1", bg: "#ede9fe",
+    steps: [
+      { q: "Query category?",    opts: ["New Purchase", "Pricing", "Finance", "Fleet", "Service"] },
+      { q: "Your name?",         opts: [], input: true },
+      { q: "Mobile number?",     opts: [], input: true },
+      { q: "Email address?",     opts: [], input: true },
+      { q: "Your city?",         opts: ["Mumbai", "Delhi", "Chennai", "Hyderabad"] },
     ],
     outcome: "ASSIGN_AGENT",
   },
@@ -125,9 +136,9 @@ function WidgetPreview({
   const MUTED = dark ? "#9ca3af" : "#6b7280";
 
   const mainMenu = [
-    "🚗 Buy a New Car", "🔧 Car Servicing", "🔄 Buy / Sell Used Car",
-    "🛡️ Insurance Renewal", "📅 Book a Test Drive", "🏢 Book Showroom Visit",
-    "🎁 Current Offers", "🔩 Accessories",
+    "🚛 Find a Vehicle", "💰 Get On-Road Price", "📄 Download Brochure",
+    "🚗 Book Test Drive", "🛠️ Service & Support", "🔧 Spare Parts",
+    "💳 Finance & EMI", "📍 Find Dealer", "📞 Request Callback", "💬 Chat with Agent",
   ];
 
   return (

@@ -14,29 +14,74 @@ export interface BotResponse {
 }
 
 export const MAIN_MENU = [
-  "🚗 Buy a New Car",
-  "🔧 Car Servicing",
-  "🔄 Buy / Sell Used Car",
-  "🛡️ Insurance Renewal",
-  "📅 Book a Test Drive",
-  "🏢 Book Showroom Visit",
-  "🎁 Current Offers",
-  "🔩 Accessories",
-  "📝 Complaint / Feedback",
-  "💬 Chat with a Live Agent",
+  "🚛 Find a Vehicle",
+  "💰 Get On-Road Price",
+  "📄 Download Brochure",
+  "🚗 Book Test Drive",
+  "🛠️ Service & Support",
+  "🔧 Spare Parts",
+  "💳 Finance & EMI",
+  "📍 Find Dealer",
+  "📞 Request Callback",
+  "💬 Chat with Agent",
 ];
 
-const CAR_CATEGORIES = ["🚗 Hatchback", "🚙 Sedan", "🏎️ SUV / Crossover", "⚡ Electric Vehicle"];
+const VEHICLE_TYPES = [
+  "🚛 Light Commercial Vehicle",
+  "🚚 Intermediate Commercial Vehicle",
+  "🚜 Heavy Duty Truck",
+  "🚌 Bus",
+  "⚡ Electric Vehicle",
+];
 
-function matchMenu(input: string, keyword: string): boolean {
+const AL_VEHICLES = [
+  "Dost+", "Bada Dost", "Partner",
+  "Ecomet 912", "Guru", "Captain",
+  "AVTR 4940", "Boss", "Stallion",
+  "Circuit S", "Oyster", "Viking",
+];
+
+const PURPOSES = [
+  "Logistics", "Cargo Delivery", "Construction",
+  "Agriculture", "Passenger Transport", "School Transport", "E-commerce",
+];
+
+const PAYLOADS = ["Under 2 Ton", "2-5 Ton", "5-10 Ton", "10-20 Ton", "Above 20 Ton"];
+const FUELS    = ["Diesel", "CNG", "Electric", "Not Sure"];
+
+const PART_CATEGORIES = [
+  "🔩 Engine Parts", "🔋 Battery", "🛑 Brake System",
+  "🔧 Suspension", "🌀 Filters", "📦 Others",
+];
+
+const SERVICE_OPTIONS = [
+  "📅 Book Service", "📋 AMC Plans",
+  "🚨 Breakdown Assistance", "📊 Service Status",
+];
+
+const AGENT_CATEGORIES = [
+  "🚛 New Purchase", "💰 Pricing", "💳 Finance",
+  "🏭 Fleet Purchase", "🛠️ Service", "🔧 Spare Parts", "💬 Other Queries",
+];
+
+const CITIES = ["Mumbai", "Delhi", "Chennai", "Bangalore", "Hyderabad", "Pune", "Ahmedabad", "Kolkata", "Other"];
+const DATES   = ["Today", "Tomorrow", "This Saturday", "This Sunday"];
+const TIMES   = ["9 AM – 11 AM", "11 AM – 1 PM", "2 PM – 4 PM", "4 PM – 6 PM"];
+const TENURES = ["12 Months", "24 Months", "36 Months", "48 Months", "60 Months"];
+
+function match(input: string, keyword: string): boolean {
   return input.toLowerCase().includes(keyword.toLowerCase());
 }
 
-function ask(flow: string, nextStep: string, col: Record<string, string>, message: string, opts: string[]): BotResponse {
+function isPhone(s: string): boolean {
+  return /^[\+]?[\d\s\-]{9,14}$/.test(s.replace(/[\s\-]/g, ""));
+}
+
+function ask(flow: string, step: string, col: Record<string, string>, msg: string, opts: string[]): BotResponse {
   return {
-    messages: [message],
+    messages: [msg],
     quickReplies: opts.length ? [...opts, "🔙 Main Menu"] : ["🔙 Main Menu"],
-    sessionData: { flow, step: nextStep, collected: col },
+    sessionData: { flow, step, collected: col },
     action: "NONE",
   };
 }
@@ -45,271 +90,343 @@ function reset(col: Record<string, string>): SessionData {
   return { flow: "INITIAL", step: "", collected: col };
 }
 
-function isPhone(s: string): boolean {
-  return /^[\+]?[\d\s\-]{9,14}$/.test(s.replace(/[\s\-]/g, ""));
-}
-
-function modelOptions(category: string): string[] {
-  const c = category.toLowerCase();
-  if (c.includes("hatch"))    return ["Maruti Swift", "Hyundai i20", "Tata Tiago", "WagonR", "Other"];
-  if (c.includes("sedan"))    return ["Honda City", "Hyundai Verna", "Maruti Ciaz", "Other"];
-  if (c.includes("suv"))      return ["Hyundai Creta", "Tata Nexon", "Maruti Brezza", "Kia Seltos", "Other"];
-  if (c.includes("electric")) return ["Tata Nexon EV", "MG ZS EV", "Hyundai Ioniq 5", "Other"];
-  return ["Tell us your preferred model"];
-}
-
-function priceRange(category: string): string {
-  const c = (category || "").toLowerCase();
-  if (c.includes("hatch"))    return "🚗 Hatchback: ₹5.5L – ₹12L\n(Swift: ₹6.5L, i20: ₹7.2L, Tiago: ₹5.5L)";
-  if (c.includes("sedan"))    return "🚙 Sedan: ₹11L – ₹18L\n(City: ₹12L, Verna: ₹11.5L, Ciaz: ₹11L)";
-  if (c.includes("suv"))      return "🏎️ SUV: ₹8L – ₹25L\n(Creta: ₹11L, Nexon: ₹8.5L, Seltos: ₹11L)";
-  if (c.includes("electric")) return "⚡ EV: ₹14L – ₹45L\n(Nexon EV: ₹15L, ZS EV: ₹22L)";
-  return "Price range: ₹5.5L – ₹45L depending on model & variant";
-}
-
 function mainMenu(): BotResponse {
   return {
-    messages: ["Please select from the options below:"],
+    messages: ["👋 Welcome to Ashok Leyland!\n\nHow can we help you today? Please select an option:"],
     quickReplies: MAIN_MENU,
     sessionData: { flow: "INITIAL", step: "", collected: {} },
     action: "NONE",
   };
 }
 
-function escalate(col: Record<string, string>): BotResponse {
+function escalate(col: Record<string, string>, reason?: string): BotResponse {
   return {
-    messages: ["💬 Connecting you to a Live Agent...\n\n🕘 Operating Hours: 9 AM – 6 PM (Mon–Sat)\n\nIf no agent is available right now, we'll call you back shortly."],
+    messages: [
+      `💬 Connecting you to a Live Agent...\n\n${reason ? `📋 Query: ${reason}\n\n` : ""}🕘 Operating Hours: 9 AM – 6 PM (Mon–Sat)\n\nIf no agent is available right now, we'll arrange a callback shortly. ✅`,
+    ],
     quickReplies: ["🔙 Main Menu"],
     sessionData: reset(col),
     action: "ASSIGN_AGENT",
   };
 }
 
-function offersFlow(): BotResponse {
-  return {
-    messages: ["🎁 Current Offers & Benefits:\n\n💵 Cash Discount — Up to ₹50,000\n🔄 Exchange Bonus — Up to ₹30,000\n🏢 Corporate Discount — Up to ₹20,000\n❤️ Loyalty Bonus — Up to ₹15,000\n💳 Finance Benefits — 0% EMI schemes\n🎊 Festival Special — Limited time offers\n\nOffers vary by model & variant. Would you like a personalised quotation?"],
-    quickReplies: ["💬 Get Personalised Quote", "📅 Book Test Drive", "🔙 Main Menu"],
-    sessionData: { flow: "INITIAL", step: "", collected: {} },
-    action: "NONE",
-  };
-}
+function vehicleRecommendation(type: string, purpose: string, payload: string, fuel: string): string {
+  const t = type.toLowerCase();
+  const p = payload.toLowerCase();
+  const f = fuel.toLowerCase();
+  const pur = purpose.toLowerCase();
 
-function accessoriesFlow(): BotResponse {
-  return {
-    messages: ["🔩 Accessories Available:\n\n🚗 Exterior — Body kit, alloy wheels, sunroof, chrome package\n🛋️ Interior — Seat covers, floor mats, steering covers, ambient lighting\n🔒 Safety — Dash cam, parking sensors, reverse camera\n📱 Electronics — Android/Apple CarPlay, speakers, GPS\n\nWould you like our accessories brochure or speak to our team?"],
-    quickReplies: ["📧 Send Brochure", "💬 Talk to Executive", "🔙 Main Menu"],
-    sessionData: { flow: "INITIAL", step: "", collected: {} },
-    action: "NONE",
-  };
-}
-
-function modelsMenu(col: Record<string, string>): BotResponse {
-  return {
-    messages: ["Great choice! 🚗 Any specific model in mind?"],
-    quickReplies: modelOptions(col.vehicle || ""),
-    sessionData: { flow: "BUY_NEW_CAR", step: "ask_model", collected: col },
-    action: "NONE",
-  };
-}
-
-function showroomInfo(): BotResponse {
-  return {
-    messages: ["📍 Our Showrooms:\n\n1️⃣ Main Showroom\n   Road No. 12, Banjara Hills\n   📞 040-12345678\n\n2️⃣ Branch Showroom\n   Gachibowli, HITEC City\n   📞 040-87654321\n\n🕘 Open: Mon–Sat 9 AM – 7 PM\n🕘 Sunday: 10 AM – 5 PM"],
-    quickReplies: ["🏢 Book a Visit", "🔙 Main Menu"],
-    sessionData: { flow: "INITIAL", step: "", collected: {} },
-    action: "NONE",
-  };
-}
-
-function emiFlow(col: Record<string, string>): BotResponse {
-  return {
-    messages: ["🧾 Estimated EMI Calculator:\n\nVehicle: " + (col.category || "Selected Car") + "\n\n💰 ₹5L loan @ 8.5% for 60 months = ₹10,230/mo\n💰 ₹7L loan @ 8.5% for 60 months = ₹14,322/mo\n💰 ₹10L loan @ 8.5% for 60 months = ₹20,460/mo\n\nFor exact EMI based on your down payment, speak to our finance team."],
-    quickReplies: ["💬 Talk to Finance Executive", "📅 Book Test Drive", "🔙 Main Menu"],
-    sessionData: { flow: "INITIAL", step: "", collected: col },
-    action: "NONE",
-  };
-}
-
-function startFlow(flow: string, col: Record<string, string>, label: string): BotResponse {
-  // Skip name/phone collection if already captured (e.g. from visitor form)
-  if (col.name && col.phone) {
-    return {
-      messages: [`Great ${col.name}! 😊 Let's help you with ${label}.`],
-      quickReplies: ["🔙 Main Menu"],
-      sessionData: { flow, step: "after_contact", collected: col },
-      action: "NONE",
-    };
+  if (f.includes("electric") || t.includes("electric")) {
+    return "⚡ Recommended Electric Vehicles:\n\n🥇 BOSS EV — 18T GVW, 150 km range\n🥈 Circuit S EV — Electric City Bus\n🥉 Dost EV — 1.5T LCV Electric\n\n✅ Zero emissions | Govt. subsidy eligible | Low running cost";
   }
-  if (col.name && !col.phone) {
-    return {
-      messages: [`Hi ${col.name}! 😊 Let's help you with ${label}.\n\nCould I have your phone number?`],
-      quickReplies: ["🔙 Main Menu"],
-      sessionData: { flow, step: "ask_phone", collected: col },
-      action: "NONE",
-    };
+  if (t.includes("bus")) {
+    if (pur.includes("school")) return "🚌 Recommended School Buses:\n\n🥇 Oyster — 40 seats, ARAI certified\n🥈 Viking School — 54 seats, AC available\n\n✅ High safety | Child-friendly features";
+    return "🚌 Recommended Buses:\n\n🥇 Circuit S — 72 seats, city bus\n🥈 Viking — 54 seats, intercity AC\n🥉 Oyster — 40 seats, staff bus\n\n✅ BS6 compliant | Fleet discounts available";
   }
-  return {
-    messages: [`Great! Let's help you with ${label}. 😊\n\nCould I have your name please?`],
-    quickReplies: ["🔙 Main Menu"],
-    sessionData: { flow, step: "ask_name", collected: col },
-    action: "NONE",
-  };
+  if (t.includes("light") || p.includes("under 2") || p.includes("2-5")) {
+    if (f.includes("cng")) return "🚛 Recommended LCV (CNG):\n\n🥇 Dost+ CNG — 1.5T payload, 19.5 kmpl, ₹7.5-8.5L\n🥈 Partner CNG — 1T, city delivery, ₹6-7L\n\n✅ Lower fuel cost | CNG certified";
+    return "🚛 Recommended Light Commercial Vehicles:\n\n🥇 Dost+ — 1.5T, 22 kmpl, ₹7-9L\n🥈 Bada Dost — 2T payload, ₹9-11L\n🥉 Partner — 1T, e-commerce delivery, ₹6-7.5L\n\n✅ Best-in-class mileage | Low maintenance";
+  }
+  if (t.includes("intermediate") || p.includes("5-10")) {
+    return "🚚 Recommended Intermediate CVs:\n\n🥇 Ecomet 912 — 7.5T, 16 kmpl, ₹16-20L\n🥈 Guru — 6T multi-axle, ₹14-17L\n🥉 Captain — 9T long haul, ₹18-22L\n\n✅ High payload | Durable | Easy financing";
+  }
+  if (t.includes("heavy") || p.includes("10-20") || p.includes("above 20")) {
+    return "🚜 Recommended Heavy Duty Trucks:\n\n🥇 AVTR 4940 — 40T GVW, 400 HP, ₹45-55L\n🥈 Boss 1623 — 16T, 230 HP, ₹20-26L\n🥉 Stallion — Multi-axle, heavy duty\n\n✅ High power | Long-haul optimized | Telematics ready";
+  }
+  return "🚛 Top Ashok Leyland Models:\n\n✅ Dost+ — Best LCV (₹7-9L)\n✅ Ecomet 912 — Best ICV (₹16-20L)\n✅ AVTR 4940 — Best HCV (₹45-55L)\n✅ Circuit S — Best Bus\n\nWould you like details on a specific model?";
 }
 
-// ── Main flow engine ──────────────────────────────────────────────────────────
+function onRoadPrice(vehicle: string, variant: string, city: string): string {
+  const prices: Record<string, string> = {
+    "dost": "₹7.5L – ₹9.2L",
+    "bada dost": "₹9.5L – ₹11.5L",
+    "partner": "₹6.2L – ₹7.8L",
+    "ecomet": "₹16L – ₹21L",
+    "guru": "₹14L – ₹18L",
+    "captain": "₹19L – ₹23L",
+    "avtr": "₹45L – ₹58L",
+    "boss": "₹20L – ₹27L",
+    "stallion": "₹28L – ₹36L",
+    "circuit": "₹25L – ₹36L",
+    "oyster": "₹18L – ₹24L",
+    "viking": "₹22L – ₹30L",
+  };
+  const key = Object.keys(prices).find(k => vehicle.toLowerCase().includes(k));
+  const range = key ? prices[key] : "Contact dealer for pricing";
+  return `💰 Estimated On-Road Price in ${city}:\n\n🚛 ${vehicle} (${variant})\n💵 Ex-Showroom: ${range}\n🏛️ Road Tax: ~8-10%\n🛡️ Insurance: ~₹15,000 – ₹40,000\n🔧 Handling: ~₹5,000\n\n📌 Final price varies by city & offers.\nContact our dealer for exact pricing.`;
+}
+
+function dealerInfo(city: string): string {
+  const dealers: Record<string, string> = {
+    mumbai:    "📍 AL Motors Mumbai\n📞 022-4501-2345\n🗺️ Andheri East, Mumbai",
+    delhi:     "📍 AL Motors Delhi\n📞 011-4501-6789\n🗺️ Okhla Industrial Area, Delhi",
+    chennai:   "📍 AL Motors Chennai\n📞 044-4501-3456\n🗺️ Ambattur, Chennai",
+    bangalore: "📍 AL Motors Bangalore\n📞 080-4501-7890\n🗺️ Peenya Industrial Area, Bangalore",
+    hyderabad: "📍 AL Motors Hyderabad\n📞 040-4501-5678\n🗺️ Patancheru, Hyderabad",
+    pune:      "📍 AL Motors Pune\n📞 020-4501-4567\n🗺️ Bhosari MIDC, Pune",
+    ahmedabad: "📍 AL Motors Ahmedabad\n📞 079-4501-8901\n🗺️ Vatva GIDC, Ahmedabad",
+    kolkata:   "📍 AL Motors Kolkata\n📞 033-4501-2345\n🗺️ Ultadanga, Kolkata",
+  };
+  const found = dealers[city.toLowerCase()];
+  return found ?? `📍 AL Dealer in ${city}\n📞 1800-425-1177 (Toll Free)\n🗺️ Contact us for your nearest dealer`;
+}
+
+function calcEMI(priceL: number, downL: number, months: number): string {
+  const principal = (priceL - downL) * 100000;
+  if (principal <= 0) return "Down payment exceeds vehicle price. Please re-enter.";
+  const r = 9.5 / 12 / 100;
+  const emi = Math.round(principal * r * Math.pow(1 + r, months) / (Math.pow(1 + r, months) - 1));
+  return `💳 EMI Calculation:\n\n🚛 Vehicle Price: ₹${priceL}L\n💵 Down Payment: ₹${downL}L\n🏦 Loan Amount: ₹${(priceL - downL)}L\n📅 Tenure: ${months} months\n📊 Interest Rate: 9.5% p.a.\n\n✅ Monthly EMI: ₹${emi.toLocaleString("en-IN")}\n\n📌 Rate may vary by credit profile & financier.`;
+}
+
 export function processFlow(input: string, session: SessionData): BotResponse {
   const inp = input.trim();
-  const s = session;
+  const s   = session;
   const col = { ...s.collected };
 
-  if (matchMenu(inp, "Main Menu") || matchMenu(inp, "Go Back") || matchMenu(inp, "Start Over")) return mainMenu();
-  if (matchMenu(inp, "Chat with a Live Agent") || matchMenu(inp, "Talk to Executive") || matchMenu(inp, "Live Agent")) return escalate(col);
+  if (match(inp, "Main Menu") || match(inp, "Start Over") || match(inp, "Go Back")) return mainMenu();
 
-  // ─ INITIAL ──────────────────────────────────────────────────────────────────
-  if (!s.flow || s.flow === "INITIAL" || s.step === "") {
+  // ── INITIAL ────────────────────────────────────────────────────────────────
+  if (!s.flow || s.flow === "INITIAL" || !s.step) {
     if (inp === "__INIT__") return mainMenu();
-    if (matchMenu(inp, "Buy a New Car"))       return startFlow("BUY_NEW_CAR", col, "Buying a New Car");
-    if (matchMenu(inp, "Car Servicing"))        return startFlow("SERVICING", col, "Car Servicing");
-    if (matchMenu(inp, "Buy / Sell Used Car"))  return startFlow("USED_CAR", col, "Buy/Sell Used Car");
-    if (matchMenu(inp, "Insurance Renewal"))    return startFlow("INSURANCE", col, "Insurance Renewal");
-    if (matchMenu(inp, "Book a Test Drive"))    return startFlow("TEST_DRIVE", col, "Test Drive Booking");
-    if (matchMenu(inp, "Book Showroom Visit"))  return startFlow("SHOWROOM", col, "Showroom Visit");
-    if (matchMenu(inp, "Current Offers"))       return offersFlow();
-    if (matchMenu(inp, "Accessories"))          return accessoriesFlow();
-    if (matchMenu(inp, "Complaint") || matchMenu(inp, "Feedback")) return startFlow("COMPLAINT", col, "Complaint / Feedback");
+    if (match(inp, "Find a Vehicle"))    return ask("FIND_VEHICLE",  "ask_type",         col, "What type of vehicle are you looking for?", VEHICLE_TYPES);
+    if (match(inp, "On-Road Price"))     return ask("ON_ROAD_PRICE", "ask_vehicle",       col, "Which Ashok Leyland vehicle?", AL_VEHICLES);
+    if (match(inp, "Download Brochure")) return ask("BROCHURE",      "ask_vehicle",       col, "Which vehicle brochure would you like?", AL_VEHICLES);
+    if (match(inp, "Book Test Drive"))   return ask("TEST_DRIVE",    "ask_vehicle",       col, "Which vehicle for the test drive?", AL_VEHICLES);
+    if (match(inp, "Service"))           return ask("SERVICE",       "ask_service_type",  col, "How can we help with service?", SERVICE_OPTIONS);
+    if (match(inp, "Spare Parts"))       return ask("SPARE_PARTS",   "ask_vehicle",       col, "Which vehicle do you need parts for?", AL_VEHICLES);
+    if (match(inp, "Finance"))           return ask("FINANCE_EMI",   "ask_vehicle",       col, "Which vehicle are you financing?", AL_VEHICLES);
+    if (match(inp, "Find Dealer"))       return ask("FIND_DEALER",   "ask_city",          col, "📍 Which city are you in?", CITIES);
+    if (match(inp, "Request Callback") || match(inp, "Callback")) return ask("CALLBACK", "ask_name", col, "Sure! May I have your name?", []);
+    if (match(inp, "Chat with Agent"))   return ask("CHAT_AGENT",    "ask_category",      col, "How can our agent help you?", AGENT_CATEGORIES);
     return mainMenu();
   }
 
-  // ─ BUY NEW CAR ──────────────────────────────────────────────────────────────
-  if (s.flow === "BUY_NEW_CAR") {
-    if (s.step === "after_contact") return { messages: [`Thanks ${col.name}! 😊 How can we help you?`], quickReplies: ["💰 Get Price Quote", "📅 Book Test Drive", "🚘 View Models", "🏙️ Find Showroom", "💬 Talk to Executive"], sessionData: { flow: "BUY_NEW_CAR", step: "sub_menu", collected: col }, action: "NONE" };
-    if (s.step === "ask_name") { col.name = inp; return ask("BUY_NEW_CAR", "ask_phone", col, "Please share your phone number.\n(Include country code e.g. +91 98765 43210)", []); }
-    if (s.step === "ask_phone") {
-      if (!isPhone(inp)) return ask("BUY_NEW_CAR", "ask_phone", col, "⚠️ Please enter a valid phone number (10 digits or with +91):", []);
-      col.phone = inp;
-      return { messages: [`Thanks ${col.name}! 😊 How can we help you?`], quickReplies: ["💰 Get Price Quote", "📅 Book Test Drive", "🚘 View Models", "🏙️ Find Showroom", "💬 Talk to Executive"], sessionData: { flow: "BUY_NEW_CAR", step: "sub_menu", collected: col }, action: "NONE" };
+  // ── FIND VEHICLE ───────────────────────────────────────────────────────────
+  if (s.flow === "FIND_VEHICLE") {
+    if (s.step === "ask_type")    { col.vehicleType = inp; return ask("FIND_VEHICLE", "ask_purpose", col, "What is the usage purpose?", PURPOSES); }
+    if (s.step === "ask_purpose") { col.purpose = inp;    return ask("FIND_VEHICLE", "ask_payload", col, "What payload capacity do you need?", PAYLOADS); }
+    if (s.step === "ask_payload") { col.payload = inp;    return ask("FIND_VEHICLE", "ask_fuel",    col, "Preferred fuel type?", FUELS); }
+    if (s.step === "ask_fuel") {
+      col.fuel = inp;
+      return {
+        messages: [vehicleRecommendation(col.vehicleType, col.purpose, col.payload, col.fuel)],
+        quickReplies: ["📄 Download Brochure", "💰 Get Quote", "🚗 Book Test Drive", "💳 Finance Options", "💬 Chat with Agent", "🔙 Main Menu"],
+        sessionData: { flow: "FIND_VEHICLE", step: "after_rec", collected: col },
+        action: "NONE",
+      };
     }
-    if (s.step === "sub_menu") {
-      if (matchMenu(inp, "Get Price Quote"))   return ask("BUY_NEW_CAR", "ask_category", col, "Which category are you interested in?", ["🚗 Hatchback", "🚙 Sedan", "🏎️ SUV / Crossover", "⚡ Electric Vehicle"]);
-      if (matchMenu(inp, "Book Test Drive"))   return { messages: ["Which vehicle would you like to test drive?"], quickReplies: CAR_CATEGORIES, sessionData: { flow: "TEST_DRIVE", step: "ask_vehicle", collected: col }, action: "NONE" };
-      if (matchMenu(inp, "View Models"))       return modelsMenu(col);
-      if (matchMenu(inp, "Find Showroom"))     return showroomInfo();
-      if (matchMenu(inp, "Talk to Executive")) return escalate(col);
+    if (s.step === "after_rec") {
+      if (match(inp, "Download Brochure")) return ask("BROCHURE", "ask_name", col, "Please share your name for the brochure:", []);
+      if (match(inp, "Get Quote"))         return ask("ON_ROAD_PRICE", "ask_variant", col, "Which variant? (Base / Standard / Plus / Premium)", ["Base", "Standard", "Plus", "Premium"]);
+      if (match(inp, "Book Test Drive"))   return ask("TEST_DRIVE", "ask_dealer", col, "Select your preferred dealer city:", CITIES);
+      if (match(inp, "Finance"))           return ask("FINANCE_EMI", "ask_price", col, "What is the vehicle price? (in Lakhs, e.g. 9 for ₹9L)", []);
+      if (match(inp, "Chat with Agent"))   return escalate(col, `Vehicle inquiry: ${col.vehicleType}`);
     }
-    if (s.step === "ask_category") { col.category = inp; return ask("BUY_NEW_CAR", "ask_city", col, "Great choice! 🚗 Which city are you in? (We'll show the on-road price)", ["Hyderabad", "Bengaluru", "Mumbai", "Delhi", "Chennai", "Pune", "Other"]); }
+  }
+
+  // ── ON-ROAD PRICE ──────────────────────────────────────────────────────────
+  if (s.flow === "ON_ROAD_PRICE") {
+    if (s.step === "ask_vehicle") { col.vehicle = inp; return ask("ON_ROAD_PRICE", "ask_variant", col, `Which variant of ${inp}?`, ["Base", "Standard", "Plus", "Premium", "Not Sure"]); }
+    if (s.step === "ask_variant") { col.variant = inp; return ask("ON_ROAD_PRICE", "ask_city",    col, "Which city? (for accurate pricing)", CITIES); }
     if (s.step === "ask_city") {
       col.city = inp;
-      return { messages: [`💰 Estimated On-Road Price in ${col.city}:\n\n${priceRange(col.category)}\n\nPrices vary by variant & offers. Want exact pricing?`], quickReplies: ["📅 Book Test Drive", "🧾 EMI Details", "💬 Talk to Executive", "🔙 Main Menu"], sessionData: { flow: "BUY_NEW_CAR", step: "after_price", collected: col }, action: "NONE" };
+      return {
+        messages: [onRoadPrice(col.vehicle, col.variant, col.city)],
+        quickReplies: ["📄 Download Brochure", "🚗 Book Test Drive", "💬 Chat with Agent", "🔙 Main Menu"],
+        sessionData: { flow: "ON_ROAD_PRICE", step: "after_price", collected: col },
+        action: "NONE",
+      };
     }
     if (s.step === "after_price") {
-      if (matchMenu(inp, "EMI Details"))       return emiFlow(col);
-      if (matchMenu(inp, "Book Test Drive"))   return { messages: ["Which vehicle would you like to test drive?"], quickReplies: CAR_CATEGORIES, sessionData: { flow: "TEST_DRIVE", step: "ask_vehicle", collected: col }, action: "NONE" };
-      if (matchMenu(inp, "Talk to Executive")) return escalate(col);
+      if (match(inp, "Download Brochure")) return ask("BROCHURE", "ask_name", col, "Please share your name:", []);
+      if (match(inp, "Book Test Drive"))   return ask("TEST_DRIVE", "ask_dealer", col, "Select preferred dealer city:", CITIES);
+      if (match(inp, "Chat with Agent"))   return escalate(col, `Pricing: ${col.vehicle}`);
     }
   }
 
-  // ─ CAR SERVICING ────────────────────────────────────────────────────────────
-  if (s.flow === "SERVICING") {
-    if (s.step === "after_contact") return ask("SERVICING", "ask_vehicle_no", col, "Please enter your Vehicle Number:\n(e.g. TS09AB1234)", []);
-    if (s.step === "ask_name") { col.name = inp; return ask("SERVICING", "ask_phone", col, "Please share your phone number:", []); }
+  // ── DOWNLOAD BROCHURE ──────────────────────────────────────────────────────
+  if (s.flow === "BROCHURE") {
+    if (s.step === "ask_vehicle") { col.vehicle = inp; return ask("BROCHURE", "ask_name",  col, "Your name:", []); }
+    if (s.step === "ask_name")    { col.name = inp;    return ask("BROCHURE", "ask_phone", col, "Your mobile number:", []); }
     if (s.step === "ask_phone") {
-      if (!isPhone(inp)) return ask("SERVICING", "ask_phone", col, "⚠️ Invalid number. Please enter a valid phone number:", []);
-      col.phone = inp;
-      return ask("SERVICING", "ask_vehicle_no", col, "Please enter your Vehicle Number:\n(e.g. TS09AB1234)", []);
+      if (!isPhone(inp)) return ask("BROCHURE", "ask_phone", col, "⚠️ Please enter a valid 10-digit mobile number:", []);
+      col.phone = inp;  return ask("BROCHURE", "ask_email", col, "Your email address:", []);
     }
-    if (s.step === "ask_vehicle_no") { col.vehicleNumber = inp.toUpperCase(); return ask("SERVICING", "ask_service_type", col, "Select service type:", ["🔩 Periodic Service", "🔧 General Repair", "🚨 Accident Repair", "✅ Warranty Service", "🔋 Battery / EV Service"]); }
-    if (s.step === "ask_service_type") { col.serviceType = inp; return ask("SERVICING", "ask_preferred_date", col, "Preferred date for service?", ["Tomorrow", "This Week", "Choose Date"]); }
-    if (s.step === "ask_preferred_date") {
-      col.preferredDate = inp;
-      return { messages: [`✅ Service Request Confirmed!\n\n👤 Name: ${col.name}\n📞 Phone: ${col.phone}\n🚗 Vehicle: ${col.vehicleNumber}\n🔧 Service: ${col.serviceType}\n📅 Date: ${col.preferredDate}\n\nOur service team will call you shortly to confirm your appointment.`], quickReplies: ["🔙 Main Menu", "💬 Talk to Executive"], sessionData: reset(col), action: "CREATE_TICKET", ticketData: { subject: `${col.serviceType} – ${col.vehicleNumber}`, description: `Name: ${col.name}, Phone: ${col.phone}, Vehicle: ${col.vehicleNumber}, Service: ${col.serviceType}, Date: ${col.preferredDate}`, vehicleNumber: col.vehicleNumber, serviceType: col.serviceType }, leadData: { ...col, type: "SERVICE", score: "50" } };
-    }
-  }
-
-  // ─ USED CAR ──────────────────────────────────────────────────────────────────
-  if (s.flow === "USED_CAR") {
-    if (s.step === "after_contact") return ask("USED_CAR", "buy_or_sell", col, "Are you looking to:", ["💰 Buy a Used Car", "🔄 Sell / Exchange My Car"]);
-    if (s.step === "ask_name") { col.name = inp; return ask("USED_CAR", "ask_phone", col, "Please share your phone number:", []); }
-    if (s.step === "ask_phone") {
-      if (!isPhone(inp)) return ask("USED_CAR", "ask_phone", col, "⚠️ Invalid number. Please re-enter:", []);
-      col.phone = inp;
-      return ask("USED_CAR", "buy_or_sell", col, "Are you looking to:", ["💰 Buy a Used Car", "🔄 Sell / Exchange My Car"]);
-    }
-    if (s.step === "buy_or_sell") {
-      col.intent = matchMenu(inp, "Sell") ? "SELL" : "BUY";
-      if (col.intent === "SELL") return ask("USED_CAR", "ask_vehicle_details", col, "Please share your vehicle details:\n\nFormat: Brand, Model, Year, KMs Driven\nExample: Hyundai i20, 2019, 45,000 km", []);
-      return { messages: [`✅ Got it ${col.name}!\n\nOur used car expert will contact you on ${col.phone} shortly with the best available options.`], quickReplies: ["🔙 Main Menu", "💬 Talk to Executive"], sessionData: reset(col), action: "CREATE_LEAD", leadData: { ...col, type: "BUY_USED_CAR", score: "55" } };
-    }
-    if (s.step === "ask_vehicle_details") {
-      col.vehicleDetails = inp;
-      return { messages: [`✅ Exchange Request Received!\n\n👤 Name: ${col.name}\n📞 Phone: ${col.phone}\n🚗 Vehicle: ${col.vehicleDetails}\n\nOur exchange specialist will contact you with the best valuation shortly. 💰`], quickReplies: ["🔙 Main Menu", "💬 Talk to Executive"], sessionData: reset(col), action: "CREATE_LEAD", leadData: { ...col, type: "EXCHANGE", score: "70" } };
+    if (s.step === "ask_email") { col.email = inp; return ask("BROCHURE", "ask_city", col, "Your city:", CITIES); }
+    if (s.step === "ask_city") {
+      col.city = inp;
+      return {
+        messages: [`📄 Brochure Sent!\n\n👤 ${col.name}\n📞 ${col.phone}\n✉️ ${col.email}\n🚛 ${col.vehicle || "Ashok Leyland"}\n\n✅ Brochure sent to ${col.email}.\nOur team will reach out shortly. 🙏`],
+        quickReplies: ["🚗 Book Test Drive", "💰 Get Quote", "💬 Chat with Agent", "🔙 Main Menu"],
+        sessionData: reset(col),
+        action: "CREATE_LEAD",
+        leadData: { ...col, type: "BROCHURE_REQUEST", score: "60" },
+      };
     }
   }
 
-  // ─ INSURANCE ─────────────────────────────────────────────────────────────────
-  if (s.flow === "INSURANCE") {
-    if (s.step === "after_contact") return ask("INSURANCE", "ask_vehicle_no", col, "Please enter your Vehicle Number:", []);
-    if (s.step === "ask_name") { col.name = inp; return ask("INSURANCE", "ask_phone", col, "Please share your phone number:", []); }
-    if (s.step === "ask_phone") {
-      if (!isPhone(inp)) return ask("INSURANCE", "ask_phone", col, "⚠️ Invalid number. Please re-enter:", []);
-      col.phone = inp;
-      return ask("INSURANCE", "ask_vehicle_no", col, "Please enter your Vehicle Number:", []);
-    }
-    if (s.step === "ask_vehicle_no") { col.vehicleNumber = inp.toUpperCase(); return ask("INSURANCE", "ask_policy_expiry", col, "When does your current policy expire?", ["This Month", "Next Month", "Already Expired", "Don't Know"]); }
-    if (s.step === "ask_policy_expiry") {
-      col.policyExpiry = inp;
-      return { messages: [`✅ Insurance Renewal Submitted!\n\n👤 Name: ${col.name}\n📞 Phone: ${col.phone}\n🚗 Vehicle: ${col.vehicleNumber}\n📅 Expiry: ${col.policyExpiry}\n\nOur insurance executive will contact you with the best renewal plans.`], quickReplies: ["🔙 Main Menu", "💬 Talk to Executive"], sessionData: reset(col), action: "CREATE_LEAD", leadData: { ...col, type: "INSURANCE", score: "55" } };
-    }
-  }
-
-  // ─ TEST DRIVE ────────────────────────────────────────────────────────────────
+  // ── BOOK TEST DRIVE ────────────────────────────────────────────────────────
   if (s.flow === "TEST_DRIVE") {
-    if (s.step === "after_contact") return ask("TEST_DRIVE", "ask_vehicle", col, "Which type of vehicle would you like to test drive?", CAR_CATEGORIES);
-    if (s.step === "ask_name") { col.name = inp; return ask("TEST_DRIVE", "ask_phone", col, "Please share your phone number:", []); }
+    if (s.step === "ask_vehicle") { col.vehicle = inp; return ask("TEST_DRIVE", "ask_dealer", col, "Select your preferred dealer city:", CITIES); }
+    if (s.step === "ask_dealer")  { col.dealerCity = inp; return ask("TEST_DRIVE", "ask_date", col, "Preferred date?", DATES); }
+    if (s.step === "ask_date")    { col.date = inp;       return ask("TEST_DRIVE", "ask_time", col, "Preferred time slot?", TIMES); }
+    if (s.step === "ask_time")    { col.time = inp;       return ask("TEST_DRIVE", "ask_name", col, "Your name:", []); }
+    if (s.step === "ask_name")    { col.name = inp;       return ask("TEST_DRIVE", "ask_phone", col, "Your mobile number:", []); }
     if (s.step === "ask_phone") {
-      if (!isPhone(inp)) return ask("TEST_DRIVE", "ask_phone", col, "⚠️ Invalid number. Please re-enter:", []);
-      col.phone = inp;
-      return ask("TEST_DRIVE", "ask_vehicle", col, "Which type of vehicle would you like to test drive?", CAR_CATEGORIES);
+      if (!isPhone(inp)) return ask("TEST_DRIVE", "ask_phone", col, "⚠️ Please enter a valid 10-digit mobile number:", []);
+      col.phone = inp;  return ask("TEST_DRIVE", "ask_email", col, "Your email address:", []);
     }
-    if (s.step === "ask_vehicle") { col.vehicle = inp; return ask("TEST_DRIVE", "ask_model", col, "Great choice! 🚗 Any specific model in mind?", modelOptions(inp)); }
-    if (s.step === "ask_model") { col.model = inp; return ask("TEST_DRIVE", "ask_date", col, "Preferred date for test drive?", ["Today", "Tomorrow", "This Saturday", "This Sunday", "Choose Date"]); }
-    if (s.step === "ask_date") { col.date = inp; return ask("TEST_DRIVE", "ask_time", col, "Preferred time slot?", ["🌅 9 AM – 11 AM", "☀️ 11 AM – 1 PM", "🌤️ 2 PM – 4 PM", "🌇 4 PM – 6 PM"]); }
-    if (s.step === "ask_time") {
-      col.time = inp;
-      return { messages: [`🎉 Test Drive Booked!\n\n👤 Name: ${col.name}\n📞 Phone: ${col.phone}\n🚗 Vehicle: ${col.model || col.vehicle}\n📅 Date: ${col.date}\n⏰ Time: ${col.time}\n\nOur team will confirm your slot shortly. See you at the showroom! 🏎️`], quickReplies: ["🔙 Main Menu", "💬 Talk to Executive"], sessionData: reset(col), action: "CREATE_LEAD", leadData: { ...col, type: "TEST_DRIVE", score: "85" } };
+    if (s.step === "ask_email") {
+      col.email = inp;
+      return {
+        messages: [`🎉 Test Drive Booked!\n\n👤 ${col.name}\n📞 ${col.phone}\n✉️ ${col.email}\n🚛 ${col.vehicle}\n📍 ${col.dealerCity}\n📅 ${col.date} | ⏰ ${col.time}\n\n✅ Our team will confirm your slot within 2 hours. See you soon! 🚛`],
+        quickReplies: ["💰 Get Quote", "💳 Finance Options", "🔙 Main Menu"],
+        sessionData: reset(col),
+        action: "CREATE_LEAD",
+        leadData: { ...col, type: "TEST_DRIVE", score: "85" },
+      };
     }
   }
 
-  // ─ SHOWROOM VISIT ────────────────────────────────────────────────────────────
-  if (s.flow === "SHOWROOM") {
-    if (s.step === "after_contact") return ask("SHOWROOM", "ask_purpose", col, "What is the purpose of your visit?", ["🚗 See New Cars", "💰 Get Price Quote", "📝 Complete Booking", "🔧 Service Enquiry", "🔄 Exchange Enquiry"]);
-    if (s.step === "ask_name") { col.name = inp; return ask("SHOWROOM", "ask_phone", col, "Please share your phone number:", []); }
-    if (s.step === "ask_phone") {
-      if (!isPhone(inp)) return ask("SHOWROOM", "ask_phone", col, "⚠️ Invalid number. Please re-enter:", []);
-      col.phone = inp;
-      return ask("SHOWROOM", "ask_purpose", col, "What is the purpose of your visit?", ["🚗 See New Cars", "💰 Get Price Quote", "📝 Complete Booking", "🔧 Service Enquiry", "🔄 Exchange Enquiry"]);
+  // ── SERVICE & SUPPORT ──────────────────────────────────────────────────────
+  if (s.flow === "SERVICE") {
+    if (s.step === "ask_service_type") {
+      col.serviceType = inp;
+      if (match(inp, "Breakdown")) {
+        return {
+          messages: ["🚨 Breakdown Assistance:\n\n📞 AL Helpline: 1800-425-1177 (24/7 Toll Free)\n\nPlease share your location and vehicle number with our team. Help is on the way! 🚑"],
+          quickReplies: ["🔙 Main Menu"],
+          sessionData: reset(col),
+          action: "NONE",
+        };
+      }
+      if (match(inp, "AMC")) {
+        return {
+          messages: ["📋 Annual Maintenance Contract (AMC):\n\n✅ All periodic services covered\n✅ Priority service slots\n✅ Genuine spare parts\n✅ Trained AL technicians\n\nPlease share your vehicle number and we'll send AMC packages:"],
+          quickReplies: ["🔙 Main Menu"],
+          sessionData: { flow: "SERVICE", step: "ask_vehicle_no", collected: col },
+          action: "NONE",
+        };
+      }
+      if (match(inp, "Status")) {
+        return ask("SERVICE", "ask_vehicle_no", col, "Please enter your Vehicle Registration Number to check service status:", []);
+      }
+      return ask("SERVICE", "ask_vehicle_no", col, "Please enter your Vehicle Registration Number:\n(e.g. MH01AB1234)", []);
     }
-    if (s.step === "ask_purpose") { col.purpose = inp; return ask("SHOWROOM", "ask_date", col, "When would you like to visit?", ["Today", "Tomorrow", "This Saturday", "This Sunday"]); }
+    if (s.step === "ask_vehicle_no")   { col.vehicleNumber = inp.toUpperCase(); return ask("SERVICE", "ask_dealer_city", col, "Select preferred service center city:", CITIES); }
+    if (s.step === "ask_dealer_city")  { col.dealerCity = inp; return ask("SERVICE", "ask_date", col, "Preferred date for service:", DATES); }
     if (s.step === "ask_date") {
       col.date = inp;
-      return { messages: [`✅ Showroom Visit Confirmed!\n\n👤 Name: ${col.name}\n📞 Phone: ${col.phone}\n🎯 Purpose: ${col.purpose}\n📅 Date: ${col.date}\n\n📍 Our team will send you the showroom address and confirm your visit shortly.`], quickReplies: ["🔙 Main Menu", "💬 Talk to Executive"], sessionData: reset(col), action: "CREATE_LEAD", leadData: { ...col, type: "SHOWROOM_VISIT", score: "70" } };
+      return {
+        messages: [`✅ Service Booking Confirmed!\n\n🚛 Vehicle: ${col.vehicleNumber}\n🔧 Service: ${col.serviceType}\n📍 City: ${col.dealerCity}\n📅 Date: ${col.date}\n\nOur service advisor will call to confirm the appointment. 🙏`],
+        quickReplies: ["🔙 Main Menu", "💬 Chat with Agent"],
+        sessionData: reset(col),
+        action: "CREATE_TICKET",
+        ticketData: { subject: `${col.serviceType} – ${col.vehicleNumber}`, description: `Vehicle: ${col.vehicleNumber}, Service: ${col.serviceType}, City: ${col.dealerCity}, Date: ${col.date}`, vehicleNumber: col.vehicleNumber, serviceType: col.serviceType },
+        leadData: { ...col, type: "SERVICE", score: "50" },
+      };
     }
   }
 
-  // ─ COMPLAINT / FEEDBACK ──────────────────────────────────────────────────────
-  if (s.flow === "COMPLAINT") {
-    if (s.step === "after_contact") return ask("COMPLAINT", "ask_type", col, "Please select the type:", ["😠 Vehicle Complaint", "🔧 Service Complaint", "💰 Billing Issue", "👤 Staff Behaviour", "📦 Delivery Delay", "💬 General Feedback"]);
-    if (s.step === "ask_name") { col.name = inp; return ask("COMPLAINT", "ask_phone", col, "Please share your phone number:", []); }
+  // ── SPARE PARTS ────────────────────────────────────────────────────────────
+  if (s.flow === "SPARE_PARTS") {
+    if (s.step === "ask_vehicle")  { col.vehicle = inp;      return ask("SPARE_PARTS", "ask_category", col, "Select part category:", PART_CATEGORIES); }
+    if (s.step === "ask_category") { col.partCategory = inp; return ask("SPARE_PARTS", "ask_name",     col, "Your name:", []); }
+    if (s.step === "ask_name")     { col.name = inp;         return ask("SPARE_PARTS", "ask_phone",    col, "Your mobile number:", []); }
     if (s.step === "ask_phone") {
-      if (!isPhone(inp)) return ask("COMPLAINT", "ask_phone", col, "⚠️ Invalid number. Please re-enter:", []);
+      if (!isPhone(inp)) return ask("SPARE_PARTS", "ask_phone", col, "⚠️ Please enter a valid mobile number:", []);
       col.phone = inp;
-      return ask("COMPLAINT", "ask_type", col, "Please select the type:", ["😠 Vehicle Complaint", "🔧 Service Complaint", "💰 Billing Issue", "👤 Staff Behaviour", "📦 Delivery Delay", "💬 General Feedback"]);
-    }
-    if (s.step === "ask_type") { col.complaintType = inp; return ask("COMPLAINT", "ask_details", col, "Please describe your concern in detail:\n(We take all feedback seriously)", []); }
-    if (s.step === "ask_details") {
-      col.complaintDetails = inp;
-      return { messages: [`✅ Complaint Registered!\n\n👤 Name: ${col.name}\n📞 Phone: ${col.phone}\n📋 Type: ${col.complaintType}\n📝 Details: ${col.complaintDetails}\n\nOur customer care team will contact you within 24 hours. 🙏`], quickReplies: ["🔙 Main Menu", "💬 Talk to Executive"], sessionData: reset(col), action: "CREATE_TICKET", ticketData: { subject: `${col.complaintType} – ${col.name}`, description: `Name: ${col.name}, Phone: ${col.phone}, Type: ${col.complaintType}\nDetails: ${col.complaintDetails}`, vehicleNumber: "", serviceType: col.complaintType }, leadData: { ...col, type: "COMPLAINT", score: "40" } };
+      return {
+        messages: [`✅ Spare Parts Enquiry Submitted!\n\n👤 ${col.name}\n📞 ${col.phone}\n🚛 ${col.vehicle}\n🔩 ${col.partCategory}\n\nOur parts team will contact you within 4 hours. 🙏`],
+        quickReplies: ["🛠️ Book Service", "💬 Chat with Agent", "🔙 Main Menu"],
+        sessionData: reset(col),
+        action: "CREATE_LEAD",
+        leadData: { ...col, type: "SPARE_PARTS", score: "55" },
+      };
     }
   }
 
-  return { messages: ["I didn't quite get that. Please select an option:"], quickReplies: MAIN_MENU, sessionData: { flow: "INITIAL", step: "", collected: col }, action: "NONE" };
+  // ── FINANCE & EMI ──────────────────────────────────────────────────────────
+  if (s.flow === "FINANCE_EMI") {
+    if (s.step === "ask_vehicle") { col.vehicle = inp; return ask("FINANCE_EMI", "ask_price", col, `Vehicle price of ${inp}? (in Lakhs, e.g. 9 for ₹9L)`, []); }
+    if (s.step === "ask_price") {
+      col.vehiclePrice = inp;
+      col._price = String(parseFloat(inp.replace(/[^0-9.]/g, "")) || 0);
+      return ask("FINANCE_EMI", "ask_down", col, `Down payment amount? (in Lakhs, e.g. 2 for ₹2L)\n\nVehicle: ₹${col._price}L`, []);
+    }
+    if (s.step === "ask_down") {
+      col.downPayment = inp;
+      col._down = String(parseFloat(inp.replace(/[^0-9.]/g, "")) || 0);
+      return ask("FINANCE_EMI", "ask_tenure", col, "Preferred loan tenure?", TENURES);
+    }
+    if (s.step === "ask_tenure") {
+      col.tenure = inp;
+      const months = parseInt(inp) || 36;
+      const price  = parseFloat(col._price  || "0");
+      const down   = parseFloat(col._down   || "0");
+      return {
+        messages: [calcEMI(price, down, months)],
+        quickReplies: ["📞 Request Callback", "💬 Talk to Finance Expert", "🚗 Book Test Drive", "🔙 Main Menu"],
+        sessionData: { flow: "FINANCE_EMI", step: "after_emi", collected: col },
+        action: "NONE",
+      };
+    }
+    if (s.step === "after_emi") {
+      if (match(inp, "Callback"))      return ask("CALLBACK",    "ask_name",    col, "Your name for callback:", []);
+      if (match(inp, "Finance Expert") || match(inp, "Talk to")) return escalate(col, "Finance enquiry");
+      if (match(inp, "Book Test Drive")) return ask("TEST_DRIVE", "ask_vehicle", col, "Which vehicle?", AL_VEHICLES);
+    }
+  }
+
+  // ── FIND DEALER ────────────────────────────────────────────────────────────
+  if (s.flow === "FIND_DEALER") {
+    if (s.step === "ask_city") {
+      col.city = inp;
+      return {
+        messages: [dealerInfo(inp)],
+        quickReplies: ["📞 Call Dealer", "📍 Open Maps", "💬 Chat with Agent", "🔙 Main Menu"],
+        sessionData: reset(col),
+        action: "NONE",
+      };
+    }
+  }
+
+  // ── REQUEST CALLBACK ───────────────────────────────────────────────────────
+  if (s.flow === "CALLBACK") {
+    if (s.step === "ask_name")  { col.name = inp; return ask("CALLBACK", "ask_phone", col, "Your mobile number:", []); }
+    if (s.step === "ask_phone") {
+      if (!isPhone(inp)) return ask("CALLBACK", "ask_phone", col, "⚠️ Please enter a valid 10-digit mobile number:", []);
+      col.phone = inp;  return ask("CALLBACK", "ask_time", col, "Preferred callback time:", [...TIMES, "Anytime"]);
+    }
+    if (s.step === "ask_time") {
+      col.preferredTime = inp;
+      return {
+        messages: [`✅ Callback Requested!\n\n👤 ${col.name}\n📞 ${col.phone}\n⏰ ${col.preferredTime}\n\nOur team will call you at the requested time. 🙏\nThank you for choosing Ashok Leyland! 🚛`],
+        quickReplies: ["🔙 Main Menu"],
+        sessionData: reset(col),
+        action: "CREATE_LEAD",
+        leadData: { ...col, type: "CALLBACK", score: "65" },
+      };
+    }
+  }
+
+  // ── CHAT WITH AGENT ────────────────────────────────────────────────────────
+  if (s.flow === "CHAT_AGENT") {
+    if (s.step === "ask_category") { col.category = inp; return ask("CHAT_AGENT", "ask_name",  col, "Your name:", []); }
+    if (s.step === "ask_name")     { col.name = inp;     return ask("CHAT_AGENT", "ask_phone", col, "Your mobile number:", []); }
+    if (s.step === "ask_phone") {
+      if (!isPhone(inp)) return ask("CHAT_AGENT", "ask_phone", col, "⚠️ Please enter a valid mobile number:", []);
+      col.phone = inp;  return ask("CHAT_AGENT", "ask_email", col, "Your email address:", []);
+    }
+    if (s.step === "ask_email") { col.email = inp; return ask("CHAT_AGENT", "ask_city", col, "Your city:", CITIES); }
+    if (s.step === "ask_city")  { col.city = inp;  return escalate(col, col.category); }
+  }
+
+  return {
+    messages: ["I didn't quite get that. 😊\n\nPlease select an option:"],
+    quickReplies: MAIN_MENU,
+    sessionData: { flow: "INITIAL", step: "", collected: col },
+    action: "NONE",
+  };
 }

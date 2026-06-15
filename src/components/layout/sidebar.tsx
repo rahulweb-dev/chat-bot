@@ -36,6 +36,7 @@ const navItems: NavItem[] = [
   { label: "Analytics", href: "/dashboard/analytics", icon: BarChart3, roles: ["COMPANY_ADMIN", "MANAGER", "TEAM_LEADER"] },
   { label: "Workflows", href: "/dashboard/workflows", icon: Workflow, roles: ["COMPANY_ADMIN", "MANAGER"] },
   { label: "Widget Builder", href: "/dashboard/widget", icon: Puzzle, roles: ["COMPANY_ADMIN"] },
+  { label: "Chatbot Settings", href: "/dashboard/chatbot-settings", icon: Bot, roles: ["COMPANY_ADMIN", "MANAGER"] },
   { label: "Billing", href: "/dashboard/billing", icon: CreditCard, roles: ["COMPANY_ADMIN"] },
   { label: "API Keys", href: "/dashboard/api-keys", icon: Key, roles: ["COMPANY_ADMIN"] },
   { label: "Audit Logs", href: "/dashboard/audit-logs", icon: Shield, roles: ["COMPANY_ADMIN"] },
