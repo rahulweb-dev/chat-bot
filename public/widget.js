@@ -33,6 +33,7 @@
   var chatStarted = false;
   var unreadCount = 0;
   var lastQR      = [];
+  var renderedIds = new Set(); // prevent duplicate messages from double-polling
 
   // Load persisted data
   try {
@@ -245,7 +246,8 @@
             isBusy = false;
             hideTyping();
             if (data) renderBotResponse(data);
-          }).catch(function() { isBusy = false; hideTyping(); });
+            startPoll(); // start polling only after init completes
+          }).catch(function() { isBusy = false; hideTyping(); startPoll(); });
         };
 
         if (!convId) {
@@ -264,13 +266,15 @@
               hideTyping();
               // Restore last quick replies so user knows what to click
               if (lastQR && lastQR.length) setOptions(lastQR, true);
-              startPoll();
+              startPoll(); // start polling only after history fully loaded
             }
           });
         }
+      } else {
+        // Widget already started — just restart polling on re-open
+        startPoll();
       }
 
-      startPoll();
       setTimeout(function() { document.getElementById("sf-inp").focus(); }, 300);
     } else {
       stopPoll();
@@ -385,6 +389,8 @@
     }).then(function(r) {
       if (r && r.success && r.data && r.data.length) {
         r.data.forEach(function(m) {
+          if (renderedIds.has(m._id)) return;
+          renderedIds.add(m._id);
           var side = (m.senderType === "AGENT" || m.senderType === "BOT") ? "bot" : "you";
           var label = (m.senderType === "AGENT" && m.senderId && m.senderId.name) ? m.senderId.name : null;
           addBubble(m.content, side, m.createdAt, label);
@@ -404,9 +410,11 @@
     }).then(function(r) {
       if (r && r.success && r.data && r.data.length) {
         r.data.filter(function(m) { return m.senderType === "AGENT"; }).forEach(function(m) {
+          if (renderedIds.has(m._id)) return; // skip already-rendered
+          renderedIds.add(m._id);
           var label = (m.senderId && m.senderId.name) ? m.senderId.name : "Agent";
           addBubble(m.content, "bot", m.createdAt, label);
-          lastMsgAt = m.createdAt;
+          if (m.createdAt) lastMsgAt = m.createdAt;
           playBeep();
           if (!isOpen) { unreadCount++; showDot(); }
         });

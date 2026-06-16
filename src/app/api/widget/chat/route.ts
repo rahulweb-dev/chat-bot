@@ -7,6 +7,7 @@ import Conversation from "@/models/Conversation";
 import Message from "@/models/Message";
 import Lead from "@/models/Lead";
 import Ticket from "@/models/Ticket";
+import { getIO } from "@/server/socket";
 
 async function resolveCompany(apiKey: string) {
   let company = await Company.findOne({ apiKey, isActive: true });
@@ -23,15 +24,8 @@ async function resolveCompany(apiKey: string) {
 }
 
 function emitNotification(companyId: string, data: Record<string, unknown>) {
-  try {
-    // getIO() returns the Socket.IO server when running with the custom server (server.ts).
-    // On serverless (Vercel) it returns undefined — the catch handles that safely.
-    const { getIO } = require("@/server/socket") as { getIO: () => import("socket.io").Server | undefined };
-    const ioInstance = getIO();
-    ioInstance?.to(`company:${companyId}`).emit("notification:new", data);
-  } catch {
-    // Socket server not available (serverless environment)
-  }
+  // getIO() returns undefined on serverless (Vercel) where the custom server never ran.
+  getIO()?.to(`company:${companyId}`).emit("notification:new", data);
 }
 
 const CORS = {
@@ -74,12 +68,9 @@ export async function POST(request: NextRequest) {
       await Message.create({ companyId, conversationId, senderType: "VISITOR", type: "TEXT", content: message, isDelivered: true }).catch(() => {});
       await Conversation.findByIdAndUpdate(conversationId, { lastMessageAt: new Date(), $inc: { messageCount: 1 } }).catch(() => {});
       // Emit real-time for agent dashboard
-      try {
-        const { getIO } = require("@/server/socket") as { getIO: () => import("socket.io").Server | undefined };
-        const msg = await Message.findOne({ conversationId, content: message, senderType: "VISITOR" }).sort({ createdAt: -1 });
-        getIO()?.to(`conversation:${conversationId}`).emit("message:new", msg);
-        getIO()?.to(`company:${companyId}`).emit("conversation:updated", { conversationId, lastMessage: message, lastMessageAt: new Date() });
-      } catch { /* Socket not available */ }
+      const msg = await Message.findOne({ conversationId, content: message, senderType: "VISITOR" }).sort({ createdAt: -1 });
+      getIO()?.to(`conversation:${conversationId}`).emit("message:new", msg);
+      getIO()?.to(`company:${companyId}`).emit("conversation:updated", { conversationId, lastMessage: message, lastMessageAt: new Date() });
       const session: SessionData = sessionData?.flow ? sessionData : { flow: "INITIAL", step: "", collected: {} };
       return NextResponse.json({ success: true, data: { messages: [], quickReplies: [], action: "NONE", sideEffect: {}, sessionData: session } }, { headers: CORS });
     }
@@ -90,7 +81,16 @@ export async function POST(request: NextRequest) {
 
   if (conversationId) {
     if (message !== "__INIT__") {
-      await Message.create({ companyId, conversationId, senderType: "VISITOR", type: "TEXT", content: message, isDelivered: true }).catch(() => {});
+      const visitorMsg = await Message.create({ companyId, conversationId, senderType: "VISITOR", type: "TEXT", content: message, isDelivered: true }).catch(() => null);
+      // Push visitor message to admin dashboard in real-time
+      if (visitorMsg) {
+        const io = getIO();
+        if (io) {
+          io.to(`conversation:${conversationId}`).emit("message:new", visitorMsg);
+          io.to(`company:${companyId}`).emit("message:new", { ...visitorMsg.toObject(), conversationId });
+          io.to(`company:${companyId}`).emit("conversation:updated", { conversationId, lastMessage: message, lastMessageAt: new Date() });
+        }
+      }
     }
     for (const msg of result.messages) {
       await Message.create({ companyId, conversationId, senderType: "BOT", type: "TEXT", content: msg, isDelivered: true }).catch(() => {});
@@ -126,6 +126,12 @@ export async function POST(request: NextRequest) {
           activities: [{ type: "CHAT", description: `Widget lead: ${ld.type}`, createdAt: new Date() }],
         });
         sideEffect = { type: "lead_created", leadId: lead._id };
+        // Tag the conversation with the lead intent so it shows in sidebar
+        const leadTag = ld.type || "GENERAL";
+        await Conversation.findByIdAndUpdate(conversationId, {
+          $addToSet: { tags: { $each: [leadTag, "AUTO_DEALERSHIP"] } },
+          leadId: lead._id,
+        }).catch(() => {});
         emitNotification(companyId, {
           type: "lead",
           conversationId,
@@ -150,6 +156,10 @@ export async function POST(request: NextRequest) {
         await Lead.create({ companyId, conversationId, name: ld.name || "Visitor", phone: ld.phone, source: "CHAT_WIDGET", stage: "NEW", score: 50, currency: "INR", tags: ["SERVICE", "AUTO_DEALERSHIP"] }).catch(() => {});
       }
       sideEffect = { type: "ticket_created", ticketId: ticket._id, ticketNumber: ticket.ticketNumber };
+      await Conversation.findByIdAndUpdate(conversationId, {
+        $addToSet: { tags: { $each: ["SERVICE", "WIDGET"] } },
+        ticketId: ticket._id,
+      }).catch(() => {});
       emitNotification(companyId, {
         type: "ticket",
         conversationId,
@@ -160,7 +170,10 @@ export async function POST(request: NextRequest) {
   }
 
   if (result.action === "ASSIGN_AGENT" && conversationId) {
-    await Conversation.findByIdAndUpdate(conversationId, { "metadata.needsAgent": true }).catch(() => {});
+    await Conversation.findByIdAndUpdate(conversationId, {
+      "metadata.needsAgent": true,
+      $addToSet: { tags: "AGENT_REQUEST" },
+    }).catch(() => {});
     sideEffect = { type: "agent_requested" };
     emitNotification(companyId, {
       type: "agent_request",

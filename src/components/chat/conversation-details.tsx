@@ -129,14 +129,15 @@ export function ConversationDetails({ conversationId }: { conversationId: string
     : "Agent";
 
   const tagColors: Record<string, string> = {
-    TEST_DRIVE: "bg-purple-100 text-purple-700",
-    BROCHURE_REQUEST: "bg-blue-100 text-blue-700",
-    CALLBACK: "bg-orange-100 text-orange-700",
-    SERVICE: "bg-yellow-100 text-yellow-700",
-    SPARE_PARTS: "bg-red-100 text-red-700",
+    TEST_DRIVE:      "bg-purple-100 text-purple-700",
+    BROCHURE_REQUEST:"bg-blue-100 text-blue-700",
+    CALLBACK:        "bg-orange-100 text-orange-700",
+    SERVICE:         "bg-yellow-100 text-yellow-700",
+    SPARE_PARTS:     "bg-red-100 text-red-700",
     AUTO_DEALERSHIP: "bg-indigo-100 text-indigo-700",
-    GENERAL: "bg-gray-100 text-gray-600",
-    WIDGET: "bg-teal-100 text-teal-700",
+    AGENT_REQUEST:   "bg-amber-100 text-amber-700",
+    GENERAL:         "bg-gray-100 text-gray-600",
+    WIDGET:          "bg-teal-100 text-teal-700",
   };
 
   return (

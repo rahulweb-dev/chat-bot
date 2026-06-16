@@ -7,6 +7,8 @@ import { createServer } from "http";
 import { parse } from "url";
 import next from "next";
 import { initSocketServer } from "./src/server/socket";
+import { initWhatsAppWorker } from "./src/lib/queue/whatsappWorker";
+import { initCampaignScheduler } from "./src/lib/queue/campaignScheduler";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "localhost";
@@ -28,9 +30,12 @@ app.prepare().then(() => {
   });
 
   initSocketServer(httpServer);
+  initWhatsAppWorker();
+  initCampaignScheduler();
 
   httpServer.listen(port, () => {
     console.log(`> Ready on http://${hostname}:${port}`);
     console.log(`> Socket.IO initialized`);
+    console.log(`> WhatsApp worker + campaign scheduler initialized`);
   });
 });

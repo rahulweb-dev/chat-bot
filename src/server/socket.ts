@@ -12,12 +12,16 @@ interface AuthenticatedSocket extends Socket {
   companyId?: string;
 }
 
-let io: SocketIOServer;
+// Next.js bundles API route handlers separately from the custom server.ts process.
+// A module-level `let io` would be a *different* binding when required from a route
+// handler vs. imported from server.ts. Storing on globalThis guarantees every module
+// instance in this Node process reads/writes the same Socket.IO server.
+const globalForIO = globalThis as unknown as { __io?: SocketIOServer };
 
 export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
-  if (io) return io;
+  if (globalForIO.__io) return globalForIO.__io;
 
-  io = new SocketIOServer(httpServer, {
+  const io = new SocketIOServer(httpServer, {
     cors: {
       origin: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
       methods: ["GET", "POST"],
@@ -248,11 +252,12 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
     });
   });
 
+  globalForIO.__io = io;
   return io;
 }
 
-export function getIO(): SocketIOServer {
-  return io;
+export function getIO(): SocketIOServer | undefined {
+  return globalForIO.__io;
 }
 
 async function findAvailableAgent(companyId: string) {
@@ -282,5 +287,3 @@ async function findAvailableAgent(companyId: string) {
 
   return available?.agent || null;
 }
-
-export { io };

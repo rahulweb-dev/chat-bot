@@ -11,8 +11,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
   Building2, Users, DollarSign, TrendingUp, AlertTriangle,
-  Plus, Search, Ban, CheckCircle, Trash2, Crown, Globe,
+  Plus, Search, Ban, CheckCircle, Trash2, Crown, Globe, Wallet, Loader2,
 } from "lucide-react";
+import axios from "axios";
 import { timeAgo, formatNumber } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
@@ -33,6 +34,8 @@ export function SuperAdminDashboard() {
   const [search, setSearch] = useState("");
   const [suspendModal, setSuspendModal] = useState<{ id: string; name: string } | null>(null);
   const [suspendReason, setSuspendReason] = useState("");
+  const [creditsModal, setCreditsModal] = useState<{ id: string; name: string } | null>(null);
+  const [creditsAmount, setCreditsAmount] = useState("1000");
 
   const { data: companies, isLoading } = useQuery({
     queryKey: ["admin-companies", search],
@@ -104,6 +107,20 @@ export function SuperAdminDashboard() {
     onSuccess: () => {
       toast({ title: "Company deleted" });
       qc.invalidateQueries({ queryKey: ["admin-companies"] });
+    },
+  });
+
+  const addCreditsMutation = useMutation({
+    mutationFn: ({ companyId, amount }: { companyId: string; amount: number }) =>
+      axios.post("/api/whatsapp/wallet/add-credits", { companyId, amount }),
+    onSuccess: () => {
+      toast({ title: "WhatsApp credits added" });
+      setCreditsModal(null);
+      setCreditsAmount("1000");
+    },
+    onError: (err: unknown) => {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error : "Failed to add credits";
+      toast({ title: msg, variant: "destructive" });
     },
   });
 
@@ -201,6 +218,14 @@ export function SuperAdminDashboard() {
                       {company.planId.name}
                     </Badge>
                   )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
+                    onClick={() => setCreditsModal({ id: company._id, name: company.name })}
+                  >
+                    <Wallet className="w-3 h-3 mr-1" /> Add Credits
+                  </Button>
                   {!company.isSuspended ? (
                     <Button
                       variant="outline"
@@ -307,6 +332,37 @@ export function SuperAdminDashboard() {
               disabled={suspendMutation.isPending}
             >
               Suspend
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!creditsModal} onOpenChange={() => setCreditsModal(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add WhatsApp Credits</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600">
+            Credit <strong>{creditsModal?.name}</strong>&apos;s WhatsApp wallet. This is a platform-level action — company admins cannot self-serve top-ups.
+          </p>
+          <div>
+            <label className="text-sm font-medium">Amount (INR)</label>
+            <Input
+              type="number"
+              min="1"
+              value={creditsAmount}
+              onChange={(e) => setCreditsAmount(e.target.value)}
+              className="mt-1"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreditsModal(null)}>Cancel</Button>
+            <Button
+              onClick={() => creditsModal && addCreditsMutation.mutate({ companyId: creditsModal.id, amount: Number(creditsAmount) })}
+              disabled={addCreditsMutation.isPending || !Number(creditsAmount)}
+            >
+              {addCreditsMutation.isPending && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
+              Add ₹{creditsAmount || 0}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -6,6 +6,7 @@ import Settings from "@/models/Settings";
 import Conversation from "@/models/Conversation";
 import Message from "@/models/Message";
 import { v4 as uuidv4 } from "uuid";
+import { getIO } from "@/server/socket";
 
 // Resolves a widget API key to a company — supports both Company.apiKey and ApiKey model
 async function resolveCompany(apiKey: string) {
@@ -104,13 +105,10 @@ export async function POST(request: NextRequest) {
     });
 
     // Notify admin live chat in real-time (works when Socket.IO is running with custom server)
-    try {
-      const { getIO } = require("@/server/socket") as { getIO: () => import("socket.io").Server | undefined };
-      getIO()?.to(`company:${companyId}`).emit("conversation:new", {
-        conversationId: conversation._id.toString(),
-        visitor: { name: data.visitorName || data.name, phone: data.visitorPhone || data.phone, visitorId },
-      });
-    } catch { /* Socket not available in serverless */ }
+    getIO()?.to(`company:${companyId}`).emit("conversation:new", {
+      conversationId: conversation._id.toString(),
+      visitor: { name: data.visitorName || data.name, phone: data.visitorPhone || data.phone, visitorId },
+    });
 
     return NextResponse.json(
       { success: true, data: { conversationId: conversation._id, visitorId } },

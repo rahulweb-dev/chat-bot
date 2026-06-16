@@ -75,7 +75,12 @@ export function ChatWindow({ conversationId, onSend, onTyping, onToggleDetails, 
     },
   });
 
-  const messages = storeMessages[conversationId] || messagesData || [];
+  // Show full query history + any optimistic additions from the store (deduped)
+  const baseMessages = messagesData || [];
+  const storeAdditions = (storeMessages[conversationId] || []).filter(
+    (m) => !baseMessages.some((bm) => bm._id === m._id)
+  );
+  const messages = [...baseMessages, ...storeAdditions];
   const isTyping = typingUsers.some(
     (t) => t.conversationId === conversationId && t.userId !== session?.user?.id
   );

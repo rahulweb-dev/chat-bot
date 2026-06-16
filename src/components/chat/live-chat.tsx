@@ -197,7 +197,7 @@ export function LiveChat() {
   ) => {
     if (!activeConversationId) return;
 
-    // Prefer REST API — works even when Socket.IO is not connected
+    // Send via REST — saves to DB, emits socket to visitor widget, adds to store
     try {
       const res = await fetch(`/api/chat/conversations/${activeConversationId}/messages`, {
         method: "POST",
@@ -208,14 +208,10 @@ export function LiveChat() {
       if (data.success && data.data) {
         addMessage(data.data);
         qc.invalidateQueries({ queryKey: ["conversations"] });
+        qc.invalidateQueries({ queryKey: ["messages", activeConversationId] });
       }
     } catch (err) {
       console.error("Failed to send message:", err);
-    }
-
-    // Also emit via socket so the visitor widget gets real-time delivery
-    if (socket?.connected) {
-      socket.emit("message:send", { conversationId: activeConversationId, content, type, isNote, attachments });
     }
   };
 

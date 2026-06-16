@@ -7,7 +7,7 @@ import {
   MessageSquare, TicketIcon, Users, Building2, BarChart3,
   Settings, Bell, Key, FileText, Bot, Workflow, CreditCard,
   LayoutDashboard, BookOpen, Puzzle, Tag, Globe, Shield,
-  ChevronLeft, ChevronRight, Inbox, UserCircle,
+  ChevronLeft, ChevronRight, Inbox, UserCircle, MessageCircle,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Live Chat", href: "/dashboard/chat", icon: MessageSquare, badge: "Live" },
+  { label: "WhatsApp", href: "/dashboard/whatsapp", icon: MessageCircle },
   { label: "Conversations", href: "/dashboard/conversations", icon: Inbox },
   { label: "Tickets", href: "/dashboard/tickets", icon: TicketIcon },
   { label: "Leads & CRM", href: "/dashboard/leads", icon: Tag },
