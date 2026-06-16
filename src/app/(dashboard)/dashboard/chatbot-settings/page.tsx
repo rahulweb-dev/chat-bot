@@ -244,7 +244,7 @@ function HoursTab({ config, refetch }: { config: Config; refetch: () => void }) 
 
   function update(i: number, field: keyof BizHour, val: string | boolean) {
     const u = [...hours];
-    (u[i] as Record<string, string | boolean>)[field] = val;
+    (u[i] as unknown as Record<string, string | boolean>)[field] = val;
     setHours(u);
   }
 
