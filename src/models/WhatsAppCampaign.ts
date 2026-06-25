@@ -15,6 +15,7 @@ export interface IWhatsAppCampaign extends Document {
   completedAt?: Date;
   stats: { total: number; sent: number; delivered: number; read: number; failed: number };
   createdBy: mongoose.Types.ObjectId;
+  failureReason?: string;
   // Rich content bound to the approved template's variables/header/buttons
   offerTitle?: string;
   offerDescription?: string;
@@ -57,6 +58,7 @@ const WhatsAppCampaignSchema = new Schema<IWhatsAppCampaign>(
     ctaType: { type: String, enum: ["VISIT_WEBSITE", "CALL_PHONE", "NONE"], default: "NONE" },
     ctaUrl: { type: String },
     variables: [{ type: String }],
+    failureReason: { type: String },
   },
   { timestamps: true }
 );

@@ -16,11 +16,27 @@ export interface WhatsAppTestResult {
 
 export interface WhatsAppTemplate {
   name: string;
+  id?: string;
   status: string;
   language: string;
   category: string;
   bodyText?: string;
   bodyParamCount: number;
+  components?: Record<string, unknown>[];
+}
+
+export interface TemplateComponent {
+  type: "HEADER" | "BODY" | "FOOTER" | "BUTTONS";
+  format?: "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT";
+  text?: string;
+  buttons?: { type: "URL" | "PHONE_NUMBER" | "QUICK_REPLY"; text: string; url?: string; phone_number?: string }[];
+}
+
+export interface CreateTemplatePayload {
+  name: string;
+  category: "MARKETING" | "UTILITY" | "AUTHENTICATION";
+  language: string;
+  components: TemplateComponent[];
 }
 
 export interface CampaignOfferContent {
@@ -61,7 +77,21 @@ export interface WhatsAppMediaResult {
 async function extractGraphError(res: Response): Promise<string> {
   try {
     const body = await res.json();
-    return body?.error?.message || `Graph API error (HTTP ${res.status})`;
+    const msg: string = body?.error?.message || `Graph API error (HTTP ${res.status})`;
+    const code: number = body?.error?.code;
+    // OAuthException code 190 = expired/invalid token
+    if (code === 190 || msg.toLowerCase().includes("session has expired") || msg.toLowerCase().includes("access token")) {
+      return `Access token expired or invalid — go to WhatsApp Settings and update with a permanent System User token from Meta Business Manager`;
+    }
+    // Code 131030 = sandbox restriction: recipient not in the test number allowlist
+    if (code === 131030 || msg.includes("131030") || msg.toLowerCase().includes("not in allowed list")) {
+      return `Recipient phone number not whitelisted — your WhatsApp account is in test mode. Go to Meta Developer Console → WhatsApp → API Setup → "Manage phone number list" and add the recipient's number with country code (e.g. +91XXXXXXXXXX)`;
+    }
+    // Template not yet approved
+    if (code === 132001 || msg.toLowerCase().includes("template") && msg.toLowerCase().includes("not approved")) {
+      return `Template not approved — wait for Meta to approve the template, then retry the campaign`;
+    }
+    return msg;
   } catch {
     return `Graph API error (HTTP ${res.status})`;
   }
@@ -107,28 +137,71 @@ function countBodyParams(bodyText: string): number {
   return new Set(matches).size;
 }
 
-export async function listTemplates(businessAccountId: string, accessToken: string): Promise<{ ok: boolean; templates?: WhatsAppTemplate[]; error?: string }> {
+export async function listTemplates(
+  businessAccountId: string,
+  accessToken: string,
+  approvedOnly = true
+): Promise<{ ok: boolean; templates?: WhatsAppTemplate[]; error?: string }> {
   try {
     const res = await fetch(
-      `${BASE_URL}/${businessAccountId}/message_templates?fields=name,status,language,category,components&limit=100`,
+      `${BASE_URL}/${businessAccountId}/message_templates?fields=id,name,status,language,category,components&limit=100`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
     if (!res.ok) return { ok: false, error: await extractGraphError(res) };
     const data = await res.json();
-    const templates: WhatsAppTemplate[] = (data?.data || [])
-      .filter((t: { status: string }) => t.status === "APPROVED")
-      .map((t: { name: string; status: string; language: string; category: string; components?: { type: string; text?: string }[] }) => {
+    const raw: { id: string; name: string; status: string; language: string; category: string; components?: { type: string; text?: string }[] }[] = data?.data || [];
+    const templates: WhatsAppTemplate[] = raw
+      .filter((t) => !approvedOnly || t.status === "APPROVED")
+      .map((t) => {
         const bodyComponent = t.components?.find((c) => c.type === "BODY");
         return {
+          id: t.id,
           name: t.name,
           status: t.status,
           language: t.language,
           category: t.category,
           bodyText: bodyComponent?.text,
           bodyParamCount: bodyComponent?.text ? countBodyParams(bodyComponent.text) : 0,
+          components: t.components as Record<string, unknown>[],
         };
       });
     return { ok: true, templates };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Network error" };
+  }
+}
+
+export async function createTemplate(
+  businessAccountId: string,
+  accessToken: string,
+  payload: CreateTemplatePayload
+): Promise<{ ok: boolean; id?: string; status?: string; error?: string }> {
+  try {
+    const res = await fetch(`${BASE_URL}/${businessAccountId}/message_templates`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) return { ok: false, error: await extractGraphError(res) };
+    const data = await res.json();
+    return { ok: true, id: data.id, status: data.status };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Network error" };
+  }
+}
+
+export async function deleteTemplate(
+  businessAccountId: string,
+  accessToken: string,
+  name: string
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(
+      `${BASE_URL}/${businessAccountId}/message_templates?name=${encodeURIComponent(name)}`,
+      { method: "DELETE", headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!res.ok) return { ok: false, error: await extractGraphError(res) };
+    return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Network error" };
   }

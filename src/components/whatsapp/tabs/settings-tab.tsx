@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/use-toast";
-import { Loader2, Plug, Unplug, CheckCircle2, XCircle, Copy, Check, HelpCircle, ExternalLink } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Plug, Unplug, CheckCircle2, XCircle, Copy, Check, HelpCircle, ExternalLink, AlertTriangle, Send } from "lucide-react";
 
 interface IntegrationStatus {
   _id: string;
@@ -92,6 +93,26 @@ export function SettingsTab() {
     setTimeout(() => setCopied(false), 1500);
   };
 
+  const [testPhone, setTestPhone] = useState("");
+  const [testTemplate, setTestTemplate] = useState("");
+  const [testLang, setTestLang] = useState("en");
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const { data: approvedTemplates } = useQuery<{ name: string; language: string }[]>({
+    queryKey: ["whatsapp-templates"],
+    queryFn: () => axios.get("/api/whatsapp/templates").then((r) => r.data.data),
+    enabled: !!integration,
+  });
+
+  const sendTest = useMutation({
+    mutationFn: () => axios.post("/api/whatsapp/send-test", { to: testPhone, templateName: testTemplate, templateLanguage: testLang }),
+    onSuccess: () => setTestResult({ ok: true, message: "Message sent! Check your WhatsApp." }),
+    onError: (err: unknown) => {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error : "Send failed";
+      setTestResult({ ok: false, message: msg });
+    },
+  });
+
   if (!isAdmin) {
     return (
       <div className="p-6 max-w-3xl mx-auto">
@@ -132,16 +153,27 @@ export function SettingsTab() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {integration.lastTestedAt && (
-                  <div className="flex items-center gap-2 text-sm">
-                    {integration.lastTestStatus === "SUCCESS" ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-red-600" />
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      {integration.lastTestStatus === "SUCCESS" ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-red-600" />
+                      )}
+                      <span>
+                        Last test: {integration.lastTestStatus === "SUCCESS" ? "Success" : `Failed — ${integration.lastTestError}`}
+                        {" "}({new Date(integration.lastTestedAt).toLocaleString()})
+                      </span>
+                    </div>
+                    {integration.lastTestStatus === "FAILURE" && integration.lastTestError?.toLowerCase().includes("token") && (
+                      <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="text-xs text-amber-800 space-y-1">
+                          <p className="font-medium">Access token expired</p>
+                          <p>The temporary token from Meta&apos;s API Setup page expires every 24 hours. Generate a permanent token via <strong>Meta Business Manager → System Users</strong> and update the credentials below.</p>
+                        </div>
+                      </div>
                     )}
-                    <span>
-                      Last test: {integration.lastTestStatus === "SUCCESS" ? "Success" : `Failed — ${integration.lastTestError}`}
-                      {" "}({new Date(integration.lastTestedAt).toLocaleString()})
-                    </span>
                   </div>
                 )}
                 <div className="space-y-1">
@@ -179,6 +211,56 @@ export function SettingsTab() {
                       Meta&apos;s Cloud API setup guide <ExternalLink className="w-3 h-3" />
                     </a>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {integration && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2"><Send className="h-4 w-4" />Send Test Message</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label>Recipient Phone (with country code)</Label>
+                    <Input
+                      value={testPhone}
+                      onChange={(e) => { setTestPhone(e.target.value); setTestResult(null); }}
+                      placeholder="919876543210"
+                    />
+                    <p className="text-xs text-muted-foreground">In test mode, this number must be whitelisted in Meta Developer Console → WhatsApp → API Setup.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Template</Label>
+                    {approvedTemplates?.length ? (
+                      <Select value={testTemplate} onValueChange={(v) => { setTestTemplate(v); setTestResult(null); const t = approvedTemplates.find((x) => x.name === v); if (t) setTestLang(t.language); }}>
+                        <SelectTrigger><SelectValue placeholder="Select an approved template" /></SelectTrigger>
+                        <SelectContent>
+                          {approvedTemplates.map((t) => (
+                            <SelectItem key={t.name} value={t.name}>{t.name} <span className="text-muted-foreground ml-1 text-xs">({t.language})</span></SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No approved templates yet — create one in the Templates tab and wait for Meta approval.</p>
+                    )}
+                  </div>
+                  {testResult && (
+                    <div className={`flex items-center gap-2 text-sm rounded-lg px-3 py-2 ${testResult.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                      {testResult.ok ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
+                      <span>{testResult.message}</span>
+                    </div>
+                  )}
+                  <Button
+                    onClick={() => { setTestResult(null); sendTest.mutate(); }}
+                    disabled={!testPhone || !testTemplate || sendTest.isPending}
+                    className="w-full"
+                  >
+                    {sendTest.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+                    Send Test Message
+                  </Button>
                 </div>
               </CardContent>
             </Card>

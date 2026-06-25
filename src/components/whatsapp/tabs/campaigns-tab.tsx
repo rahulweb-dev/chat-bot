@@ -19,6 +19,7 @@ interface Campaign {
   templateName?: string;
   status: "DRAFT" | "SCHEDULED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELED";
   scheduledAt?: string;
+  failureReason?: string;
   stats: { total: number; sent: number; delivered: number; read: number; failed: number };
   createdAt: string;
 }
@@ -92,6 +93,11 @@ export function CampaignsTab() {
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Template: {c.templateName || "—"} · {timeAgo(c.createdAt)}
                       </p>
+                      {c.status === "FAILED" && c.failureReason && (
+                        <p className="text-xs text-red-600 mt-0.5">
+                          Reason: {c.failureReason}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-4 text-xs text-gray-500">
                       <span>{c.stats.total} total</span>

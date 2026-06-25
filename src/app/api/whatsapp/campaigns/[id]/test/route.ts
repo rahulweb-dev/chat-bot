@@ -3,7 +3,6 @@ import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess } from "@/lib/api-helpers";
 import { decrypt } from "@/lib/crypto";
 import { sendTemplate, buildTemplateComponents } from "@/lib/whatsapp";
-import { chargeForMessage, refundMessage } from "@/lib/whatsappWallet";
 import WhatsAppCampaign from "@/models/WhatsAppCampaign";
 import WhatsAppIntegration from "@/models/WhatsAppIntegration";
 import AuditLog from "@/models/AuditLog";
@@ -24,15 +23,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!campaign.templateName) return apiError("Select a template before sending a test", 400);
 
   const integration = await WhatsAppIntegration.findOne({ companyId: ctx.companyId, enabled: true });
-  if (!integration) return apiError("WhatsApp is not connected", 400);
-
-  const charge = await chargeForMessage(ctx.companyId);
-  if (!charge.ok) {
-    return apiError(
-      charge.reason === "daily_limit_reached" ? "Daily WhatsApp sending limit reached" : "Insufficient WhatsApp credits",
-      402
-    );
-  }
+  if (!integration) return apiError("WhatsApp is not connected — go to Settings and connect your WhatsApp Business account first", 400);
 
   const accessToken = decrypt(integration.encryptedAccessToken);
   const components = buildTemplateComponents({
@@ -44,8 +35,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const result = await sendTemplate(integration.phoneNumberId, accessToken, phone, campaign.templateName, campaign.templateLanguage, components);
   if (!result.ok) {
-    await refundMessage(ctx.companyId);
-    return apiError(result.error || "Test send failed");
+    return apiError(result.error || "Test send failed — check that the phone number is a registered test recipient in your Meta App");
   }
 
   await AuditLog.create({

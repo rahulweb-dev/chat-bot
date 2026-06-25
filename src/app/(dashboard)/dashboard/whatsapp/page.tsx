@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { MessageSquare, Users, Megaphone, BarChart3, Settings } from "lucide-react";
+import { MessageSquare, Users, Megaphone, BarChart3, Settings, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageLoading } from "@/components/whatsapp/empty-state";
 import { InboxTab } from "@/components/whatsapp/tabs/inbox-tab";
@@ -10,11 +10,13 @@ import { ContactsTab } from "@/components/whatsapp/tabs/contacts-tab";
 import { CampaignsTab } from "@/components/whatsapp/tabs/campaigns-tab";
 import { AnalyticsTab } from "@/components/whatsapp/tabs/analytics-tab";
 import { SettingsTab } from "@/components/whatsapp/tabs/settings-tab";
+import { TemplatesTab } from "@/components/whatsapp/tabs/templates-tab";
 
 const TABS = [
   { id: "inbox", label: "Inbox", icon: MessageSquare },
   { id: "contacts", label: "Contacts", icon: Users },
   { id: "campaigns", label: "Campaigns", icon: Megaphone },
+  { id: "templates", label: "Templates", icon: FileText },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "settings", label: "Settings", icon: Settings },
 ] as const;
@@ -70,6 +72,9 @@ function WhatsAppPageInner() {
         )}
         {visitedTabs.has("campaigns") && (
           <div className={cn("h-full overflow-y-auto", activeTab !== "campaigns" && "hidden")}><CampaignsTab /></div>
+        )}
+        {visitedTabs.has("templates") && (
+          <div className={cn("h-full overflow-y-auto", activeTab !== "templates" && "hidden")}><TemplatesTab /></div>
         )}
         {visitedTabs.has("analytics") && (
           <div className={cn("h-full overflow-y-auto", activeTab !== "analytics" && "hidden")}><AnalyticsTab /></div>

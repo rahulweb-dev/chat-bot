@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
-import { Plus, Search, Trash2, Loader2, Users } from "lucide-react";
+import { Plus, Search, Trash2, Loader2, Users, Upload, CheckCircle, XCircle } from "lucide-react";
 import { EmptyState, PageLoading } from "@/components/whatsapp/empty-state";
 
 interface Contact {
@@ -23,10 +23,22 @@ interface Contact {
   optIn: boolean;
 }
 
+interface ImportResult {
+  total: number;
+  createdCount: number;
+  updatedCount: number;
+  invalidCount: number;
+  rows: { row: number; phone: string; name?: string; status: string; reason?: string }[];
+}
+
 export function ContactsTab() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({ name: "", phone: "", email: "", tags: "", optIn: false });
 
   const { data: contacts, isLoading } = useQuery<Contact[]>({
@@ -68,14 +80,41 @@ export function ContactsTab() {
     },
   });
 
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await axios.post("/api/whatsapp/contacts/import", fd);
+      setImportResult(res.data.data);
+      qc.invalidateQueries({ queryKey: ["whatsapp-contacts"] });
+    } catch (err) {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error : "Upload failed";
+      toast({ title: msg, variant: "destructive" });
+    } finally {
+      setImporting(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-4">
+      {/* Hidden file input */}
+      <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileUpload} />
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">WhatsApp Contacts</h1>
           <p className="text-muted-foreground">Manage opted-in contacts for campaigns</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => { setImportResult(null); setImportOpen(true); }}>
+            <Upload className="h-4 w-4 mr-2" />Upload Excel
+          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button><Plus className="h-4 w-4 mr-2" />Add Contact</Button>
           </DialogTrigger>
@@ -96,7 +135,47 @@ export function ContactsTab() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
+
+      {/* Excel / CSV import dialog */}
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Import Contacts from Excel / CSV</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg border border-dashed p-6 text-center space-y-2">
+              <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Columns: <span className="font-mono text-xs">Name, Phone, Tags</span> (Phone required)</p>
+              <p className="text-xs text-muted-foreground">Supports .xlsx, .xls, .csv · Max 5000 rows · All imports set as opted-in</p>
+              <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={importing}>
+                {importing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                {importing ? "Uploading…" : "Choose File"}
+              </Button>
+            </div>
+
+            {importResult && (
+              <div className="space-y-3">
+                <div className="flex gap-4 text-sm">
+                  <span className="flex items-center gap-1 text-green-600"><CheckCircle className="h-4 w-4" />{importResult.createdCount} created</span>
+                  {importResult.updatedCount > 0 && <span className="text-blue-600">{importResult.updatedCount} updated</span>}
+                  {importResult.invalidCount > 0 && <span className="flex items-center gap-1 text-red-500"><XCircle className="h-4 w-4" />{importResult.invalidCount} skipped</span>}
+                </div>
+                {importResult.invalidCount > 0 && (
+                  <div className="max-h-40 overflow-y-auto rounded border text-xs divide-y">
+                    {importResult.rows.filter((r) => r.status === "INVALID").map((r) => (
+                      <div key={r.row} className="px-3 py-1.5 flex justify-between text-red-600">
+                        <span>Row {r.row}: {r.phone || "—"}</span>
+                        <span>{r.reason}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <Button className="w-full" onClick={() => setImportOpen(false)}>Done</Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="relative max-w-sm">
         <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />

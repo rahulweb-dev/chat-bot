@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
-import { Wallet, Link2, Copy, Check, Gauge, TrendingDown, ShieldAlert } from "lucide-react";
+import { Wallet, Link2, Copy, Check, Gauge, TrendingDown, ShieldAlert, Gift, Loader2 } from "lucide-react";
 
 interface WalletSummary {
   balance: number;
@@ -77,10 +77,23 @@ function LinkGeneratorDialog() {
 }
 
 export function WalletHeader() {
+  const qc = useQueryClient();
   const { data: wallet } = useQuery<WalletSummary>({
     queryKey: ["whatsapp-wallet"],
     queryFn: () => axios.get("/api/whatsapp/wallet").then((r) => r.data.data),
     refetchInterval: 30000,
+  });
+
+  const claimTrialCredits = useMutation({
+    mutationFn: () => axios.post("/api/whatsapp/wallet"),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["whatsapp-wallet"] });
+      toast({ title: res.data.message || "Trial credits added" });
+    },
+    onError: (err: unknown) => {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error : "Failed to claim credits";
+      toast({ title: msg, variant: "destructive" });
+    },
   });
 
   return (
@@ -120,10 +133,27 @@ export function WalletHeader() {
       <div className="flex-1" />
 
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <ShieldAlert className="w-3.5 h-3.5" />
-          Need more credits? Contact your platform admin.
-        </div>
+        {wallet && wallet.balance < 1 ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-green-300 text-green-700 hover:bg-green-50"
+            onClick={() => claimTrialCredits.mutate()}
+            disabled={claimTrialCredits.isPending}
+          >
+            {claimTrialCredits.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <Gift className="h-3.5 w-3.5 mr-1.5" />
+            )}
+            Get ₹50 Trial Credits
+          </Button>
+        ) : (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <ShieldAlert className="w-3.5 h-3.5" />
+            Need more credits? Contact your platform admin.
+          </div>
+        )}
         <LinkGeneratorDialog />
       </div>
     </div>

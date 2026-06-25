@@ -5,6 +5,7 @@ import { connectDB } from "./mongodb";
 import User from "@/models/User";
 
 export const authConfig: NextAuthConfig = {
+  trustHost: true,
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,

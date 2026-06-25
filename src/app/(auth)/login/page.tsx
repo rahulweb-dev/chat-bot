@@ -41,15 +41,23 @@ function LoginForm() {
   const onSubmit = async (data: LoginForm) => {
     setLoading(true);
     setError("");
-    const result = await signIn("credentials", {
-      email: data.email,
-      password: data.password,
-      redirect: false,
-    });
-    if (result?.error) {
-      setError(result.error === "CredentialsSignin" ? "Invalid email or password" : result.error);
-    } else {
-      router.push(callbackUrl);
+    try {
+      const result = await signIn("credentials", {
+        email: data.email,
+        password: data.password,
+        redirect: false,
+      });
+      if (result?.error) {
+        const known: Record<string, string> = {
+          CredentialsSignin: "Invalid email or password",
+          CallbackRouteError: "Invalid email or password",
+        };
+        setError(known[result.error] ?? "Something went wrong. Please try again.");
+      } else {
+        router.push(callbackUrl);
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
     }
     setLoading(false);
   };

@@ -16,9 +16,20 @@ export async function recomputeCampaignStats(campaignId: string): Promise<void> 
   const update: Record<string, unknown> = {
     stats: { total, sent: sent + delivered + read, delivered, read, failed },
   };
+
   if (pending === 0 && total > 0) {
-    update.status = failed === total ? "FAILED" : "COMPLETED";
+    const allFailed = failed === total;
+    update.status = allFailed ? "FAILED" : "COMPLETED";
     update.completedAt = new Date();
+
+    // Surface the first recipient error so the campaigns list can show it
+    if (allFailed) {
+      const firstFailed = await WhatsAppCampaignRecipient.findOne({ campaignId, status: "FAILED", error: { $exists: true } }).select("error");
+      if (firstFailed?.error) {
+        update.failureReason = firstFailed.error;
+      }
+    }
   }
+
   await WhatsAppCampaign.findByIdAndUpdate(campaignId, update);
 }
