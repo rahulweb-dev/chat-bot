@@ -10,6 +10,7 @@ const publicRoutes = [
   "/widget",
   "/api/widget",
   "/api/auth",
+  "/api/health",
 ];
 const superAdminRoutes = ["/admin", "/api/admin"];
 
@@ -20,9 +21,13 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // NextAuth v5 changed cookie names — must specify the new name explicitly
+  const isSecure = request.nextUrl.protocol === "https:";
+  const cookieName = isSecure ? "__Secure-authjs.session-token" : "authjs.session-token";
   const token = await getToken({
     req: request,
-    secret: process.env.NEXTAUTH_SECRET,
+    secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
+    cookieName,
   });
 
   if (token?.role === "SUPER_ADMIN" && (pathname.startsWith("/dashboard"))) {
