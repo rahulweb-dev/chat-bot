@@ -9,7 +9,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { MessageSquare, Loader2, Mail, Lock, Globe } from "lucide-react";
+import { MessageSquare, Loader2, Mail, Lock } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email"),
@@ -32,7 +32,6 @@ function LoginForm() {
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -62,11 +61,6 @@ function LoginForm() {
     setLoading(false);
   };
 
-  const handleGoogle = async () => {
-    setGoogleLoading(true);
-    await signIn("google", { callbackUrl });
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -89,25 +83,6 @@ function LoginForm() {
                 {error}
               </div>
             )}
-
-            <Button
-              variant="outline"
-              className="w-full gap-2 h-11"
-              onClick={handleGoogle}
-              disabled={googleLoading}
-            >
-              {googleLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
-              Continue with Google
-            </Button>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-gray-400">or</span>
-              </div>
-            </div>
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
               <div>
