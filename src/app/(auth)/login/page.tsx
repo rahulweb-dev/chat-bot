@@ -56,6 +56,7 @@ function LoginForm() {
         };
         setError(known[result.error] ?? `Auth error: ${result.error}`);
       } else {
+        router.refresh();
         router.push(callbackUrl);
       }
     } catch (err) {
