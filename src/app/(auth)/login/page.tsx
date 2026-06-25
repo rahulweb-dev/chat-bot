@@ -46,19 +46,23 @@ function LoginForm() {
         password: data.password,
         redirect: false,
       });
-      if (result?.error) {
+      if (!result) {
+        setError("No response from auth server — check server logs");
+      } else if (result.error) {
         const known: Record<string, string> = {
           CredentialsSignin: "Invalid email or password",
           CallbackRouteError: "Invalid email or password",
+          Configuration: "Server configuration error — contact support",
         };
-        setError(known[result.error] ?? "Something went wrong. Please try again.");
+        setError(known[result.error] ?? `Auth error: ${result.error}`);
       } else {
         router.push(callbackUrl);
       }
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unexpected error — check browser console");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
