@@ -52,7 +52,7 @@ export async function checkUsageLimit(
 ): Promise<{ allowed: boolean; current: number; limit: number; percentage: number; message?: string }> {
   await connectDB();
 
-  const company = await Company.findById(companyId).populate("planId");
+  const company = await Company.findById(companyId).populate({ path: "planId", model: Plan });
   if (!company) return { allowed: false, current: 0, limit: 0, percentage: 0, message: "Company not found" };
 
   const plan = company.planId as unknown as InstanceType<typeof Plan>;
@@ -87,6 +87,24 @@ export async function incrementUsage(companyId: string, resource: string, amount
     { companyId, period },
     { $inc: { [resource]: amount } },
     { upsert: true, new: true }
+  );
+}
+
+const SENSITIVE_LOG_KEYS = new Set([
+  "password", "token", "secret", "apiKey", "accessToken",
+  "webhookVerifyToken", "encryptedAccessToken", "encryptedWebhookVerifyToken",
+]);
+
+export function sanitizeForLog(obj: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(obj)
+      .filter(([k]) => !SENSITIVE_LOG_KEYS.has(k))
+      .map(([k, v]) => [
+        k,
+        v !== null && typeof v === "object" && !Array.isArray(v)
+          ? sanitizeForLog(v as Record<string, unknown>)
+          : v,
+      ])
   );
 }
 

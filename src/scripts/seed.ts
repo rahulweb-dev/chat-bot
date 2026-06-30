@@ -12,15 +12,18 @@ import Usage from "../models/Usage";
 import Subscription from "../models/Subscription";
 import { v4 as uuidv4 } from "uuid";
 
+const force = process.argv.includes("--force");
+
 async function seed() {
-  if (process.env.NODE_ENV === "production") {
-    console.error("Seed script must not run in production. Use --force flag to override.");
+  if (process.env.NODE_ENV === "production" && !force) {
+    console.error("Seed script must not run in production. Pass --force to override.");
     process.exit(1);
   }
 
   await connectDB();
   console.log("Connected to MongoDB");
 
+  // ─── Plans ───────────────────────────────────────────────────────────────
   const existingPlans = await Plan.countDocuments();
   if (existingPlans === 0) {
     await Plan.insertMany([
@@ -74,31 +77,49 @@ async function seed() {
       },
     ]);
     console.log("✅ Plans seeded");
+  } else {
+    console.log("⏭  Plans already exist, skipping");
   }
+
+  // ─── Super Admin ─────────────────────────────────────────────────────────
+  // Credentials come from env vars; fall back to obvious dev defaults that
+  // are only used when NODE_ENV !== "production".
+  const superAdminEmail    = process.env.SEED_SUPER_ADMIN_EMAIL    || "admin@supportflow.app";
+  const superAdminPassword = process.env.SEED_SUPER_ADMIN_PASSWORD || "Admin@123456";
 
   const superAdmin = await User.findOne({ role: "SUPER_ADMIN" });
   if (!superAdmin) {
     await User.create({
       name: "Super Admin",
-      email: "admin@supportflow.app",
-      password: "Admin@123456",
+      email: superAdminEmail,
+      password: superAdminPassword,
       role: "SUPER_ADMIN",
       isEmailVerified: true,
       isActive: true,
     });
-    console.log("✅ Super Admin created: admin@supportflow.app / Admin@123456");
+    console.log(`✅ Super Admin created: ${superAdminEmail}`);
+    if (!process.env.SEED_SUPER_ADMIN_PASSWORD) {
+      console.warn("   ⚠️  Using default password — set SEED_SUPER_ADMIN_PASSWORD in .env.local for production seeding.");
+    }
+  } else {
+    console.log("⏭  Super Admin already exists, skipping");
   }
 
+  // ─── Demo Company ─────────────────────────────────────────────────────────
   const demoCompany = await Company.findOne({ slug: "demo-company" });
   if (!demoCompany) {
     const plan = await Plan.findOne({ type: "PRO" });
+    if (!plan) throw new Error("PRO plan not found — plans must be seeded first");
+
+    const demoAdminPassword = process.env.SEED_DEMO_ADMIN_PASSWORD || "Demo@123456";
+    const demoAgentPassword  = process.env.SEED_DEMO_AGENT_PASSWORD  || "Agent@123456";
     const apiKey = `sf_${uuidv4().replace(/-/g, "")}`;
 
     const company = await Company.create({
       name: "Demo Company",
       slug: "demo-company",
       email: "demo@example.com",
-      planId: plan?._id,
+      planId: plan._id,
       apiKey,
       settings: {
         brandColor: "#6366f1",
@@ -112,7 +133,7 @@ async function seed() {
     await User.create({
       name: "Demo Admin",
       email: "demo@example.com",
-      password: "Demo@123456",
+      password: demoAdminPassword,
       role: "COMPANY_ADMIN",
       companyId: company._id,
       isEmailVerified: true,
@@ -121,7 +142,7 @@ async function seed() {
     await User.create({
       name: "Agent Alice",
       email: "alice@example.com",
-      password: "Agent@123456",
+      password: demoAgentPassword,
       role: "AGENT",
       companyId: company._id,
       isEmailVerified: true,
@@ -134,13 +155,13 @@ async function seed() {
 
     const sub = await Subscription.create({
       companyId: company._id,
-      planId: plan?._id,
+      planId: plan._id,
       status: "ACTIVE",
       billingCycle: "MONTHLY",
       currentPeriodStart: now,
       currentPeriodEnd: periodEnd,
-      amount: 8299,
-      currency: "INR",
+      amount: plan.price.monthly,
+      currency: plan.currency || "INR",
     });
 
     await Company.findByIdAndUpdate(company._id, { subscriptionId: sub._id });
@@ -148,13 +169,18 @@ async function seed() {
     await Usage.create({
       companyId: company._id,
       period: now.toISOString().slice(0, 7),
-      agents: 2, chats: 127, aiMessages: 89, leads: 23, tickets: 15,
+      chats: 127, aiMessages: 89, leads: 23, tickets: 15,
     });
 
     console.log("✅ Demo company seeded");
-    console.log("   Company Admin: demo@example.com / Demo@123456");
-    console.log("   Agent: alice@example.com / Agent@123456");
+    console.log("   Company Admin: demo@example.com");
+    console.log("   Agent:         alice@example.com");
     console.log(`   Widget API Key: ${apiKey}`);
+    if (!process.env.SEED_DEMO_ADMIN_PASSWORD) {
+      console.warn("   ⚠️  Using default demo passwords — set SEED_DEMO_ADMIN_PASSWORD / SEED_DEMO_AGENT_PASSWORD to customize.");
+    }
+  } else {
+    console.log("⏭  Demo company already exists, skipping");
   }
 
   console.log("\n🎉 Seed completed successfully!");

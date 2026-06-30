@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   await connectDB();
 
   const [activeSubscriptions, allPlans] = await Promise.all([
-    Subscription.find({ status: { $in: ["ACTIVE", "TRIALING"] } }).populate("planId"),
+    Subscription.find({ status: { $in: ["ACTIVE", "TRIALING"] } }).populate({ path: "planId", model: Plan }),
     Plan.find({}),
   ]);
 
@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
   }));
 
   return apiSuccess({
+    currency: "INR",
     stats: {
       mrr,
       totalRevenue: mrr * 12,

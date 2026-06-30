@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   const period = searchParams.get("period") || new Date().toISOString().slice(0, 7);
 
   const [company, usage, liveAgents, liveDepts, liveKBFiles, liveChatbots] = await Promise.all([
-    Company.findById(ctx.companyId).populate("planId"),
+    Company.findById(ctx.companyId).populate({ path: "planId", model: Plan }),
     Usage.findOne({ companyId: ctx.companyId, period }),
     // Live counts — source of truth, not the Usage counter
     User.countDocuments({ companyId: ctx.companyId, role: { $in: ["AGENT", "MANAGER", "TEAM_LEADER", "VIEWER"] } }),

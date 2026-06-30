@@ -44,5 +44,14 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const company = await Company.findByIdAndUpdate(id, { isSuspended: false, suspendReason: null }, { new: true });
   if (!company) return apiError("Company not found", 404);
 
+  await AuditLog.create({
+    companyId: id,
+    userId: ctx.userId,
+    action: "UNSUSPEND_COMPANY",
+    resource: "company",
+    resourceId: id,
+    status: "SUCCESS",
+  });
+
   return apiSuccess(company, "Company unsuspended");
 }

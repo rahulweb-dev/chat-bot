@@ -1,24 +1,28 @@
 "use client";
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import {
   HelpCircle, Tag, Truck, Clock, Plus, Trash2, Save,
-  Pencil, Check, X, Bot, MessageSquare,
+  Pencil, Check, X, Bot, MessageSquare, Brain, Code,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-interface FAQ      { _id?: string; question: string; answer: string;   isActive: boolean }
+interface FAQ      { _id?: string; question: string; answer: string; isActive: boolean }
 interface Offer    { _id?: string; title: string; description: string; validUntil?: string; isActive: boolean }
 interface Vehicle  { _id?: string; name: string; category: string; payload: string; priceRange: string; description: string; isActive: boolean }
 interface BizHour  { day: string; open: string; close: string; isClosed: boolean }
-interface Config   { faqs: FAQ[]; offers: Offer[]; vehicles: Vehicle[]; businessHours: BizHour[]; welcomeMessage: string; agentOnlineMessage: string; agentOfflineMessage: string }
+interface Training { _id?: string; trigger: string; keywords: string[]; response: string; isActive: boolean }
+interface Config   {
+  faqs: FAQ[]; offers: Offer[]; vehicles: Vehicle[];
+  businessHours: BizHour[]; training: Training[];
+  welcomeMessage: string; agentOnlineMessage: string; agentOfflineMessage: string;
+}
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 const CATEGORY_COLORS: Record<string, string> = {
@@ -298,6 +302,189 @@ function HoursTab({ config, refetch }: { config: Config; refetch: () => void }) 
   );
 }
 
+// ── Training Tab ───────────────────────────────────────────────────────────────
+function TrainingTab({ config, refetch }: { config: Config; refetch: () => void }) {
+  const [entries, setEntries] = useState<Training[]>(config.training ?? []);
+  const [mode, setMode] = useState<"form" | "json">("form");
+  const [form, setForm] = useState({ trigger: "", keywords: "", response: "" });
+  const [jsonText, setJsonText] = useState("");
+  const [jsonError, setJsonError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function save(updated: Training[]) {
+    setSaving(true);
+    const r = await patchConfig({ training: updated });
+    setSaving(false);
+    if (r.success) { setEntries(updated); refetch(); toast({ title: "Training saved" }); }
+    else toast({ title: "Save failed", variant: "destructive" });
+  }
+
+  function addEntry() {
+    if (!form.keywords.trim() || !form.response.trim()) return;
+    const keywords = form.keywords.split(/[,\n]+/).map(k => k.trim()).filter(Boolean);
+    save([...entries, { trigger: form.trigger.trim(), keywords, response: form.response.trim(), isActive: true }]);
+    setForm({ trigger: "", keywords: "", response: "" });
+  }
+
+  function importJson() {
+    setJsonError("");
+    try {
+      const parsed = JSON.parse(jsonText);
+      let imported: Training[] = [];
+      if (Array.isArray(parsed)) {
+        imported = (parsed as Record<string, unknown>[]).map(item => ({
+          trigger: String(item.trigger ?? ""),
+          keywords: Array.isArray(item.keywords) ? (item.keywords as string[]) : [String(item.keyword ?? item.trigger ?? "")].filter(Boolean),
+          response: String(item.response ?? ""),
+          isActive: true,
+        })).filter(e => e.keywords.length && e.response);
+      } else if (typeof parsed === "object" && parsed !== null) {
+        imported = Object.entries(parsed as Record<string, string>).map(([k, v]) => ({
+          trigger: k, keywords: [k], response: String(v), isActive: true,
+        }));
+      }
+      if (!imported.length) { setJsonError("No valid entries found in JSON."); return; }
+      save([...entries, ...imported]);
+      setJsonText("");
+      toast({ title: `Imported ${imported.length} rules` });
+    } catch {
+      setJsonError("Invalid JSON — check the format and try again.");
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Mode toggle */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setMode("form")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${mode === "form" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+        >
+          <Plus className="w-3.5 h-3.5" /> Manual Add
+        </button>
+        <button
+          onClick={() => setMode("json")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${mode === "json" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+        >
+          <Code className="w-3.5 h-3.5" /> Paste JSON
+        </button>
+      </div>
+
+      {mode === "form" ? (
+        <Card>
+          <CardHeader><CardTitle className="text-sm">Add Keyword → Response Rule</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Trigger Name <span className="text-gray-400">(optional label)</span></label>
+              <Input placeholder="e.g. warranty, pricing, location" value={form.trigger} onChange={e => setForm({ ...form, trigger: e.target.value })} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Keywords <span className="text-gray-400">(comma or newline separated — any match fires this rule)</span></label>
+              <textarea
+                className="w-full border rounded-md px-3 py-2 text-sm min-h-[72px] resize-none font-mono"
+                placeholder={"warranty, guarantee, how long covered\nwhat is the warranty"}
+                value={form.keywords}
+                onChange={e => setForm({ ...form, keywords: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Bot Response</label>
+              <textarea
+                className="w-full border rounded-md px-3 py-2 text-sm min-h-[100px] resize-none"
+                placeholder="What the bot should reply when any keyword is matched in the user's message…"
+                value={form.response}
+                onChange={e => setForm({ ...form, response: e.target.value })}
+              />
+            </div>
+            <Button onClick={addEntry} disabled={saving || !form.keywords.trim() || !form.response.trim()} className="bg-indigo-600 hover:bg-indigo-700">
+              <Plus className="w-4 h-4 mr-2" /> Add Rule
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Paste JSON Training Data</CardTitle>
+            <p className="text-xs text-gray-500 mt-1">Supports two formats — paste either one below.</p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="bg-gray-50 border rounded-md p-3">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Array format</p>
+                <pre className="text-[11px] text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">{`[
+  {
+    "trigger": "warranty",
+    "keywords": ["warranty", "guarantee"],
+    "response": "All Ashok Leyland vehicles come with a 3-year standard warranty."
+  }
+]`}</pre>
+              </div>
+              <div className="bg-gray-50 border rounded-md p-3">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Map format (quick)</p>
+                <pre className="text-[11px] text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">{`{
+  "warranty": "3-year warranty on all models.",
+  "price": "Call us at 1800-XXX for pricing.",
+  "location": "Visit us at Sion, Mumbai."
+}`}</pre>
+              </div>
+            </div>
+            <textarea
+              className="w-full border rounded-md px-3 py-2 text-sm min-h-[160px] resize-none font-mono"
+              placeholder="Paste your JSON here…"
+              value={jsonText}
+              onChange={e => { setJsonText(e.target.value); setJsonError(""); }}
+            />
+            {jsonError && <p className="text-xs text-red-500">{jsonError}</p>}
+            <Button onClick={importJson} disabled={saving || !jsonText.trim()} className="bg-indigo-600 hover:bg-indigo-700">
+              <Save className="w-4 h-4 mr-2" /> Import & Save
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Entry list */}
+      <div className="space-y-2">
+        {entries.length === 0 && (
+          <div className="text-center py-12 text-gray-400">
+            <Brain className="w-10 h-10 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">No training rules yet.</p>
+            <p className="text-xs mt-1">Add rules above so the bot can respond to custom keywords.</p>
+          </div>
+        )}
+        {entries.map((e, i) => (
+          <Card key={i} className={`border transition-opacity ${!e.isActive ? "opacity-50" : ""}`}>
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  {e.trigger && (
+                    <p className="text-[10px] font-semibold text-indigo-600 uppercase tracking-widest mb-1.5">{e.trigger}</p>
+                  )}
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {e.keywords.map((k, ki) => (
+                      <span key={ki} className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-xs rounded-full font-mono border border-indigo-100">{k}</span>
+                    ))}
+                  </div>
+                  <p className="text-sm text-gray-700 line-clamp-2">{e.response}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Switch
+                    checked={e.isActive}
+                    onCheckedChange={() => { const u = [...entries]; u[i].isActive = !u[i].isActive; save(u); }}
+                    className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-300"
+                  />
+                  <button onClick={() => save(entries.filter((_, idx) => idx !== i))} className="p-1 text-gray-400 hover:text-red-500 transition-colors">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 export default function ChatbotSettingsPage() {
   const qc = useQueryClient();
@@ -333,17 +520,18 @@ export default function ChatbotSettingsPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold">Chatbot Settings</h1>
-          <p className="text-sm text-gray-500">Manage FAQs, offers, vehicles, and business hours</p>
+          <p className="text-sm text-gray-500">Manage FAQs, offers, vehicles, business hours, and training rules</p>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         {[
-          { label: "FAQs",      value: data.faqs.length,        icon: HelpCircle, color: "bg-blue-50 text-blue-600" },
-          { label: "Offers",    value: data.offers.length,      icon: Tag,        color: "bg-green-50 text-green-600" },
-          { label: "Vehicles",  value: data.vehicles.length,    icon: Truck,      color: "bg-orange-50 text-orange-600" },
+          { label: "FAQs",      value: data.faqs.length,          icon: HelpCircle, color: "bg-blue-50 text-blue-600" },
+          { label: "Offers",    value: data.offers.length,        icon: Tag,        color: "bg-green-50 text-green-600" },
+          { label: "Vehicles",  value: data.vehicles.length,      icon: Truck,      color: "bg-orange-50 text-orange-600" },
           { label: "Open Days", value: data.businessHours.filter(h => !h.isClosed).length, icon: Clock, color: "bg-purple-50 text-purple-600" },
+          { label: "Training",  value: (data.training ?? []).length, icon: Brain,   color: "bg-indigo-50 text-indigo-600" },
         ].map(s => (
           <Card key={s.label} className="border-0 shadow-sm">
             <CardContent className="p-4 flex items-center gap-3">
@@ -359,17 +547,19 @@ export default function ChatbotSettingsPage() {
         ))}
       </div>
 
-      <Tabs defaultValue="faqs">
-        <TabsList className="grid grid-cols-4 w-full max-w-lg">
-          <TabsTrigger value="faqs"     className="flex items-center gap-1.5"><HelpCircle className="w-3.5 h-3.5" />FAQs</TabsTrigger>
-          <TabsTrigger value="offers"   className="flex items-center gap-1.5"><Tag        className="w-3.5 h-3.5" />Offers</TabsTrigger>
-          <TabsTrigger value="vehicles" className="flex items-center gap-1.5"><Truck      className="w-3.5 h-3.5" />Vehicles</TabsTrigger>
-          <TabsTrigger value="hours"    className="flex items-center gap-1.5"><Clock      className="w-3.5 h-3.5" />Hours</TabsTrigger>
+      <Tabs defaultValue="training">
+        <TabsList className="grid grid-cols-5 w-full max-w-2xl">
+          <TabsTrigger value="training"  className="flex items-center gap-1.5"><Brain     className="w-3.5 h-3.5" />Training</TabsTrigger>
+          <TabsTrigger value="faqs"      className="flex items-center gap-1.5"><HelpCircle className="w-3.5 h-3.5" />FAQs</TabsTrigger>
+          <TabsTrigger value="offers"    className="flex items-center gap-1.5"><Tag        className="w-3.5 h-3.5" />Offers</TabsTrigger>
+          <TabsTrigger value="vehicles"  className="flex items-center gap-1.5"><Truck      className="w-3.5 h-3.5" />Vehicles</TabsTrigger>
+          <TabsTrigger value="hours"     className="flex items-center gap-1.5"><Clock      className="w-3.5 h-3.5" />Hours</TabsTrigger>
         </TabsList>
-        <TabsContent value="faqs"     className="mt-6"><FAQTab      config={data} refetch={refetch} /></TabsContent>
-        <TabsContent value="offers"   className="mt-6"><OffersTab   config={data} refetch={refetch} /></TabsContent>
-        <TabsContent value="vehicles" className="mt-6"><VehiclesTab config={data} refetch={refetch} /></TabsContent>
-        <TabsContent value="hours"    className="mt-6"><HoursTab    config={data} refetch={refetch} /></TabsContent>
+        <TabsContent value="training"  className="mt-6"><TrainingTab  config={data} refetch={refetch} /></TabsContent>
+        <TabsContent value="faqs"      className="mt-6"><FAQTab       config={data} refetch={refetch} /></TabsContent>
+        <TabsContent value="offers"    className="mt-6"><OffersTab    config={data} refetch={refetch} /></TabsContent>
+        <TabsContent value="vehicles"  className="mt-6"><VehiclesTab  config={data} refetch={refetch} /></TabsContent>
+        <TabsContent value="hours"     className="mt-6"><HoursTab     config={data} refetch={refetch} /></TabsContent>
       </Tabs>
     </div>
   );

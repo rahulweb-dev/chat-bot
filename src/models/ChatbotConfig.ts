@@ -1,11 +1,19 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
+export interface ITrainingEntry {
+  trigger: string;
+  keywords: string[];
+  response: string;
+  isActive: boolean;
+}
+
 export interface IChatbotConfig extends Document {
   companyId: mongoose.Types.ObjectId;
   faqs: { question: string; answer: string; isActive: boolean }[];
   offers: { title: string; description: string; validUntil?: string; isActive: boolean }[];
   vehicles: { name: string; category: string; payload: string; priceRange: string; description: string; isActive: boolean }[];
   businessHours: { day: string; open: string; close: string; isClosed: boolean }[];
+  training: ITrainingEntry[];
   agentOnlineMessage: string;
   agentOfflineMessage: string;
   welcomeMessage: string;
@@ -40,6 +48,12 @@ const ChatbotConfigSchema = new Schema<IChatbotConfig>(
       open:     { type: String, default: "09:00" },
       close:    { type: String, default: "18:00" },
       isClosed: { type: Boolean, default: false },
+    }],
+    training: [{
+      trigger:  { type: String, default: "" },
+      keywords: [{ type: String }],
+      response: { type: String, required: true },
+      isActive: { type: Boolean, default: true },
     }],
     agentOnlineMessage:  { type: String, default: "💬 Connecting you to a live agent..." },
     agentOfflineMessage: { type: String, default: "We're offline. Leave your details and we'll call you back!" },
