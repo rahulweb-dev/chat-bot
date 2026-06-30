@@ -14,6 +14,7 @@ export interface IChatbotConfig extends Document {
   vehicles: { name: string; category: string; payload: string; priceRange: string; description: string; isActive: boolean }[];
   businessHours: { day: string; open: string; close: string; isClosed: boolean }[];
   training: ITrainingEntry[];
+  customFlow: { enabled: boolean; flow: Record<string, unknown> | null };
   agentOnlineMessage: string;
   agentOfflineMessage: string;
   welcomeMessage: string;
@@ -55,6 +56,10 @@ const ChatbotConfigSchema = new Schema<IChatbotConfig>(
       response: { type: String, required: true },
       isActive: { type: Boolean, default: true },
     }],
+    customFlow: {
+      enabled: { type: Boolean, default: false },
+      flow:    { type: Schema.Types.Mixed, default: null },
+    },
     agentOnlineMessage:  { type: String, default: "💬 Connecting you to a live agent..." },
     agentOfflineMessage: { type: String, default: "We're offline. Leave your details and we'll call you back!" },
     welcomeMessage:      { type: String, default: "👋 Welcome to Ashok Leyland! How can we help you today?" },

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError } from "@/lib/api-helpers";
 import { processFlow, SessionData } from "@/lib/chatbot-flow";
+import { processCustomFlow, type FlowDef } from "@/lib/custom-flow";
+import ChatbotConfig from "@/models/ChatbotConfig";
 
 export async function POST(request: NextRequest) {
   const ctx = await getRequestContext(request);
@@ -13,20 +16,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Invalid message" }, { status: 400 });
   }
 
-  // Pre-populate name so the admin preview skips the IDENTIFY flow and goes straight to the main menu
+  await connectDB();
+
   const session: SessionData = sessionData?.flow
     ? (sessionData as SessionData)
     : { flow: "INITIAL", step: "", collected: { name: "Preview" } };
 
-  const result = processFlow(message, session);
+  const config = await ChatbotConfig.findOne({ companyId: ctx.companyId }).lean() as {
+    customFlow?: { enabled: boolean; flow: Record<string, unknown> | null };
+  } | null;
+
+  const isCustom = config?.customFlow?.enabled && config.customFlow.flow;
+  const result = isCustom
+    ? processCustomFlow(message, session, config!.customFlow!.flow as unknown as FlowDef)
+    : processFlow(message, session);
 
   return NextResponse.json({
     success: true,
     data: {
-      messages:    result.messages,
+      messages:     result.messages,
       quickReplies: result.quickReplies,
-      action:      result.action,
-      sessionData: result.sessionData,
+      action:       result.action,
+      sessionData:  result.sessionData,
     },
   });
 }

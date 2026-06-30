@@ -61,19 +61,19 @@ export default function ApiKeysPage() {
   const apiKeys = data || [];
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-6 max-w-4xl mx-auto space-y-6 ">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">API Keys</h1>
           <p className="text-muted-foreground">Manage API access for integrations and the widget</p>
         </div>
-        <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); else setOpen(true); }}>
+        <Dialog  open={open} onOpenChange={(v) => { if (!v) handleClose(); else setOpen(true); }}>
           <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" />Create API Key</Button>
+            <Button ><Plus className="h-4 w-4 mr-2 " />Create API Key</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className=" bg-white">
             <DialogHeader>
-              <DialogTitle>{createdKey ? "API Key Created" : "Create API Key"}</DialogTitle>
+              <DialogTitle >{createdKey ? "API Key Created" : "Create API Key"}</DialogTitle>
             </DialogHeader>
 
             {createdKey ? (
@@ -98,7 +98,7 @@ export default function ApiKeysPage() {
                     </Button>
                   </div>
                 </div>
-                <Button className="w-full" onClick={handleClose}>Done</Button>
+                <Button className="w-full " onClick={handleClose}>Done</Button>
               </div>
             ) : (
               <form
@@ -106,15 +106,15 @@ export default function ApiKeysPage() {
                   e.preventDefault();
                   create.mutate({ name });
                 }}
-                className="space-y-4"
+                className="space-y-4 bg-white"
               >
-                <div className="space-y-2">
+                <div className="space-y-2 ">
                   <Label>Key Name</Label>
                   <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Production Widget, Mobile App" required />
                 </div>
                 <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-                  <Button type="submit" disabled={create.isPending}>
+                  <Button type="button" className="bg-red-500 text-white" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+                  <Button type="submit" disabled={create.isPending} className="text-white bg-black hover:bg-gray-600">
                     {create.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     Generate Key
                   </Button>

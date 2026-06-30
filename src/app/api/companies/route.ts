@@ -78,10 +78,13 @@ export async function POST(request: NextRequest) {
 
   const { name, email, adminName, adminEmail, adminPassword, planType, whatsapp } = parsed.data;
 
-  // WhatsApp conflict check before opening a transaction
+  // Pre-flight conflict checks before opening a transaction
+  const existingAdmin = await User.findOne({ email: adminEmail }).lean();
+  if (existingAdmin) return apiError(`A user with email "${adminEmail}" already exists. Use a different admin email.`, 422);
+
   if (whatsapp) {
     const conflict = await WhatsAppIntegration.findOne({ phoneNumberId: whatsapp.phoneNumberId });
-    if (conflict) return apiError("This WhatsApp Phone Number ID is already connected to another company");
+    if (conflict) return apiError("This WhatsApp Phone Number ID is already connected to another company", 422);
   }
 
   const plan = await Plan.findOne({ type: planType });
@@ -98,6 +101,7 @@ export async function POST(request: NextRequest) {
 
   try {
     await session.withTransaction(async () => {
+
       [company] = await Company.create(
         [
           {
@@ -150,9 +154,15 @@ export async function POST(request: NextRequest) {
         );
       }
     });
-  } finally {
+  } catch (err: unknown) {
     await session.endSession();
+    if ((err as { code?: number }).code === 11000) {
+      const key = Object.keys((err as { keyPattern?: Record<string, unknown> }).keyPattern ?? {})[0] ?? "field";
+      return apiError(`Duplicate value for ${key}. Please use a different value.`, 422);
+    }
+    throw err;
   }
+  await session.endSession();
 
   return apiSuccess(
     { companyId: company!._id, adminId: admin!._id, whatsappConnected: !!whatsappIntegration },

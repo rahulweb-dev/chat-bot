@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { processFlow, SessionData } from "@/lib/chatbot-flow";
+import { processCustomFlow, type FlowDef } from "@/lib/custom-flow";
 import Company from "@/models/Company";
 import ApiKey from "@/models/ApiKey";
 import ChatbotConfig from "@/models/ChatbotConfig";
@@ -39,13 +40,13 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: CORS });
 }
 
-async function matchTraining(message: string, companyId: string): Promise<ReturnType<typeof processFlow> | null> {
-  const config = await ChatbotConfig.findOne({ companyId }).lean() as {
-    training?: { trigger: string; keywords: string[]; response: string; isActive: boolean }[];
-    faqs?: { question: string; answer: string; isActive: boolean }[];
-  } | null;
-  if (!config) return null;
+type LeanConfig = {
+  training?: { trigger: string; keywords: string[]; response: string; isActive: boolean }[];
+  faqs?: { question: string; answer: string; isActive: boolean }[];
+  customFlow?: { enabled: boolean; flow: Record<string, unknown> | null };
+};
 
+function matchTrainingSync(message: string, config: LeanConfig): ReturnType<typeof processFlow> | null {
   const lower = message.toLowerCase();
 
   const entry = config.training?.find(t => t.isActive && t.keywords.some(k => lower.includes(k.toLowerCase())));
@@ -53,7 +54,6 @@ async function matchTraining(message: string, companyId: string): Promise<Return
     return { messages: [entry.response], quickReplies: ["🔙 Main Menu"], action: "NONE", sessionData: { flow: "INITIAL", step: "", collected: {} } };
   }
 
-  // Fallback: FAQ word match
   const faq = config.faqs?.find(f => {
     if (!f.isActive) return false;
     const words = f.question.toLowerCase().split(/[\s?!.,]+/).filter(w => w.length > 3);
@@ -106,11 +106,20 @@ export async function POST(request: NextRequest) {
 
   const session: SessionData = sessionData?.flow ? sessionData : { flow: "INITIAL", step: "", collected: {} };
 
-  // Check custom training rules + FAQs before the hardcoded flow (only when not mid-conversation)
-  const trained = session.flow === "INITIAL" && message !== "__INIT__"
-    ? await matchTraining(message, companyId)
-    : null;
-  const result = trained ?? processFlow(message, session);
+  // Load config once — needed for custom flow + training/FAQ fallback
+  const config = await ChatbotConfig.findOne({ companyId }).lean() as LeanConfig | null;
+
+  let result: ReturnType<typeof processFlow>;
+  const isCustom = config?.customFlow?.enabled && config.customFlow.flow;
+
+  if (isCustom) {
+    // Always use custom flow when enabled — the processor handles any session state
+    result = processCustomFlow(message, session, config!.customFlow!.flow as unknown as FlowDef);
+  } else if (session.flow === "INITIAL" && message !== "__INIT__" && config) {
+    result = matchTrainingSync(message, config) ?? processFlow(message, session);
+  } else {
+    result = processFlow(message, session);
+  }
 
   if (conversationId) {
     if (message !== "__INIT__") {
