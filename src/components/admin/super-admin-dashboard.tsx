@@ -59,11 +59,11 @@ const createCompanySchema = z.object({
   adminPassword: z.string().min(8),
   planType: z.enum(["STARTER", "PRO", "ENTERPRISE"]),
   whatsapp: z.object({
-    businessAccountId: z.string().min(1, "Required"),
-    phoneNumberId: z.string().min(1, "Required"),
+    businessAccountId: z.string().optional(),
+    phoneNumberId: z.string().optional(),
     displayPhoneNumber: z.string().optional(),
-    accessToken: z.string().min(1, "Required"),
-    webhookVerifyToken: z.string().min(1, "Required"),
+    accessToken: z.string().optional(),
+    webhookVerifyToken: z.string().optional(),
   }).optional(),
 });
 type CreateCompanyForm = z.infer<typeof createCompanySchema>;
@@ -656,9 +656,14 @@ export function SuperAdminDashboard() {
       <Dialog open={showCreate} onOpenChange={(open) => { setShowCreate(open); if (!open) { setSetupWhatsApp(false); reset(); } }}>
         <DialogContent className="max-w-lg bg-white max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Create New Company</DialogTitle></DialogHeader>
-          <form onSubmit={handleSubmit((d) => {
-            if (!setupWhatsApp) { const { whatsapp: _w, ...rest } = d; createMutation.mutate(rest); }
-            else createMutation.mutate(d);
+          <form onSubmit={handleSubmit((d: CreateCompanyForm) => {
+            const wa = d.whatsapp;
+            const waFilled = setupWhatsApp && wa?.businessAccountId && wa?.phoneNumberId && wa?.accessToken && wa?.webhookVerifyToken;
+            if (waFilled) {
+              createMutation.mutate(d);
+            } else {
+              createMutation.mutate({ ...d, whatsapp: undefined });
+            }
           })} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
@@ -708,13 +713,16 @@ export function SuperAdminDashboard() {
               </button>
               {setupWhatsApp && (
                 <div className="p-4 grid grid-cols-2 gap-3 border-t bg-white">
+                  <p className="col-span-2 text-xs text-gray-500">
+                    All fields below are only required if you want to connect WhatsApp now. You can skip this and configure it later in WhatsApp → Settings.
+                  </p>
                   <div className="col-span-2">
-                    <label className="text-sm font-medium">Business Account ID *</label>
+                    <label className="text-sm font-medium">Business Account ID</label>
                     <Input {...register("whatsapp.businessAccountId")} placeholder="e.g. 123456789012345" className="mt-1 font-mono text-xs" />
                     {errors.whatsapp?.businessAccountId && <p className="text-xs text-red-500 mt-1">{errors.whatsapp.businessAccountId.message}</p>}
                   </div>
                   <div>
-                    <label className="text-sm font-medium">Phone Number ID *</label>
+                    <label className="text-sm font-medium">Phone Number ID</label>
                     <Input {...register("whatsapp.phoneNumberId")} placeholder="e.g. 987654321098765" className="mt-1 font-mono text-xs" />
                     {errors.whatsapp?.phoneNumberId && <p className="text-xs text-red-500 mt-1">{errors.whatsapp.phoneNumberId.message}</p>}
                   </div>
@@ -723,17 +731,17 @@ export function SuperAdminDashboard() {
                     <Input {...register("whatsapp.displayPhoneNumber")} placeholder="+91 98765 43210" className="mt-1" />
                   </div>
                   <div className="col-span-2">
-                    <label className="text-sm font-medium">Access Token *</label>
+                    <label className="text-sm font-medium">Access Token</label>
                     <Input {...register("whatsapp.accessToken")} type="password" placeholder="EAAxxxxxxx…" className="mt-1 font-mono text-xs" />
                     {errors.whatsapp?.accessToken && <p className="text-xs text-red-500 mt-1">{errors.whatsapp.accessToken.message}</p>}
                   </div>
                   <div className="col-span-2">
-                    <label className="text-sm font-medium">Webhook Verify Token *</label>
+                    <label className="text-sm font-medium">Webhook Verify Token</label>
                     <Input {...register("whatsapp.webhookVerifyToken")} placeholder="Any secret string" className="mt-1" />
                     {errors.whatsapp?.webhookVerifyToken && <p className="text-xs text-red-500 mt-1">{errors.whatsapp.webhookVerifyToken.message}</p>}
                   </div>
-                  <div className="col-span-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
-                    Tokens are encrypted before storage. Company admin can update them in WhatsApp → Settings.
+                  <div className="col-span-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-xs text-blue-700">
+                    🔒 Tokens are encrypted before storage. Company admin can update them anytime in WhatsApp → Settings.
                   </div>
                 </div>
               )}
