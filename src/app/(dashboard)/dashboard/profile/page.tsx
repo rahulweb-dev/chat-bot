@@ -119,7 +119,7 @@ export default function ProfilePage() {
   const role = user?.role || "AGENT";
 
   return (
-    <div className="space-y-6 max-w-3xl bg-white">
+    <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
         <p className="text-gray-500 text-sm mt-1">Manage your account settings and preferences</p>

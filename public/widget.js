@@ -1,34 +1,48 @@
 (function () {
   "use strict";
 
-  // Config vars — initialized inside boot() so the inline config script
-  // can run in any order relative to this file.
-  var cfg, BASE, KEY, COLOR, POS, THEME, DARK, SIDE, BG, BG2, BORD, TXT, MUTED, C60, C20;
+  var cfg = window.SupportFlowConfig || {};
+  if (!cfg.apiKey) { console.error("SupportFlow: apiKey required"); return; }
+
+  var BASE  = (cfg.baseUrl || "").replace(/\/$/, "");
+  var KEY   = cfg.apiKey;
+  var COLOR = cfg.primaryColor || "#6366f1";
+  var POS   = cfg.position || "bottom-right";
+  var THEME = cfg.theme || "light";
+  var DARK  = THEME === "dark";
+  var SIDE  = POS === "bottom-left" ? "left" : "right";
+
+  // Theme tokens
+  var BG    = DARK ? "#111827" : "#ffffff";
+  var BG2   = DARK ? "#1f2937" : "#f9fafb";
+  var BORD  = DARK ? "#374151" : "#e5e7eb";
+  var TXT   = DARK ? "#f9fafb" : "#111827";
+  var MUTED = DARK ? "#9ca3af" : "#6b7280";
+  var C60   = COLOR + "99";
+  var C20   = COLOR + "33";
 
   // State
-  var convId       = null;
-  var visitorId    = null;
-  var isOpen       = false;
-  var sessionData  = { flow: "INITIAL", step: "", collected: {} };
-  var lastMsgAt    = null;
-  var pollTimer    = null;
-  var isBusy       = false;
-  var companyName  = "Support";
-  var chatStarted  = false;
-  var unreadCount  = 0;
-  var lastQR       = [];
-  var renderedIds  = new Set(); // prevent duplicate messages from double-polling
-  var inAgentMode  = false;    // true after ASSIGN_AGENT action fires
+  var convId      = null;
+  var visitorId   = null;
+  var isOpen      = false;
+  var sessionData = { flow: "INITIAL", step: "", collected: {} };
+  var lastMsgAt   = null;
+  var pollTimer   = null;
+  var isBusy      = false;
+  var companyName = "Support";
+  var chatStarted = false;
+  var unreadCount = 0;
+  var lastQR      = [];
+  var renderedIds = new Set(); // prevent duplicate messages from double-polling
 
   // Load persisted data
   try {
-    convId       = localStorage.getItem("sf_conv");
-    visitorId    = localStorage.getItem("sf_vid");
+    convId    = localStorage.getItem("sf_conv");
+    visitorId = localStorage.getItem("sf_vid");
     var sd = localStorage.getItem("sf_session");
     if (sd) sessionData = JSON.parse(sd);
     var qr = localStorage.getItem("sf_qr");
     if (qr) lastQR = JSON.parse(qr);
-    inAgentMode = localStorage.getItem("sf_agent") === "1";
   } catch(_){}
 
   if (!visitorId) {
@@ -243,21 +257,15 @@
             if (!hasHistory) {
               // Stale convId — reset and start fresh, preserving visitor identity
               convId = null;
-              inAgentMode = false;
-              try { localStorage.removeItem("sf_conv"); localStorage.removeItem("sf_agent"); } catch(_){}
+              try { localStorage.removeItem("sf_conv"); } catch(_){}
               sessionData = { flow: "INITIAL", step: "", collected: sessionData.collected || {} };
               saveSession(sessionData);
               startConv().then(initWithSession);
             } else {
               isBusy = false;
               hideTyping();
-              // Restore agent mode UI if active
-              if (inAgentMode) {
-                setAgentConnecting();
-              } else if (lastQR && lastQR.length) {
-                // Restore last quick replies so user knows what to click
-                setOptions(lastQR, true);
-              }
+              // Restore last quick replies so user knows what to click
+              if (lastQR && lastQR.length) setOptions(lastQR, true);
               startPoll(); // start polling only after history fully loaded
             }
           });
@@ -317,11 +325,8 @@
         else playBeep();
         if (i === msgs.length - 1) {
           var qr = data.quickReplies || [];
-          // Hide quick replies once agent mode is active
-          if (!inAgentMode) {
-            setOptions(qr, qr.length > 0);
-            if (qr.length) saveQR(qr);
-          }
+          setOptions(qr, qr.length > 0);
+          if (qr.length) saveQR(qr);
         }
       }, delay);
       delay += 420;
@@ -334,28 +339,6 @@
         try { localStorage.setItem("sf_visitor", JSON.stringify({ name: col.name, phone: col.phone })); } catch(_){}
       }
     }
-    // Activate agent mode when bot escalates
-    if (data.action === "ASSIGN_AGENT") {
-      inAgentMode = true;
-      try { localStorage.setItem("sf_agent", "1"); } catch(_){}
-      setTimeout(function() { setAgentConnecting(); }, delay);
-    }
-  }
-
-  function setAgentConnecting() {
-    var hsub = document.getElementById("sf-hsub");
-    var inp  = document.getElementById("sf-inp");
-    if (hsub) hsub.innerHTML = '<span id="sf-online" style="background:#f59e0b"></span>Connecting you to an agent…';
-    if (inp) inp.placeholder = "Chat with agent…";
-    setOptions([], false);
-  }
-
-  function setAgentConnected(agentName) {
-    var hsub = document.getElementById("sf-hsub");
-    var inp  = document.getElementById("sf-inp");
-    if (hsub) hsub.innerHTML = '<span id="sf-online"></span>' + (agentName || "Agent") + " is online";
-    if (inp) inp.placeholder = "Type a message to the agent…";
-    try { localStorage.removeItem("sf_agent"); } catch(_){}
   }
 
   // ── API ──────────────────────────────────────────────────────────────────────
@@ -430,11 +413,6 @@
           if (renderedIds.has(m._id)) return; // skip already-rendered
           renderedIds.add(m._id);
           var label = (m.senderId && m.senderId.name) ? m.senderId.name : "Agent";
-          // First agent message after escalation — update header
-          if (inAgentMode) {
-            inAgentMode = false;
-            setAgentConnected(label);
-          }
           addBubble(m.content, "bot", m.createdAt, label);
           if (m.createdAt) lastMsgAt = m.createdAt;
           playBeep();
@@ -583,40 +561,10 @@
   }
 
   // ── Boot ──────────────────────────────────────────────────────────────────────
-  function boot() {
-    // Read config here (not at IIFE start) so the inline config script can
-    // appear before OR after this file — order no longer matters.
-    cfg   = window.SupportFlowConfig || {};
-    if (!cfg.apiKey) {
-      console.error("SupportFlow: window.SupportFlowConfig.apiKey is required. Set it before or after loading widget.js.");
-      return;
-    }
-    BASE  = (cfg.baseUrl || "").replace(/\/$/, "");
-    KEY   = cfg.apiKey;
-    COLOR = cfg.primaryColor || "#6366f1";
-    POS   = cfg.position || "bottom-right";
-    THEME = cfg.theme || "light";
-    DARK  = THEME === "dark";
-    SIDE  = POS === "bottom-left" ? "left" : "right";
-    BG    = DARK ? "#111827" : "#ffffff";
-    BG2   = DARK ? "#1f2937" : "#f9fafb";
-    BORD  = DARK ? "#374151" : "#e5e7eb";
-    TXT   = DARK ? "#f9fafb" : "#111827";
-    MUTED = DARK ? "#9ca3af" : "#6b7280";
-    C60   = COLOR + "99";
-    C20   = COLOR + "33";
-
-    injectCSS();
-    buildWidget();
-    fetchCompany();
-  }
-
+  function boot() { injectCSS(); buildWidget(); fetchCompany(); }
   if (document.readyState === "loading") {
-    // DOM not ready — DOMContentLoaded fires after all inline scripts have run
     document.addEventListener("DOMContentLoaded", boot);
   } else {
-    // DOM already ready — defer one tick so any inline config script that
-    // appears AFTER this <script> tag still gets a chance to run first
-    setTimeout(boot, 0);
+    boot();
   }
 })();

@@ -7,22 +7,123 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   MessageSquare, Copy, Check, Code, Palette, Eye, GitBranch,
-  ChevronDown, ChevronRight, RotateCcw, Workflow, AlertCircle,
+  ChevronDown, ChevronRight, Tag, Ticket, UserCheck, ArrowRight, RotateCcw,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
-type FlowAction = Record<string, unknown>;
-type CustomMenuItem = { id: string; title: string; actions: FlowAction[] };
-type CustomFlowDef = { chatbot?: { name?: string; welcomeMessage?: string; mainMenu?: CustomMenuItem[] } };
+// ── Flow definition (mirrors chatbot-flow.ts MAIN_MENU — Ashok Leyland) ──────
+const FLOWS = [
+  {
+    key: "find_vehicle", label: "🚛 Find a Vehicle", color: "#6366f1", bg: "#ede9fe",
+    steps: [
+      { q: "Vehicle type?",      opts: ["Light CV", "Intermediate CV", "Heavy Duty", "Bus", "Electric"] },
+      { q: "Usage purpose?",     opts: ["Logistics", "Cargo", "Construction", "Agriculture", "E-commerce"] },
+      { q: "Payload required?",  opts: ["Under 2T", "2-5T", "5-10T", "10-20T", "Above 20T"] },
+      { q: "Fuel preference?",   opts: ["Diesel", "CNG", "Electric", "Not Sure"] },
+      { q: "🚛 AI recommendation shown", opts: [] },
+    ],
+    outcome: "CREATE_LEAD",
+  },
+  {
+    key: "on_road_price", label: "💰 Get On-Road Price", color: "#f59e0b", bg: "#fef3c7",
+    steps: [
+      { q: "Select vehicle?",    opts: ["Dost+", "Ecomet 912", "AVTR 4940", "Circuit S"] },
+      { q: "Select variant?",    opts: ["Base", "Standard", "Plus", "Premium"] },
+      { q: "Your city?",         opts: ["Mumbai", "Delhi", "Chennai", "Bangalore"] },
+      { q: "💰 Estimated price shown", opts: [] },
+    ],
+    outcome: "NONE",
+  },
+  {
+    key: "brochure", label: "📄 Download Brochure", color: "#0ea5e9", bg: "#e0f2fe",
+    steps: [
+      { q: "Select vehicle?",    opts: ["Dost+", "Ecomet 912", "AVTR 4940", "Circuit S"] },
+      { q: "Your name?",         opts: [], input: true },
+      { q: "Mobile number?",     opts: [], input: true },
+      { q: "Email address?",     opts: [], input: true },
+      { q: "Your city?",         opts: ["Mumbai", "Delhi", "Chennai", "Hyderabad"] },
+    ],
+    outcome: "CREATE_LEAD",
+  },
+  {
+    key: "test_drive", label: "🚗 Book Test Drive", color: "#22c55e", bg: "#dcfce7",
+    steps: [
+      { q: "Select vehicle?",    opts: ["Dost+", "Ecomet 912", "AVTR 4940", "Other"] },
+      { q: "Dealer city?",       opts: ["Mumbai", "Delhi", "Chennai", "Hyderabad"] },
+      { q: "Preferred date?",    opts: ["Today", "Tomorrow", "This Saturday", "This Sunday"] },
+      { q: "Time slot?",         opts: ["9–11 AM", "11–1 PM", "2–4 PM", "4–6 PM"] },
+      { q: "Your name?",         opts: [], input: true },
+      { q: "Mobile number?",     opts: [], input: true },
+    ],
+    outcome: "CREATE_LEAD",
+  },
+  {
+    key: "service", label: "🛠️ Service & Support", color: "#8b5cf6", bg: "#ede9fe",
+    steps: [
+      { q: "Service type?",      opts: ["Book Service", "AMC Plans", "Breakdown", "Status"] },
+      { q: "Vehicle number?",    opts: [], input: true },
+      { q: "Dealer city?",       opts: ["Mumbai", "Delhi", "Chennai", "Hyderabad"] },
+      { q: "Preferred date?",    opts: ["Today", "Tomorrow", "This Saturday"] },
+    ],
+    outcome: "CREATE_TICKET",
+  },
+  {
+    key: "spare_parts", label: "🔧 Spare Parts", color: "#ec4899", bg: "#fce7f3",
+    steps: [
+      { q: "Select vehicle?",    opts: ["Dost+", "Ecomet 912", "AVTR 4940", "Circuit S"] },
+      { q: "Part category?",     opts: ["Engine", "Battery", "Brakes", "Suspension", "Filters"] },
+      { q: "Your name?",         opts: [], input: true },
+      { q: "Mobile number?",     opts: [], input: true },
+    ],
+    outcome: "CREATE_LEAD",
+  },
+  {
+    key: "finance", label: "💳 Finance & EMI", color: "#f97316", bg: "#ffedd5",
+    steps: [
+      { q: "Select vehicle?",    opts: ["Dost+", "Ecomet 912", "AVTR 4940"] },
+      { q: "Vehicle price? (₹L)", opts: [], input: true },
+      { q: "Down payment? (₹L)", opts: [], input: true },
+      { q: "Loan tenure?",       opts: ["12 Months", "24 Months", "36 Months", "48 Months", "60 Months"] },
+      { q: "💳 EMI calculation shown", opts: [] },
+    ],
+    outcome: "NONE",
+  },
+  {
+    key: "find_dealer", label: "📍 Find Dealer", color: "#14b8a6", bg: "#f0fdfa",
+    steps: [
+      { q: "Your city?",         opts: ["Mumbai", "Delhi", "Chennai", "Bangalore", "Hyderabad"] },
+      { q: "📍 Dealer info shown", opts: [] },
+    ],
+    outcome: "NONE",
+  },
+  {
+    key: "callback", label: "📞 Request Callback", color: "#64748b", bg: "#f1f5f9",
+    steps: [
+      { q: "Your name?",         opts: [], input: true },
+      { q: "Mobile number?",     opts: [], input: true },
+      { q: "Preferred time?",    opts: ["9–11 AM", "11–1 PM", "2–4 PM", "4–6 PM", "Anytime"] },
+    ],
+    outcome: "CREATE_LEAD",
+  },
+  {
+    key: "agent", label: "💬 Chat with Agent", color: "#6366f1", bg: "#ede9fe",
+    steps: [
+      { q: "Query category?",    opts: ["New Purchase", "Pricing", "Finance", "Fleet", "Service"] },
+      { q: "Your name?",         opts: [], input: true },
+      { q: "Mobile number?",     opts: [], input: true },
+      { q: "Email address?",     opts: [], input: true },
+      { q: "Your city?",         opts: ["Mumbai", "Delhi", "Chennai", "Hyderabad"] },
+    ],
+    outcome: "ASSIGN_AGENT",
+  },
+];
 
-const STEP_COLORS = [
-  "#6366f1", "#22c55e", "#f59e0b", "#0ea5e9",
-  "#8b5cf6", "#ec4899", "#f97316", "#14b8a6", "#64748b", "#dc2626",
-];
-const BG_COLORS = [
-  "#ede9fe", "#dcfce7", "#fef3c7", "#e0f2fe",
-  "#ede9fe", "#fce7f3", "#ffedd5", "#f0fdfa", "#f1f5f9", "#fee2e2",
-];
+const OUTCOME_LABELS: Record<string, { label: string; color: string; icon: typeof Tag }> = {
+  CREATE_LEAD:   { label: "Lead Created",   color: "text-green-700 bg-green-100 border-green-200",   icon: Tag },
+  CREATE_TICKET: { label: "Ticket Created", color: "text-orange-700 bg-orange-100 border-orange-200", icon: Ticket },
+  ASSIGN_AGENT:  { label: "Agent Assigned", color: "text-indigo-700 bg-indigo-100 border-indigo-200", icon: UserCheck },
+  NONE:          { label: "Back to Menu",   color: "text-gray-600 bg-gray-100 border-gray-200",      icon: ArrowRight },
+};
 
 // ── Live chatbot flow preview (uses session auth — no API key needed) ──────────
 type ChatMsg = { from: "bot" | "user"; text: string; time: string };
@@ -144,7 +245,7 @@ function ChatbotFlowPreview({ color, theme, companyName }: {
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ color: "white", fontWeight: 700, fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {companyName || "My Chatbot"}
+            {companyName || "Ashok Leyland"}
           </div>
           <div style={{ color: "rgba(255,255,255,.78)", fontSize: 11.5, marginTop: 2, display: "flex", alignItems: "center", gap: 5 }}>
             <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
@@ -268,8 +369,9 @@ function ChatbotFlowPreview({ color, theme, companyName }: {
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function WidgetBuilderPage() {
   const qc = useQueryClient();
-  const [copied, setCopied] = useState(false);
-  const [settings, setSettings] = useState({
+  const [copied, setCopied]           = useState(false);
+  const [expandedFlow, setExpandedFlow] = useState<string | null>(null);
+  const [settings, setSettings]       = useState({
     theme: "LIGHT" as "LIGHT" | "DARK",
     primaryColor: "#6366f1",
     position: "BOTTOM_RIGHT" as "BOTTOM_RIGHT" | "BOTTOM_LEFT",
@@ -297,21 +399,6 @@ export default function WidgetBuilderPage() {
     },
   });
 
-  const { data: chatbotConfig } = useQuery({
-    queryKey: ["chatbot-config"],
-    queryFn: async () => {
-      const res = await fetch("/api/chatbot-config");
-      const d = await res.json();
-      return d.data as { customFlow?: { enabled: boolean; flow: CustomFlowDef | null } };
-    },
-  });
-
-  const customFlow = chatbotConfig?.customFlow;
-  const flowEnabled = customFlow?.enabled && customFlow.flow;
-  const flowDef: CustomFlowDef | null = flowEnabled ? (customFlow!.flow as CustomFlowDef) : null;
-  const flowMenus: CustomMenuItem[] = flowDef?.chatbot?.mainMenu ?? [];
-  const [expandedFlow, setExpandedFlow] = useState<string | null>(null);
-
   const saveMutation = useMutation({
     mutationFn: async (data: typeof settings) => {
       const res = await fetch("/api/settings", {
@@ -334,13 +421,13 @@ export default function WidgetBuilderPage() {
 <script>
   window.SupportFlowConfig = {
     apiKey: "${widgetKey}",
-    baseUrl: "${appUrl}",
     theme: "${settings.theme.toLowerCase()}",
     position: "${settings.position.toLowerCase().replace("_", "-")}",
     primaryColor: "${settings.primaryColor}",
+    welcomeMessage: "${settings.welcomeMessage}",
   };
 </script>
-<script src="${appUrl}/widget.js" defer></script>`;
+<script src="${appUrl}/widget.js" async></script>`;
 
   const copySnippet = () => {
     navigator.clipboard.writeText(snippetCode);
@@ -460,98 +547,77 @@ export default function WidgetBuilderPage() {
 
             {/* ── Chat Flow ── */}
             <TabsContent value="flow" className="mt-4">
-              {!flowEnabled ? (
-                <div className="rounded-2xl border-2 border-dashed border-gray-200 p-8 text-center space-y-3">
-                  <AlertCircle className="w-8 h-8 text-amber-400 mx-auto" />
-                  <p className="font-semibold text-gray-700">No custom flow active</p>
-                  <p className="text-sm text-gray-400">Go to <strong>Chatbot Settings → Flow tab</strong> to upload and enable your custom chatbot flow JSON.</p>
-                  <a href="/dashboard/chatbot-settings" className="inline-block mt-2 text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
-                    Go to Chatbot Settings →
-                  </a>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Flow header */}
-                  <div className="flex flex-col items-center gap-0">
-                    <div className="bg-indigo-600 text-white rounded-2xl px-6 py-3 text-sm font-semibold shadow-md w-full max-w-sm text-center">
-                      🟢 Chat Starts
-                      <p className="text-indigo-200 text-xs font-normal mt-0.5">Visitor opens widget</p>
-                    </div>
-                    <div className="w-0.5 h-5 bg-gray-300" />
-                    <div className="bg-gray-50 border border-gray-200 rounded-2xl px-6 py-3 text-sm font-medium shadow-sm w-full max-w-sm text-center text-gray-700">
-                      👋 {flowDef?.chatbot?.welcomeMessage ?? `Welcome to ${flowDef?.chatbot?.name ?? "our chatbot"}!`}
-                      <p className="text-gray-400 text-xs font-normal mt-0.5">Bot welcome message</p>
-                    </div>
-                    <div className="w-0.5 h-5 bg-gray-300" />
-                    <div className="bg-white border-2 border-indigo-200 rounded-2xl px-6 py-3 text-sm font-semibold shadow-sm w-full max-w-sm text-center text-indigo-700">
-                      <Workflow className="w-4 h-4 inline mr-1.5 -mt-0.5" />
-                      {flowDef?.chatbot?.name ?? "Custom Flow"} — {flowMenus.length} menu items
-                    </div>
-                    <div className="w-0.5 h-5 bg-gray-300" />
+              <div className="space-y-4">
+                <div className="flex flex-col items-center gap-0">
+                  <div className="bg-indigo-600 text-white rounded-2xl px-6 py-3 text-sm font-semibold shadow-md w-full max-w-sm text-center">
+                    🟢 Chat Starts
+                    <p className="text-indigo-200 text-xs font-normal mt-0.5">Visitor opens widget</p>
                   </div>
+                  <div className="w-0.5 h-5 bg-gray-300" />
+                  <div className="bg-gray-100 border border-gray-200 rounded-2xl px-6 py-3 text-sm font-medium shadow-sm w-full max-w-sm text-center text-gray-700">
+                    👋 Welcome to Ashok Leyland!
+                    <p className="text-gray-400 text-xs font-normal mt-0.5">Bot welcome message</p>
+                  </div>
+                  <div className="w-0.5 h-5 bg-gray-300" />
+                  <div className="bg-white border-2 border-indigo-200 rounded-2xl px-6 py-3 text-sm font-semibold shadow-sm w-full max-w-sm text-center text-indigo-700">
+                    📋 Main Menu — 10 options
+                  </div>
+                  <div className="w-0.5 h-5 bg-gray-300" />
+                </div>
 
-                  {/* Menu cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {flowMenus.map((menu, mi) => {
-                      const color = STEP_COLORS[mi % STEP_COLORS.length];
-                      const bg    = BG_COLORS[mi % BG_COLORS.length];
-                      const isOpen = expandedFlow === menu.id;
-                      const steps = (menu.actions.filter(a => "step" in a) as { step: string }[]).map(a => a.step);
-                      const opts  = ((menu.actions.find(a => "options" in a) as { options?: string[] } | undefined)?.options ?? []);
-                      const cats  = ((menu.actions.find(a => "categories" in a) as { categories?: string[] } | undefined)?.categories ?? []);
-                      const isLead = menu.id === "testDrive" || menu.id === "testRide";
-                      const isEMI  = menu.id === "emi";
-                      return (
-                        <div key={menu.id}
-                          className="rounded-2xl border overflow-hidden shadow-sm transition-shadow hover:shadow-md"
-                          style={{ borderColor: color + "44" }}>
-                          <button
-                            onClick={() => setExpandedFlow(isOpen ? null : menu.id)}
-                            className="w-full flex items-center justify-between p-3 text-left transition-colors"
-                            style={{ backgroundColor: bg }}>
-                            <span className="font-semibold text-sm" style={{ color }}>{menu.title}</span>
-                            {isOpen
-                              ? <ChevronDown className="w-4 h-4 shrink-0" style={{ color }} />
-                              : <ChevronRight className="w-4 h-4 shrink-0" style={{ color }} />}
-                          </button>
-                          {isOpen && (
-                            <div className="bg-white p-3 space-y-2 border-t" style={{ borderColor: color + "22" }}>
-                              {steps.map((step, i) => (
-                                <div key={i} className="flex items-start gap-2">
-                                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5" style={{ backgroundColor: color }}>
-                                    {i + 1}
-                                  </div>
-                                  <p className="text-xs font-medium text-gray-700 mt-0.5">{step}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {FLOWS.map((flow) => {
+                    const isOpen = expandedFlow === flow.key;
+                    const outcome = OUTCOME_LABELS[flow.outcome];
+                    const OutcomeIcon = outcome.icon;
+                    return (
+                      <div key={flow.key}
+                        className="rounded-2xl border overflow-hidden shadow-sm transition-shadow hover:shadow-md"
+                        style={{ borderColor: flow.color + "44" }}>
+                        <button
+                          onClick={() => setExpandedFlow(isOpen ? null : flow.key)}
+                          className="w-full flex items-center justify-between p-3 text-left transition-colors"
+                          style={{ backgroundColor: flow.bg }}>
+                          <span className="font-semibold text-sm" style={{ color: flow.color }}>{flow.label}</span>
+                          {isOpen
+                            ? <ChevronDown className="w-4 h-4 shrink-0" style={{ color: flow.color }} />
+                            : <ChevronRight className="w-4 h-4 shrink-0" style={{ color: flow.color }} />}
+                        </button>
+                        {isOpen && (
+                          <div className="bg-white p-3 space-y-2 border-t" style={{ borderColor: flow.color + "22" }}>
+                            {flow.steps.map((step, i) => (
+                              <div key={i} className="flex items-start gap-2">
+                                <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5" style={{ backgroundColor: flow.color }}>
+                                  {i + 1}
                                 </div>
-                              ))}
-                              {cats.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1 pt-1 border-t">
-                                  {cats.map(c => <span key={c} className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{c}</span>)}
+                                <div className="flex-1">
+                                  <p className="text-xs font-medium text-gray-700">{step.q}</p>
+                                  {step.opts.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      {step.opts.map((o) => (
+                                        <span key={o} className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{o}</span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {step.input && <span className="text-[10px] text-gray-400 italic">✏️ Free text input</span>}
                                 </div>
-                              )}
-                              {opts.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1 pt-1 border-t">
-                                  {opts.map(o => <span key={o} className="text-[10px] px-1.5 py-0.5 rounded-full border" style={{ color, borderColor: color + "44", background: bg }}>{o}</span>)}
-                                </div>
-                              )}
-                              <div className={`flex items-center gap-1.5 mt-2 pt-2 border-t text-[11px] font-semibold px-2 py-1 rounded-lg ${
-                                isLead ? "bg-green-50 text-green-700 border border-green-200"
-                                : isEMI ? "bg-orange-50 text-orange-700 border border-orange-200"
-                                : "bg-gray-50 text-gray-600 border border-gray-200"
-                              }`}>
-                                {isLead ? "✅ Lead Created in CRM" : isEMI ? "💳 EMI Calculated" : "↩ Returns to Main Menu"}
                               </div>
+                            ))}
+                            <div className={`flex items-center gap-1.5 mt-2 pt-2 border-t text-xs font-semibold px-2 py-1 rounded-lg ${outcome.color} border`}>
+                              <OutcomeIcon className="w-3.5 h-3.5" />
+                              {outcome.label}
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <p className="text-xs text-gray-400 text-center pt-1">
-                    Click any flow to see steps · Test the full live flow in the preview →
-                  </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
+
+                <p className="text-xs text-gray-400 text-center pt-2">
+                  Click any flow to see steps · Test the full flow in the Live Preview →
+                </p>
+              </div>
             </TabsContent>
 
             {/* ── Install ── */}
@@ -609,7 +675,7 @@ export default function WidgetBuilderPage() {
             <ChatbotFlowPreview
               color={settings.primaryColor}
               theme={settings.theme}
-              companyName={flowDef?.chatbot?.name || companyData?.name || "My Chatbot"}
+              companyName={companyData?.name || "Ashok Leyland"}
             />
 
             <p className="text-center text-xs text-gray-400">

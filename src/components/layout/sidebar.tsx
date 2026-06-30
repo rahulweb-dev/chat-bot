@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import {
-  MessageSquare, TicketIcon, Users, BarChart3,
+  MessageSquare, TicketIcon, Users, Building2, BarChart3,
   Settings, Bell, Key, Bot, Workflow, CreditCard,
   LayoutDashboard, BookOpen, Puzzle, Tag, Globe, Shield,
   ChevronLeft, ChevronRight, Inbox, MessageCircle,
@@ -38,8 +38,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Communication",
     items: [
-      { label: "Inbox",    href: "/dashboard/conversations", icon: Inbox,          badge: "Live" },
-      { label: "WhatsApp", href: "/dashboard/whatsapp",      icon: MessageCircle },
+      { label: "Live Chat",      href: "/dashboard/chat",          icon: MessageSquare, badge: "Live" },
+      { label: "WhatsApp",       href: "/dashboard/whatsapp",      icon: MessageCircle },
+      { label: "Conversations",  href: "/dashboard/conversations", icon: Inbox },
     ],
   },
   {
@@ -52,16 +53,17 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Team",
     items: [
-      { label: "Agents", href: "/dashboard/agents", icon: Users, roles: ["COMPANY_ADMIN", "MANAGER"] },
+      { label: "Agents",      href: "/dashboard/agents",      icon: Users,      roles: ["COMPANY_ADMIN", "MANAGER"] },
+      { label: "Departments", href: "/dashboard/departments", icon: Building2,  roles: ["COMPANY_ADMIN", "MANAGER"] },
     ],
   },
   {
     label: "AI & Automation",
     items: [
-      { label: "Chatbots",       href: "/dashboard/chatbots",         icon: Bot,      roles: ["COMPANY_ADMIN", "MANAGER"] },
-      { label: "Bot Training",   href: "/dashboard/chatbot-settings", icon: Brain,    roles: ["COMPANY_ADMIN", "MANAGER"] },
-      { label: "Knowledge Base", href: "/dashboard/knowledge-base",   icon: BookOpen },
-      { label: "Workflows",      href: "/dashboard/workflows",        icon: Workflow, roles: ["COMPANY_ADMIN", "MANAGER"] },
+      { label: "Chatbots",       href: "/dashboard/chatbots",          icon: Bot,      roles: ["COMPANY_ADMIN", "MANAGER"] },
+      { label: "Bot Training",   href: "/dashboard/chatbot-settings",  icon: Brain,    roles: ["COMPANY_ADMIN", "MANAGER"] },
+      { label: "Knowledge Base", href: "/dashboard/knowledge-base",    icon: BookOpen },
+      { label: "Workflows",      href: "/dashboard/workflows",         icon: Workflow, roles: ["COMPANY_ADMIN", "MANAGER"] },
     ],
   },
   {
@@ -73,12 +75,12 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Account",
     items: [
-      { label: "Widget Builder", href: "/dashboard/widget",        icon: Puzzle,    roles: ["COMPANY_ADMIN"] },
-      { label: "Billing",        href: "/dashboard/billing",       icon: CreditCard, roles: ["COMPANY_ADMIN"] },
-      { label: "API Keys",       href: "/dashboard/api-keys",      icon: Key,       roles: ["COMPANY_ADMIN"] },
-      { label: "Audit Logs",     href: "/dashboard/audit-logs",    icon: Shield,    roles: ["COMPANY_ADMIN"] },
-      { label: "Notifications",  href: "/dashboard/notifications", icon: Bell },
-      { label: "Settings",       href: "/dashboard/settings",      icon: Settings },
+      { label: "Widget Builder", href: "/dashboard/widget",         icon: Puzzle,    roles: ["COMPANY_ADMIN"] },
+      { label: "Billing",        href: "/dashboard/billing",        icon: CreditCard, roles: ["COMPANY_ADMIN"] },
+      { label: "API Keys",       href: "/dashboard/api-keys",       icon: Key,       roles: ["COMPANY_ADMIN"] },
+      { label: "Audit Logs",     href: "/dashboard/audit-logs",     icon: Shield,    roles: ["COMPANY_ADMIN"] },
+      { label: "Notifications",  href: "/dashboard/notifications",  icon: Bell },
+      { label: "Settings",       href: "/dashboard/settings",       icon: Settings },
     ],
   },
 ];
@@ -95,7 +97,6 @@ const SUPER_ADMIN_GROUPS: NavGroup[] = [
       { label: "Plans",     href: "/admin/plans",     icon: CreditCard },
       { label: "Revenue",   href: "/admin/revenue",   icon: BarChart3 },
       { label: "Users",     href: "/admin/users",     icon: Users },
-      { label: "Chatbots",  href: "/admin/chatbots",  icon: Bot },
     ],
   },
   {

@@ -325,7 +325,7 @@ export default function AgentsPage() {
 
       {/* Create Agent Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="max-w-md bg-white">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Add New Agent</DialogTitle>
           </DialogHeader>
