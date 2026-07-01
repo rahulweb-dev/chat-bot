@@ -21,13 +21,13 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // NextAuth v5 changed cookie names — must specify the new name explicitly
-  const isSecure = request.nextUrl.protocol === "https:";
-  const cookieName = isSecure ? "__Secure-authjs.session-token" : "authjs.session-token";
+  // Cookie name is pinned to "authjs.session-token" in lib/auth.ts (secure:false)
+  // so it works identically whether the request arrives over HTTP or HTTPS internally.
   const token = await getToken({
     req: request,
     secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
-    cookieName,
+    cookieName: "authjs.session-token",
+    salt: "authjs.session-token",
   });
 
   if (token?.role === "SUPER_ADMIN" && (pathname.startsWith("/dashboard"))) {

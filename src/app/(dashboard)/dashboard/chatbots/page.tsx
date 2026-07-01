@@ -431,7 +431,7 @@ export default function ChatbotsPage() {
       {/* ── Configure Dialog ───────────────────────────────────────────────── */}
       {configBot && (
         <Dialog open={!!configBot} onOpenChange={() => setConfigBot(null)}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-white">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Bot className="w-5 h-5 text-indigo-500" />

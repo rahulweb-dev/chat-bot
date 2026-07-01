@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Search, IndianRupee, Mail, Phone, Bot, Zap } from "lucide-react";
+import { Plus, Search, IndianRupee, Mail, Phone, Bot, Zap, Download } from "lucide-react";
 import { timeAgo } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
@@ -131,9 +131,22 @@ export default function LeadsPage() {
               List
             </button>
           </div>
-          <Button onClick={() => setShowCreate(true)} className="bg-indigo-600 hover:bg-indigo-700">
-            <Plus className="w-4 h-4 mr-2" /> Add Lead
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="gap-2 border-gray-200 text-gray-600 hover:text-indigo-700 hover:border-indigo-300"
+              onClick={() => {
+                const params = new URLSearchParams({ format: "csv" });
+                if (search) params.set("search", search);
+                window.location.href = `/api/leads?${params}`;
+              }}
+            >
+              <Download className="w-4 h-4" /> Export CSV
+            </Button>
+            <Button onClick={() => setShowCreate(true)} className="bg-indigo-600 hover:bg-indigo-700">
+              <Plus className="w-4 h-4 mr-2" /> Add Lead
+            </Button>
+          </div>
         </div>
       </div>
 

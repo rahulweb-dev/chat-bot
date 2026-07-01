@@ -22,18 +22,21 @@
   var C20   = COLOR + "33";
 
   // State
-  var convId      = null;
-  var visitorId   = null;
-  var isOpen      = false;
-  var sessionData = { flow: "INITIAL", step: "", collected: {} };
-  var lastMsgAt   = null;
-  var pollTimer   = null;
-  var isBusy      = false;
-  var companyName = "Support";
-  var chatStarted = false;
-  var unreadCount = 0;
-  var lastQR      = [];
-  var renderedIds = new Set(); // prevent duplicate messages from double-polling
+  var convId        = null;
+  var visitorId     = null;
+  var isOpen        = false;
+  var sessionData   = { flow: "INITIAL", step: "", collected: {} };
+  var lastMsgAt     = null;
+  var pollTimer     = null;
+  var isBusy        = false;
+  var companyName   = "Support";
+  var chatStarted   = false;
+  var unreadCount   = 0;
+  var lastQR        = [];
+  var renderedIds   = new Set(); // prevent duplicate messages from double-polling
+  var pusherKey     = cfg.pusherKey     || null;
+  var pusherCluster = cfg.pusherCluster || "ap2";
+  var pusherChannel = null; // active Pusher subscription
 
   // Load persisted data
   try {
@@ -315,18 +318,22 @@
     });
   }
 
+  var msgCount = 0;
   function renderBotResponse(data) {
     var msgs = data.messages || [];
     var delay = 0;
     msgs.forEach(function(msg, i) {
       setTimeout(function() {
         addBubble(msg, "bot");
+        msgCount++;
         if (!isOpen) { unreadCount++; showDot(); }
         else playBeep();
         if (i === msgs.length - 1) {
           var qr = data.quickReplies || [];
           setOptions(qr, qr.length > 0);
           if (qr.length) saveQR(qr);
+          // Show CSAT after 6+ message exchanges
+          if (msgCount >= 6 && !csatShown) setTimeout(showCSAT, 800);
         }
       }, delay);
       delay += 420;
@@ -376,6 +383,7 @@
       if (r && r.success && r.data) {
         convId = r.data.conversationId;
         try { localStorage.setItem("sf_conv", convId); } catch(_){}
+        subscribeRealtime(convId); // start Pusher real-time for this conversation
       }
     }).catch(function(){});
   }
@@ -430,8 +438,45 @@
     }).then(function(r) { return r.json(); });
   }
 
-  function startPoll() { stopPoll(); pollTimer = setInterval(pollNew, 5000); }
+  function startPoll() {
+    if (pusherChannel) return; // Pusher handles real-time — no polling needed
+    stopPoll();
+    pollTimer = setInterval(pollNew, 5000);
+  }
   function stopPoll()  { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+  // ── Pusher real-time subscription ────────────────────────────────────────────
+  function loadPusherScript(cb) {
+    if (window.Pusher) { cb(window.Pusher); return; }
+    var s = document.createElement("script");
+    s.src = "https://js.pusher.com/8.2.0/pusher.min.js";
+    s.onload  = function() { cb(window.Pusher); };
+    s.onerror = function() { cb(null); }; // fall back to polling silently
+    document.head.appendChild(s);
+  }
+
+  function subscribeRealtime(cId) {
+    if (!pusherKey || !cId || pusherChannel) return;
+    loadPusherScript(function(Pusher) {
+      if (!Pusher) return; // graceful fallback — polling still runs
+      try {
+        var client = new Pusher(pusherKey, { cluster: pusherCluster });
+        pusherChannel = client.subscribe("chat-" + cId);
+        pusherChannel.bind("message", function(msg) {
+          if (!msg || !msg.id || renderedIds.has(msg.id)) return;
+          var type = msg.senderType;
+          if (type !== "AGENT" && type !== "BOT") return;
+          renderedIds.add(msg.id);
+          var label = (type === "AGENT" && msg.senderName) ? msg.senderName : null;
+          addBubble(msg.content, "bot", msg.createdAt, label);
+          if (msg.createdAt) lastMsgAt = msg.createdAt;
+          if (!isOpen) { unreadCount++; showDot(); }
+          else playBeep();
+        });
+        stopPoll(); // Pusher is now the source of truth
+      } catch(e) {} // any Pusher init error → polling continues
+    });
+  }
 
   // ── UI helpers ────────────────────────────────────────────────────────────────
   function addBubble(text, side, ts, senderLabel) {
@@ -552,12 +597,74 @@
     fetch(BASE + "/api/widget?key=" + encodeURIComponent(KEY))
       .then(function(r) { return r.json(); })
       .then(function(d) {
-        if (d.success && d.data && d.data.name) {
+        if (!d.success || !d.data) return;
+        if (d.data.name) {
           companyName = d.data.name;
           var el = document.getElementById("sf-hname");
           if (el) el.textContent = companyName;
         }
+        // Pick up Pusher config from server (so customers don't need to put keys in their embed snippet)
+        if (d.data.pusherKey) {
+          pusherKey     = d.data.pusherKey;
+          pusherCluster = d.data.pusherCluster || "ap2";
+          // If a conversation already exists (returning visitor), subscribe now
+          if (convId && !pusherChannel) subscribeRealtime(convId);
+        }
       }).catch(function(){});
+  }
+
+  // ── CSAT Rating ──────────────────────────────────────────────────────────────
+  var csatShown = false;
+  function showCSAT() {
+    if (csatShown || !convId) return;
+    csatShown = true;
+    var msgs = document.getElementById("sf-msgs");
+    if (!msgs) return;
+
+    var wrap = document.createElement("div");
+    wrap.style.cssText = "display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 12px;background:" + BG + ";border:1px solid " + BORD + ";border-radius:16px;margin-top:8px";
+
+    var lbl = document.createElement("p");
+    lbl.textContent = "How was your experience?";
+    lbl.style.cssText = "font-size:13px;font-weight:600;color:" + TXT + ";margin:0";
+    wrap.appendChild(lbl);
+
+    var stars = document.createElement("div");
+    stars.style.cssText = "display:flex;gap:6px";
+    var selected = 0;
+
+    [1,2,3,4,5].forEach(function(n) {
+      var s = document.createElement("button");
+      s.textContent = "★";
+      s.setAttribute("data-n", String(n));
+      s.style.cssText = "font-size:28px;background:none;border:none;cursor:pointer;color:#d1d5db;transition:color .15s;padding:0 2px";
+      s.addEventListener("mouseenter", function() {
+        stars.querySelectorAll("button").forEach(function(b) {
+          b.style.color = Number(b.getAttribute("data-n")) <= n ? COLOR : "#d1d5db";
+        });
+      });
+      s.addEventListener("mouseleave", function() {
+        stars.querySelectorAll("button").forEach(function(b) {
+          b.style.color = Number(b.getAttribute("data-n")) <= selected ? COLOR : "#d1d5db";
+        });
+      });
+      s.addEventListener("click", function() {
+        selected = n;
+        stars.querySelectorAll("button").forEach(function(b) {
+          b.style.color = Number(b.getAttribute("data-n")) <= n ? COLOR : "#d1d5db";
+        });
+        submitCSAT(n, wrap);
+      });
+      stars.appendChild(s);
+    });
+    wrap.appendChild(stars);
+    msgs.appendChild(wrap);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function submitCSAT(rating, wrap) {
+    post("/api/widget/rate", { conversationId: convId, rating: rating }).catch(function(){});
+    wrap.innerHTML = "<p style=\"font-size:13px;color:" + MUTED + ";text-align:center;padding:4px 0\">Thanks for your feedback! ⭐</p>";
   }
 
   // ── Boot ──────────────────────────────────────────────────────────────────────

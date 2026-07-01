@@ -415,12 +415,13 @@ export default function WidgetBuilderPage() {
   });
 
   const widgetKey = apiKeys?.[0]?.key || "YOUR_API_KEY";
-  const appUrl    = typeof window !== "undefined" ? window.location.origin : "https://your-domain.com";
+  const appUrl    = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "");
 
   const snippetCode = `<!-- SupportFlow Widget -->
 <script>
   window.SupportFlowConfig = {
     apiKey: "${widgetKey}",
+    baseUrl: "${appUrl}",
     theme: "${settings.theme.toLowerCase()}",
     position: "${settings.position.toLowerCase().replace("_", "-")}",
     primaryColor: "${settings.primaryColor}",

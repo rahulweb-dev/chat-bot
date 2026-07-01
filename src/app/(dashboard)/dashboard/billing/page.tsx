@@ -66,7 +66,7 @@ export default function BillingPage() {
 
   const upgradeMutation = useMutation({
     mutationFn: async (planType: string) => {
-      const res = await fetch("/api/subscriptions", {
+      const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ planType, billingCycle: billing }),
@@ -74,12 +74,12 @@ export default function BillingPage() {
       return res.json();
     },
     onSuccess: (data) => {
-      if (data.success) {
-        toast({ title: "Plan upgraded successfully!", variant: "default" });
-        qc.invalidateQueries({ queryKey: ["subscription"] });
-        qc.invalidateQueries({ queryKey: ["usage"] });
+      if (data.success && data.data?.url) {
+        window.location.href = data.data.url; // redirect to Stripe checkout
+      } else if (data.error?.includes("not configured")) {
+        toast({ title: "Stripe not configured yet. Add STRIPE_SECRET_KEY to .env.local", variant: "destructive" });
       } else {
-        toast({ title: data.error || "Failed to upgrade", variant: "destructive" });
+        toast({ title: data.error || "Failed to start checkout", variant: "destructive" });
       }
     },
   });

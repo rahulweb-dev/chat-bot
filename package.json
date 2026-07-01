@@ -10,7 +10,9 @@
     "build:server": "tsc --project tsconfig.server.json",
     "lint": "eslint",
     "seed": "tsx src/scripts/seed.ts",
-    "seed:plans": "tsx src/scripts/seed.ts"
+    "seed:plans": "tsx src/scripts/seed.ts",
+    "demo:check": "tsx src/scripts/check-demo.ts",
+    "demo:fix": "tsx src/scripts/fix-demo.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -69,6 +71,8 @@
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.13",
     "pdf-parse": "^2.4.5",
+    "pusher": "^5.3.4",
+    "pusher-js": "^8.5.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-dropzone": "^15.0.0",
@@ -77,7 +81,7 @@
     "sharp": "^0.35.0",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
-    "stripe": "^22.2.0",
+    "stripe": "^22.3.0",
     "tailwind-merge": "^3.6.0",
     "uuid": "^14.0.0",
     "xlsx": "^0.18.5",

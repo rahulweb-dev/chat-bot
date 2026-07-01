@@ -1,31 +1,47 @@
-// In-memory sliding-window rate limiter.
-// Works for single-process deployments (Next.js local / single Vercel instance).
-// For multi-instance / edge deployments, replace the Map with an Upstash Redis store.
 import { NextResponse } from "next/server";
+import { getRedisConnection, isRedisAvailable } from "./queue/connection";
 
-const store = new Map<string, number[]>();
+// In-memory fallback when Redis is unavailable
+const memStore = new Map<string, number[]>();
 
-/**
- * Returns true when the request is within the allowed rate.
- * Returns false when the limit is exceeded.
- */
-export function rateLimit(key: string, maxRequests: number, windowMs: number): boolean {
+async function redisIncr(key: string, windowSecs: number): Promise<number> {
+  const redis = getRedisConnection();
+  const count = await redis.incr(key);
+  if (count === 1) await redis.expire(key, windowSecs + 1);
+  return count;
+}
+
+export async function rateLimit(
+  key: string,
+  maxRequests: number,
+  windowMs: number
+): Promise<boolean> {
+  const windowSecs = Math.ceil(windowMs / 1000);
+  const window = Math.floor(Date.now() / windowMs);
+  const rKey = `rl:${key}:${window}`;
+
+  const available = await isRedisAvailable(400);
+  if (available) {
+    const count = await redisIncr(rKey, windowSecs);
+    return count <= maxRequests;
+  }
+
+  // In-memory fallback
   const now = Date.now();
-  const hits = (store.get(key) ?? []).filter((t) => now - t < windowMs);
+  const hits = (memStore.get(rKey) ?? []).filter((t) => now - t < windowMs);
   if (hits.length >= maxRequests) return false;
   hits.push(now);
-  store.set(key, hits);
+  memStore.set(rKey, hits);
   return true;
 }
 
 export function rateLimitError() {
   return NextResponse.json(
     { success: false, error: "Too many requests — please slow down." },
-    { status: 429, headers: { "Retry-After": "60" } }
+    { status: 429, headers: { "Retry-After": "60", "Access-Control-Allow-Origin": "*" } }
   );
 }
 
-/** Convenience: derive a key from the forwarded IP or a fallback. */
 export function ipKey(request: Request, suffix?: string): string {
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0].trim() ??

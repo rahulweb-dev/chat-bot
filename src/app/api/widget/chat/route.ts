@@ -9,6 +9,10 @@ import Message from "@/models/Message";
 import Lead from "@/models/Lead";
 import Ticket from "@/models/Ticket";
 import { getIO } from "@/server/socket";
+import { triggerChat } from "@/lib/pusher";
+import { rateLimit, rateLimitError } from "@/lib/rate-limit";
+import { sendEmail } from "@/lib/email";
+import User from "@/models/User";
 
 async function resolveCompany(apiKey: string) {
   let company = await Company.findOne({ apiKey, isActive: true });
@@ -72,12 +76,20 @@ async function nextTicketNumber(companyId: string): Promise<string> {
 }
 
 export async function POST(request: NextRequest) {
+  // Rate limit: 30 messages per minute per IP, 120 per minute per API key
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+  const ipOk  = await rateLimit(`widget:ip:${ip}`,  30, 60_000);
+  if (!ipOk)  return rateLimitError();
+
   const body = await request.json();
   const { apiKey, conversationId, message, sessionData } = body;
 
   if (!apiKey || !message) {
     return NextResponse.json({ success: false, error: "apiKey and message required" }, { status: 400, headers: CORS });
   }
+
+  const keyOk = await rateLimit(`widget:key:${apiKey}`, 120, 60_000);
+  if (!keyOk) return rateLimitError();
 
   if (typeof message !== "string" || message.length > 2000) {
     return NextResponse.json({ success: false, error: "Message too long (max 2000 chars)" }, { status: 400, headers: CORS });
@@ -126,7 +138,16 @@ export async function POST(request: NextRequest) {
       }
     }
     for (const msg of result.messages) {
-      await Message.create({ companyId, conversationId, senderType: "BOT", type: "TEXT", content: msg, isDelivered: true }).catch(() => {});
+      const saved = await Message.create({ companyId, conversationId, senderType: "BOT", type: "TEXT", content: msg, isDelivered: true }).catch(() => null);
+      if (saved) {
+        triggerChat(conversationId, {
+          id: saved._id.toString(),
+          content: msg,
+          senderType: "BOT",
+          senderName: null,
+          createdAt: saved.createdAt,
+        });
+      }
     }
 
     // Update visitor name/phone in the conversation when the IDENTIFY flow collects them
@@ -171,6 +192,26 @@ export async function POST(request: NextRequest) {
           message: `New lead from ${ld.name || "Visitor"}`,
           name: ld.name || "Visitor",
         });
+        // Email the company admin about the new lead
+        User.findOne({ companyId, role: "COMPANY_ADMIN" }).select("email name").then(admin => {
+          if (!admin?.email) return;
+          sendEmail({
+            to: admin.email,
+            subject: `🎯 New lead captured: ${ld.name || "Visitor"}`,
+            html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px">
+              <h2 style="color:#6366f1;margin-top:0">New Lead Captured!</h2>
+              <table style="border-collapse:collapse;width:100%;font-size:14px">
+                <tr><td style="padding:8px 0;color:#6b7280;width:120px">Name</td><td style="font-weight:600">${ld.name || "—"}</td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280">Phone</td><td>${ld.phone || "—"}</td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280">Type</td><td>${ld.type || "GENERAL"}</td></tr>
+              </table>
+              <a href="${process.env.AUTH_URL}/dashboard/leads"
+                 style="display:inline-block;background:#6366f1;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;margin-top:20px;font-weight:600">
+                View Lead →
+              </a>
+            </div>`,
+          }).catch(() => {});
+        }).catch(() => {});
       }
     } catch (e) { console.error("Lead:", e); }
   }
@@ -199,6 +240,25 @@ export async function POST(request: NextRequest) {
         message: `New service ticket: ${td.subject || "Service request"}`,
         name: ld?.name || "Visitor",
       });
+      User.findOne({ companyId, role: "COMPANY_ADMIN" }).select("email name").then(admin => {
+        if (!admin?.email) return;
+        sendEmail({
+          to: admin.email,
+          subject: `🎫 New service ticket: ${td.subject || "Service request"}`,
+          html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px">
+            <h2 style="color:#6366f1;margin-top:0">New Service Ticket</h2>
+            <table style="border-collapse:collapse;width:100%;font-size:14px">
+              <tr><td style="padding:8px 0;color:#6b7280;width:120px">Subject</td><td style="font-weight:600">${td.subject || "—"}</td></tr>
+              <tr><td style="padding:8px 0;color:#6b7280">Customer</td><td>${ld?.name || "Visitor"}</td></tr>
+              <tr><td style="padding:8px 0;color:#6b7280">Phone</td><td>${ld?.phone || "—"}</td></tr>
+            </table>
+            <a href="${process.env.AUTH_URL}/dashboard/tickets"
+               style="display:inline-block;background:#6366f1;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;margin-top:20px;font-weight:600">
+              View Ticket →
+            </a>
+          </div>`,
+        }).catch(() => {});
+      }).catch(() => {});
     } catch (e) { console.error("Ticket:", e); }
   }
 

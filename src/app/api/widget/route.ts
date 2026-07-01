@@ -7,6 +7,7 @@ import Conversation from "@/models/Conversation";
 import Message from "@/models/Message";
 import { v4 as uuidv4 } from "uuid";
 import { getIO } from "@/server/socket";
+import { pusherConfigured } from "@/lib/pusher";
 
 // Resolves a widget API key to a company — supports both Company.apiKey and ApiKey model
 async function resolveCompany(apiKey: string) {
@@ -60,6 +61,8 @@ export async function GET(request: NextRequest) {
         logo: settings?.widget?.logo || company.logo,
         customCss: settings?.widget?.customCss,
       },
+      pusherKey: pusherConfigured() ? (process.env.PUSHER_KEY ?? null) : null,
+      pusherCluster: process.env.PUSHER_CLUSTER ?? "ap2",
     },
   }, {
     headers: {

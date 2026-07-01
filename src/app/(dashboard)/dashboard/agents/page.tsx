@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Search, Users, Trash2, Mail, MessageSquare, Clock, ShieldCheck } from "lucide-react";
+import { Plus, Search, Users, Trash2, Mail, MessageSquare, Clock, ShieldCheck, Send } from "lucide-react";
 import { getInitials, timeAgo } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
@@ -49,6 +49,10 @@ interface Agent {
 export default function AgentsPage() {
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ name: "", email: "", role: "AGENT" });
+  const [inviteSending, setInviteSending] = useState(false);
+  const [inviteDone, setInviteDone] = useState(false);
   const [search, setSearch] = useState("");
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
@@ -123,6 +127,25 @@ export default function AgentsPage() {
     setTogglingId(null);
   };
 
+  async function sendInvite(e: React.FormEvent) {
+    e.preventDefault();
+    setInviteSending(true);
+    const res = await fetch("/api/agents/invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(inviteForm),
+    });
+    const d = await res.json();
+    setInviteSending(false);
+    if (d.success) {
+      setInviteDone(true);
+      toast({ title: `Invite sent to ${inviteForm.email}` });
+      setTimeout(() => { setShowInvite(false); setInviteDone(false); setInviteForm({ name: "", email: "", role: "AGENT" }); }, 1500);
+    } else {
+      toast({ title: d.error || "Failed to send invite", variant: "destructive" });
+    }
+  }
+
   const agents = data || [];
   const onlineCount = agents.filter((a) => a.isOnline).length;
   const activeCount = agents.filter((a) => a.isActive).length;
@@ -148,9 +171,14 @@ export default function AgentsPage() {
             )}
           </div>
         </div>
-        <Button onClick={() => setShowCreate(true)} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
-          <Plus className="w-4 h-4" /> Add Agent
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setShowInvite(true)} variant="outline" className="gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+            <Send className="w-4 h-4" /> Invite by Email
+          </Button>
+          <Button onClick={() => setShowCreate(true)} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
+            <Plus className="w-4 h-4" /> Add Agent
+          </Button>
+        </div>
       </div>
 
       {/* Usage warning */}
@@ -322,6 +350,51 @@ export default function AgentsPage() {
           );
         })}
       </div>
+
+      {/* Invite Agent Dialog */}
+      <Dialog open={showInvite} onOpenChange={v => { setShowInvite(v); if (!v) { setInviteDone(false); setInviteForm({ name: "", email: "", role: "AGENT" }); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Invite Agent by Email</DialogTitle>
+          </DialogHeader>
+          {inviteDone ? (
+            <div className="py-8 text-center">
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Send className="w-6 h-6 text-green-600" />
+              </div>
+              <p className="font-semibold text-gray-900">Invite sent!</p>
+              <p className="text-sm text-gray-500 mt-1">They&apos;ll receive a link to create their account.</p>
+            </div>
+          ) : (
+            <form onSubmit={sendInvite} className="space-y-3">
+              <p className="text-sm text-gray-500">An email with a sign-up link will be sent. The link expires in 48 hours.</p>
+              <div>
+                <label className="text-sm font-medium">Full Name *</label>
+                <input className="mt-1 w-full border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300" value={inviteForm.name} onChange={e => setInviteForm({ ...inviteForm, name: e.target.value })} required placeholder="Jane Smith" />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Email *</label>
+                <input type="email" className="mt-1 w-full border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300" value={inviteForm.email} onChange={e => setInviteForm({ ...inviteForm, email: e.target.value })} required placeholder="jane@company.com" />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Role</label>
+                <select className="mt-1 w-full border rounded-md px-3 py-2 text-sm" value={inviteForm.role} onChange={e => setInviteForm({ ...inviteForm, role: e.target.value })}>
+                  <option value="AGENT">Agent</option>
+                  <option value="TEAM_LEADER">Team Leader</option>
+                  <option value="MANAGER">Manager</option>
+                  <option value="VIEWER">Viewer</option>
+                </select>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowInvite(false)}>Cancel</Button>
+                <Button type="submit" disabled={inviteSending} className="bg-indigo-600 hover:bg-indigo-700">
+                  {inviteSending ? "Sending…" : "Send Invite"}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Create Agent Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>

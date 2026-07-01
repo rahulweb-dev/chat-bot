@@ -102,6 +102,12 @@ export const authConfig: NextAuthConfig = {
   },
   session: { strategy: "jwt", maxAge: 7 * 24 * 60 * 60 },
   secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
+  cookies: {
+    sessionToken: {
+      name: "authjs.session-token",
+      options: { httpOnly: true, sameSite: "lax" as const, path: "/", secure: false },
+    },
+  },
 };
 
 export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);

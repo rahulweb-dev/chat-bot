@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess, paginatedResponse, paginate, incrementUsage } from "@/lib/api-helpers";
 import Lead from "@/models/Lead";
@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
 
   await connectDB();
   const { searchParams } = new URL(request.url);
+  const format = searchParams.get("format");
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "20");
   const stage = searchParams.get("stage");
@@ -27,6 +28,36 @@ export async function GET(request: NextRequest) {
       { email: { $regex: search, $options: "i" } },
       { company: { $regex: search, $options: "i" } },
     ];
+  }
+
+  // CSV export
+  if (format === "csv") {
+    const leads = await Lead.find(query)
+      .populate("assignedTo", "name email")
+      .sort({ createdAt: -1 })
+      .limit(5000)
+      .lean();
+
+    const header = ["Name","Email","Phone","Company","Stage","Score","Source","Assigned To","Created At"].join(",");
+    const rows = leads.map((l) => [
+      `"${(l.name || "").replace(/"/g, '""')}"`,
+      `"${(l.email || "").replace(/"/g, '""')}"`,
+      `"${(l.phone || "").replace(/"/g, '""')}"`,
+      `"${(l.company || "").replace(/"/g, '""')}"`,
+      l.stage || "",
+      l.score ?? "",
+      l.source || "",
+      `"${((l.assignedTo as { name?: string } | null)?.name || "").replace(/"/g, '""')}"`,
+      new Date(l.createdAt as Date).toISOString().slice(0, 10),
+    ].join(",")).join("\n");
+
+    const csv = `${header}\n${rows}`;
+    return new NextResponse(csv, {
+      headers: {
+        "Content-Type": "text/csv",
+        "Content-Disposition": `attachment; filename="leads-${new Date().toISOString().slice(0,10)}.csv"`,
+      },
+    });
   }
 
   const { skip } = paginate(page, limit);

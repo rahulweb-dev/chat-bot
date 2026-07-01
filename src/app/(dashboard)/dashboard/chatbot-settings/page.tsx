@@ -10,6 +10,7 @@ import { toast } from "@/hooks/use-toast";
 import {
   HelpCircle, Tag, Truck, Clock, Plus, Trash2, Save,
   Pencil, Check, X, Bot, MessageSquare, Brain, Code,
+  Zap, ExternalLink, CheckCircle2, Circle, Copy, Reply,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -71,7 +72,7 @@ function FAQTab({ config, refetch }: { config: Config; refetch: () => void }) {
         <CardHeader><CardTitle className="text-sm">Add New FAQ</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <Input placeholder="Question" value={newQ} onChange={e => setNewQ(e.target.value)} />
-          <textarea className="w-full border rounded-md px-3 py-2 text-sm min-h-[80px] resize-none" placeholder="Answer" value={newA} onChange={e => setNewA(e.target.value)} />
+          <textarea className="w-full border rounded-md px-3 py-2 text-sm min-h-20 resize-none" placeholder="Answer" value={newA} onChange={e => setNewA(e.target.value)} />
           <Button onClick={add} disabled={saving} className="bg-indigo-600 hover:bg-indigo-700">
             <Plus className="w-4 h-4 mr-2" /> Add FAQ
           </Button>
@@ -101,7 +102,7 @@ function FAQRow({ faq, onToggle, onDelete, onSave, isEditing, onEdit, onCancel }
         {isEditing ? (
           <div className="space-y-2">
             <Input value={q} onChange={e => setQ(e.target.value)} />
-            <textarea className="w-full border rounded-md px-3 py-2 text-sm min-h-[70px] resize-none" value={a} onChange={e => setA(e.target.value)} />
+            <textarea className="w-full border rounded-md px-3 py-2 text-sm min-h-17.5 resize-none" value={a} onChange={e => setA(e.target.value)} />
             <div className="flex gap-2">
               <Button size="sm" onClick={() => onSave(q, a)} className="bg-indigo-600 hover:bg-indigo-700"><Check className="w-3 h-3 mr-1" />Save</Button>
               <Button size="sm" variant="outline" onClick={onCancel}><X className="w-3 h-3 mr-1" />Cancel</Button>
@@ -144,7 +145,7 @@ function OffersTab({ config, refetch }: { config: Config; refetch: () => void })
         <CardHeader><CardTitle className="text-sm">Add New Offer</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <Input placeholder="Offer title (e.g. Fleet Discount)" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
-          <textarea className="w-full border rounded-md px-3 py-2 text-sm min-h-[80px] resize-none" placeholder="Description" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+          <textarea className="w-full border rounded-md px-3 py-2 text-sm min-h-20 resize-none" placeholder="Description" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
           <Input placeholder="Valid Until (e.g. 31 Dec 2025)" value={form.validUntil} onChange={e => setForm({ ...form, validUntil: e.target.value })} />
           <Button onClick={() => { if (!form.title || !form.description) return; save([...offers, { ...form, isActive: true }]); setForm({ title: "", description: "", validUntil: "" }); }} disabled={saving} className="bg-indigo-600 hover:bg-indigo-700">
             <Plus className="w-4 h-4 mr-2" /> Add Offer
@@ -282,7 +283,7 @@ function HoursTab({ config, refetch }: { config: Config; refetch: () => void }) 
         <CardContent className="space-y-4">
           <div>
             <label className="text-xs font-medium text-gray-600 mb-1 block">Welcome Message</label>
-            <textarea className="w-full border rounded-md px-3 py-2 text-sm min-h-[70px] resize-none" value={messages.welcome} onChange={e => setMessages({ ...messages, welcome: e.target.value })} />
+            <textarea className="w-full border rounded-md px-3 py-2 text-sm min-h-17.5 resize-none" value={messages.welcome} onChange={e => setMessages({ ...messages, welcome: e.target.value })} />
           </div>
           <div>
             <label className="text-xs font-medium text-gray-600 mb-1 block">Agent Online Message</label>
@@ -381,7 +382,7 @@ function TrainingTab({ config, refetch }: { config: Config; refetch: () => void 
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Keywords <span className="text-gray-400">(comma or newline separated — any match fires this rule)</span></label>
               <textarea
-                className="w-full border rounded-md px-3 py-2 text-sm min-h-[72px] resize-none font-mono"
+                className="w-full border rounded-md px-3 py-2 text-sm min-h-18 resize-none font-mono"
                 placeholder={"warranty, guarantee, how long covered\nwhat is the warranty"}
                 value={form.keywords}
                 onChange={e => setForm({ ...form, keywords: e.target.value })}
@@ -390,7 +391,7 @@ function TrainingTab({ config, refetch }: { config: Config; refetch: () => void 
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Bot Response</label>
               <textarea
-                className="w-full border rounded-md px-3 py-2 text-sm min-h-[100px] resize-none"
+                className="w-full border rounded-md px-3 py-2 text-sm min-h-25 resize-none"
                 placeholder="What the bot should reply when any keyword is matched in the user's message…"
                 value={form.response}
                 onChange={e => setForm({ ...form, response: e.target.value })}
@@ -429,7 +430,7 @@ function TrainingTab({ config, refetch }: { config: Config; refetch: () => void 
               </div>
             </div>
             <textarea
-              className="w-full border rounded-md px-3 py-2 text-sm min-h-[160px] resize-none font-mono"
+              className="w-full border rounded-md px-3 py-2 text-sm min-h-40 resize-none font-mono"
               placeholder="Paste your JSON here…"
               value={jsonText}
               onChange={e => { setJsonText(e.target.value); setJsonError(""); }}
@@ -480,6 +481,263 @@ function TrainingTab({ config, refetch }: { config: Config; refetch: () => void 
             </CardContent>
           </Card>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Canned Responses Tab ───────────────────────────────────────────────────────
+interface CannedResponse { _id?: string; title: string; shortcut: string; content: string; category: string; usageCount?: number }
+
+function CannedTab() {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({ title: "", shortcut: "", content: "", category: "General" });
+  const [saving, setSaving] = useState(false);
+
+  const { data: items = [], isLoading } = useQuery<CannedResponse[]>({
+    queryKey: ["canned-responses"],
+    queryFn: () => fetch("/api/canned-responses").then(r => r.json()).then(d => d.data || []),
+  });
+
+  async function add() {
+    if (!form.title || !form.shortcut || !form.content) return;
+    setSaving(true);
+    const r = await fetch("/api/canned-responses", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+    }).then(r => r.json());
+    setSaving(false);
+    if (r.success) {
+      toast({ title: "Canned response saved" });
+      setForm({ title: "", shortcut: "", content: "", category: "General" });
+      qc.invalidateQueries({ queryKey: ["canned-responses"] });
+    } else { toast({ title: r.error, variant: "destructive" }); }
+  }
+
+  async function remove(id: string) {
+    await fetch(`/api/canned-responses?id=${id}`, { method: "DELETE" });
+    qc.invalidateQueries({ queryKey: ["canned-responses"] });
+    toast({ title: "Deleted" });
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Reply className="w-4 h-4" />Add Canned Response</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Title</label>
+              <Input placeholder="e.g. Greeting" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Shortcut <span className="text-gray-400">(type /shortcut in inbox)</span></label>
+              <div className="flex">
+                <span className="flex items-center px-3 border border-r-0 rounded-l-md bg-gray-50 text-gray-500 text-sm">/</span>
+                <Input className="rounded-l-none" placeholder="hello" value={form.shortcut} onChange={e => setForm({ ...form, shortcut: e.target.value.replace(/[^a-z0-9_-]/gi, "").toLowerCase() })} />
+              </div>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-600 mb-1 block">Category</label>
+            <Input placeholder="General" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-600 mb-1 block">Response content</label>
+            <textarea
+              className="w-full border rounded-md px-3 py-2 text-sm min-h-25 resize-none"
+              placeholder="The full text the agent will send when they pick this response…"
+              value={form.content}
+              onChange={e => setForm({ ...form, content: e.target.value })}
+            />
+          </div>
+          <Button onClick={add} disabled={saving || !form.title || !form.shortcut || !form.content} className="bg-indigo-600 hover:bg-indigo-700">
+            <Plus className="w-4 h-4 mr-2" /> Save Response
+          </Button>
+        </CardContent>
+      </Card>
+
+      <div className="space-y-2">
+        {isLoading && <div className="h-32 bg-gray-100 rounded-xl animate-pulse" />}
+        {!isLoading && items.length === 0 && (
+          <div className="text-center py-10 text-gray-400">
+            <Reply className="w-8 h-8 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">No canned responses yet.</p>
+            <p className="text-xs mt-1">Agents can type <code className="bg-gray-100 px-1 rounded">/shortcut</code> in the inbox to insert these instantly.</p>
+          </div>
+        )}
+        {items.map(item => (
+          <Card key={item._id} className="border border-gray-100 shadow-none">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-semibold text-gray-900">{item.title}</span>
+                    <code className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-mono">/{item.shortcut}</code>
+                    <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{item.category}</span>
+                  </div>
+                  <p className="text-sm text-gray-600 line-clamp-2">{item.content}</p>
+                  {item.usageCount ? <p className="text-xs text-gray-400 mt-1">Used {item.usageCount}×</p> : null}
+                </div>
+                <button onClick={() => item._id && remove(item._id)} className="p-1 text-gray-300 hover:text-red-500 transition-colors shrink-0">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Real-time Tab ──────────────────────────────────────────────────────────────
+function RealtimeTab() {
+  const [copied, setCopied] = useState<string | null>(null);
+
+  function copy(text: string, key: string) {
+    navigator.clipboard.writeText(text);
+    setCopied(key);
+    setTimeout(() => setCopied(null), 2000);
+  }
+
+  const steps = [
+    {
+      title: "Create a free Pusher account",
+      desc: "Go to pusher.com, sign up for free. The free plan gives you 200 concurrent connections and 200,000 messages per day — enough for most businesses.",
+      action: { label: "Open Pusher.com", href: "https://pusher.com" },
+    },
+    {
+      title: "Create a new Channels app",
+      desc: 'In the Pusher dashboard, click "Create app". Choose any name (e.g. "SupportFlow"), select your nearest cluster (e.g. ap2 for Asia Pacific), and click Create.',
+      action: null,
+    },
+    {
+      title: "Copy your App Keys",
+      desc: 'Go to App Keys tab in your new Pusher app. You will see: App ID, Key, Secret, and Cluster. Copy all four.',
+      action: null,
+    },
+    {
+      title: "Add keys to your .env.local file",
+      desc: "Open your .env.local file and fill in the four Pusher values below. Then restart your server.",
+      action: null,
+    },
+    {
+      title: "Restart the server",
+      desc: "Stop and restart your Next.js server (npm run dev or your production process manager). The widget will automatically pick up Pusher — no changes to your embed snippet needed.",
+      action: null,
+    },
+  ];
+
+  const envBlock = `PUSHER_APP_ID=your_app_id
+PUSHER_KEY=your_key
+PUSHER_SECRET=your_secret
+PUSHER_CLUSTER=ap2`;
+
+  return (
+    <div className="space-y-6">
+      {/* What is Pusher */}
+      <Card className="border-indigo-100 bg-indigo-50/40">
+        <CardContent className="p-5">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
+              <Zap className="w-5 h-5 text-indigo-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900 text-sm">Why Pusher?</p>
+              <p className="text-sm text-gray-600 mt-1 leading-relaxed">
+                Without Pusher, your chat widget checks for new messages every 5 seconds (polling). With Pusher,
+                messages from agents arrive <span className="font-semibold text-indigo-700">instantly</span> — no delay, no wasted requests.
+                It works even on serverless hosting where Socket.IO cannot run.
+              </p>
+              <div className="flex flex-wrap gap-3 mt-3">
+                {[
+                  { label: "Agent sends message", arrow: true },
+                  { label: "Server triggers Pusher", arrow: true },
+                  { label: "Widget receives in <100ms", arrow: false },
+                ].map((s, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="px-3 py-1 bg-white border border-indigo-200 text-indigo-700 text-xs font-medium rounded-full shadow-sm">{s.label}</span>
+                    {s.arrow && <span className="text-indigo-300 text-sm">→</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Step-by-step guide */}
+      <div className="space-y-3">
+        <p className="text-sm font-semibold text-gray-700">Setup Guide</p>
+        {steps.map((step, i) => (
+          <Card key={i} className="border border-gray-100 shadow-none">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-7 h-7 rounded-full bg-indigo-600 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                  {i + 1}
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-900 text-sm">{step.title}</p>
+                  <p className="text-sm text-gray-500 mt-1 leading-relaxed">{step.desc}</p>
+
+                  {i === 3 && (
+                    <div className="mt-3 relative">
+                      <pre className="bg-gray-900 text-green-400 text-xs p-4 rounded-xl font-mono leading-relaxed overflow-x-auto whitespace-pre">
+                        {envBlock}
+                      </pre>
+                      <button
+                        onClick={() => copy(envBlock, "env")}
+                        className="absolute top-2.5 right-2.5 flex items-center gap-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs px-2 py-1 rounded-md transition-colors"
+                      >
+                        {copied === "env" ? <><CheckCircle2 className="w-3 h-3 text-green-400" />Copied</> : <><Copy className="w-3 h-3" />Copy</>}
+                      </button>
+                    </div>
+                  )}
+
+                  {step.action && (
+                    <a
+                      href={step.action.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 mt-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+                    >
+                      {step.action.label} <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Verification checklist */}
+      <Card className="border border-gray-100 shadow-none">
+        <CardContent className="p-5">
+          <p className="font-semibold text-gray-900 text-sm mb-3">How to verify it&apos;s working</p>
+          <div className="space-y-2.5">
+            {[
+              "Open your website where the widget is embedded",
+              "Start a chat — go to Dashboard → Live Inbox and open the conversation",
+              "Reply from the agent inbox",
+              "The message should appear in the widget immediately (not after 5 seconds)",
+              "Check Pusher dashboard → Event Explorer to see live events firing",
+            ].map((item, i) => (
+              <div key={i} className="flex items-start gap-2.5">
+                <Circle className="w-4 h-4 text-gray-300 shrink-0 mt-0.5" />
+                <p className="text-sm text-gray-600">{item}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Free plan note */}
+      <div className="flex items-start gap-2 bg-green-50 border border-green-100 rounded-xl p-4">
+        <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
+        <p className="text-sm text-green-800">
+          <span className="font-semibold">Pusher free plan</span> — 200 concurrent connections, 200k messages/day. More than enough for a growing business. Upgrade only when needed.
+        </p>
       </div>
     </div>
   );
@@ -548,18 +806,22 @@ export default function ChatbotSettingsPage() {
       </div>
 
       <Tabs defaultValue="training">
-        <TabsList className="grid grid-cols-5 w-full max-w-2xl">
-          <TabsTrigger value="training"  className="flex items-center gap-1.5"><Brain     className="w-3.5 h-3.5" />Training</TabsTrigger>
-          <TabsTrigger value="faqs"      className="flex items-center gap-1.5"><HelpCircle className="w-3.5 h-3.5" />FAQs</TabsTrigger>
-          <TabsTrigger value="offers"    className="flex items-center gap-1.5"><Tag        className="w-3.5 h-3.5" />Offers</TabsTrigger>
-          <TabsTrigger value="vehicles"  className="flex items-center gap-1.5"><Truck      className="w-3.5 h-3.5" />Vehicles</TabsTrigger>
-          <TabsTrigger value="hours"     className="flex items-center gap-1.5"><Clock      className="w-3.5 h-3.5" />Hours</TabsTrigger>
+        <TabsList className="grid grid-cols-7 w-full">
+          <TabsTrigger value="training"  className="flex items-center gap-1"><Brain      className="w-3 h-3" />Training</TabsTrigger>
+          <TabsTrigger value="faqs"      className="flex items-center gap-1"><HelpCircle className="w-3 h-3" />FAQs</TabsTrigger>
+          <TabsTrigger value="offers"    className="flex items-center gap-1"><Tag        className="w-3 h-3" />Offers</TabsTrigger>
+          <TabsTrigger value="vehicles"  className="flex items-center gap-1"><Truck      className="w-3 h-3" />Vehicles</TabsTrigger>
+          <TabsTrigger value="hours"     className="flex items-center gap-1"><Clock      className="w-3 h-3" />Hours</TabsTrigger>
+          <TabsTrigger value="canned"    className="flex items-center gap-1"><Reply      className="w-3 h-3" />Canned</TabsTrigger>
+          <TabsTrigger value="realtime"  className="flex items-center gap-1"><Zap        className="w-3 h-3" />Real-time</TabsTrigger>
         </TabsList>
         <TabsContent value="training"  className="mt-6"><TrainingTab  config={data} refetch={refetch} /></TabsContent>
         <TabsContent value="faqs"      className="mt-6"><FAQTab       config={data} refetch={refetch} /></TabsContent>
         <TabsContent value="offers"    className="mt-6"><OffersTab    config={data} refetch={refetch} /></TabsContent>
         <TabsContent value="vehicles"  className="mt-6"><VehiclesTab  config={data} refetch={refetch} /></TabsContent>
         <TabsContent value="hours"     className="mt-6"><HoursTab     config={data} refetch={refetch} /></TabsContent>
+        <TabsContent value="canned"    className="mt-6"><CannedTab /></TabsContent>
+        <TabsContent value="realtime"  className="mt-6"><RealtimeTab /></TabsContent>
       </Tabs>
     </div>
   );

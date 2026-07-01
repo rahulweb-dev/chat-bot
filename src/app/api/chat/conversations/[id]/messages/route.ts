@@ -4,6 +4,7 @@ import { getRequestContext, apiError, apiSuccess, incrementUsage } from "@/lib/a
 import Message from "@/models/Message";
 import Conversation from "@/models/Conversation";
 import { getIO } from "@/server/socket";
+import { triggerChat } from "@/lib/pusher";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await getRequestContext(request);
@@ -73,13 +74,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const populated = await message.populate("senderId", "name avatar role");
 
-  // Emit real-time event to the conversation room (visitor widget + other agents)
+  // Emit real-time event to the conversation room (agent dashboard via Socket.IO)
   getIO()?.to(`conversation:${id}`).emit("message:new", populated);
   getIO()?.to(`company:${ctx.companyId}`).emit("conversation:updated", {
     conversationId: id,
     lastMessage: content,
     lastMessageAt: new Date(),
   });
+
+  // Push to visitor widget via Pusher Channels (works on serverless / cross-domain)
+  if (!isNote) {
+    const agentName = (populated.senderId as { name?: string } | null)?.name ?? null;
+    triggerChat(id, {
+      id: message._id.toString(),
+      content,
+      senderType: "AGENT",
+      senderName: agentName,
+      createdAt: message.createdAt as Date,
+    });
+  }
 
   return apiSuccess(populated, "Message sent", 201);
 }

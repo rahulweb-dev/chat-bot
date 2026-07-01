@@ -218,8 +218,7 @@ function LoginInner() {
       } else {
         setSuccess(true);
         await new Promise((r) => setTimeout(r, 1300));
-        router.refresh();
-        router.push(callbackUrl);
+        window.location.href = callbackUrl;
         return;
       }
     } catch (e) {
