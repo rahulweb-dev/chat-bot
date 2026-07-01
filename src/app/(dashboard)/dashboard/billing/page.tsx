@@ -1,10 +1,9 @@
 "use client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Check, Zap, Crown, Building, AlertTriangle, CreditCard } from "lucide-react";
+import { Check, Zap, Crown, Building, AlertTriangle, Mail } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
 
@@ -43,7 +42,6 @@ const plans = [
 ];
 
 export default function BillingPage() {
-  const qc = useQueryClient();
   const [billing, setBilling] = useState<"MONTHLY" | "ANNUALLY">("MONTHLY");
 
   const { data: subscription } = useQuery({
@@ -64,25 +62,9 @@ export default function BillingPage() {
     },
   });
 
-  const upgradeMutation = useMutation({
-    mutationFn: async (planType: string) => {
-      const res = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planType, billingCycle: billing }),
-      });
-      return res.json();
-    },
-    onSuccess: (data) => {
-      if (data.success && data.data?.url) {
-        window.location.href = data.data.url; // redirect to Stripe checkout
-      } else if (data.error?.includes("not configured")) {
-        toast({ title: "Stripe not configured yet. Add STRIPE_SECRET_KEY to .env.local", variant: "destructive" });
-      } else {
-        toast({ title: data.error || "Failed to start checkout", variant: "destructive" });
-      }
-    },
-  });
+  const handleUpgrade = (planType: string) => {
+    toast({ title: "Contact us to upgrade", description: `Email rahulwebdeveloper12@gmail.com to activate the ${planType} plan.` });
+  };
 
   const currentPlan = subscription?.planId?.type || usageData?.plan?.type || "STARTER";
 
@@ -223,12 +205,11 @@ export default function BillingPage() {
                     </Button>
                   ) : (
                     <Button
-                      className={`w-full ₹{plan.popular ? "bg-indigo-600 hover:bg-indigo-700" : ""}`}
+                      className={`w-full ${plan.popular ? "bg-indigo-600 hover:bg-indigo-700" : ""}`}
                       variant={plan.popular ? "default" : "outline"}
-                      onClick={() => upgradeMutation.mutate(plan.type)}
-                      disabled={upgradeMutation.isPending}
+                      onClick={() => handleUpgrade(plan.name)}
                     >
-                      {upgradeMutation.isPending ? "Processing..." : currentPlan === "ENTERPRISE" ? "Contact Sales" : "Upgrade"}
+                      <Mail className="w-4 h-4 mr-2" /> Contact to Upgrade
                     </Button>
                   )}
                 </CardContent>
