@@ -28,18 +28,24 @@ async function resolveCompany(apiKey: string) {
   return null;
 }
 
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const apiKey = searchParams.get("key");
 
   if (!apiKey) {
-    return NextResponse.json({ success: false, error: "API key required" }, { status: 400 });
+    return NextResponse.json({ success: false, error: "API key required" }, { status: 400, headers: CORS });
   }
 
   await connectDB();
   const company = await resolveCompany(apiKey);
   if (!company) {
-    return NextResponse.json({ success: false, error: "Invalid API key" }, { status: 401 });
+    return NextResponse.json({ success: false, error: "Invalid API key" }, { status: 401, headers: CORS });
   }
 
   const settings = await Settings.findOne({ companyId: company._id });
@@ -64,31 +70,21 @@ export async function GET(request: NextRequest) {
       pusherKey: pusherConfigured() ? (process.env.PUSHER_KEY ?? null) : null,
       pusherCluster: process.env.PUSHER_CLUSTER ?? "ap2",
     },
-  }, {
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    },
-  });
+  }, { headers: CORS });
 }
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const { apiKey, action, data } = body;
 
-  if (!apiKey) return NextResponse.json({ success: false, error: "API key required" }, { status: 400 });
+  if (!apiKey) return NextResponse.json({ success: false, error: "API key required" }, { status: 400, headers: CORS });
 
   await connectDB();
   const company = await resolveCompany(apiKey);
-  if (!company) return NextResponse.json({ success: false, error: "Invalid API key" }, { status: 401 });
+  if (!company) return NextResponse.json({ success: false, error: "Invalid API key" }, { status: 401, headers: CORS });
 
   const companyId = company._id.toString();
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-  };
+  const corsHeaders = CORS;
 
   if (action === "start_conversation") {
     const visitorId = data.visitorId || uuidv4();
@@ -145,6 +141,29 @@ export async function POST(request: NextRequest) {
       $inc: { messageCount: 1 },
     });
 
+    // Notify agent dashboard in real-time
+    const io = getIO();
+    if (io) {
+      const payload = {
+        _id: message._id.toString(),
+        conversationId,
+        companyId,
+        content,
+        type,
+        senderType: "VISITOR",
+        visitorName: conversation.visitor?.name,
+        isNote: false,
+        isDelivered: true,
+        createdAt: message.createdAt,
+      };
+      io.to(`conversation:${conversationId}`).emit("message:new", payload);
+      io.to(`company:${companyId}`).emit("conversation:updated", {
+        conversationId,
+        lastMessage: content,
+        lastMessageAt: new Date(),
+      });
+    }
+
     return NextResponse.json(
       { success: true, data: message },
       { headers: corsHeaders }
@@ -168,11 +187,5 @@ export async function POST(request: NextRequest) {
 }
 
 export async function OPTIONS() {
-  return NextResponse.json({}, {
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    },
-  });
+  return new NextResponse(null, { status: 204, headers: CORS });
 }

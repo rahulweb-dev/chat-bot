@@ -91,6 +91,7 @@ export function LiveChat() {
       addMessage(message);
       updateConversation(message.conversationId, { lastMessageAt: message.createdAt });
       qc.invalidateQueries({ queryKey: ["conversations"] });
+      qc.invalidateQueries({ queryKey: ["messages", message.conversationId] });
 
       if (message.senderType === "VISITOR" && message.conversationId !== activeConvRef.current) {
         playMessage();

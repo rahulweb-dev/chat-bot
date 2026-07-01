@@ -73,6 +73,8 @@ export function ChatWindow({ conversationId, onSend, onTyping, onToggleDetails, 
       const d = await res.json();
       return d.data?.messages as Message[];
     },
+    refetchInterval: 4000,
+    refetchIntervalInBackground: false,
   });
 
   // Show full query history + any optimistic additions from the store (deduped)

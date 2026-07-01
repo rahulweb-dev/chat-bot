@@ -371,6 +371,7 @@ export default function WidgetBuilderPage() {
   const qc = useQueryClient();
   const [copied, setCopied]           = useState(false);
   const [expandedFlow, setExpandedFlow] = useState<string | null>(null);
+  const [selectedKeyId, setSelectedKeyId] = useState<string>("");
   const [settings, setSettings]       = useState({
     theme: "LIGHT" as "LIGHT" | "DARK",
     primaryColor: "#6366f1",
@@ -414,7 +415,9 @@ export default function WidgetBuilderPage() {
     },
   });
 
-  const widgetKey = apiKeys?.[0]?.key || "YOUR_API_KEY";
+  const activeKeys = (apiKeys || []).filter((k: { isActive: boolean }) => k.isActive);
+  const selectedKey = activeKeys.find((k: { _id: string }) => k._id === selectedKeyId) || activeKeys[0];
+  const widgetKey = selectedKey?.key || "YOUR_API_KEY";
   const appUrl    = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "");
 
   const snippetCode = `<!-- SupportFlow Widget -->
@@ -628,6 +631,28 @@ export default function WidgetBuilderPage() {
                   <CardTitle className="text-base">Installation Code</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Key selector */}
+                  {activeKeys.length > 0 ? (
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium">Select API Key</label>
+                      <select
+                        className="w-full border rounded-lg px-3 py-2 text-sm bg-white font-mono"
+                        value={selectedKeyId || selectedKey?._id || ""}
+                        onChange={(e) => setSelectedKeyId(e.target.value)}
+                      >
+                        {activeKeys.map((k: { _id: string; name: string; key: string }) => (
+                          <option key={k._id} value={k._id}>
+                            {k.name} — {k.key.substring(0, 16)}…
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-sm text-yellow-700">
+                      No active API keys. <a href="/dashboard/api-keys" className="underline font-medium">Create one first →</a>
+                    </div>
+                  )}
+
                   <p className="text-sm text-gray-600">
                     Add this snippet to your website&apos;s HTML just before the closing{" "}
                     <code className="bg-gray-100 px-1 rounded">&lt;/body&gt;</code> tag.
@@ -641,10 +666,6 @@ export default function WidgetBuilderPage() {
                       {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                       {copied ? "Copied!" : "Copy"}
                     </Button>
-                  </div>
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-700">
-                    <p className="font-semibold mb-1">Your API Key</p>
-                    <code className="font-mono text-xs bg-blue-100 px-2 py-1 rounded">{widgetKey}</code>
                   </div>
                 </CardContent>
               </Card>

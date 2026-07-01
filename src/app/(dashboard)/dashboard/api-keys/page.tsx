@@ -144,7 +144,7 @@ export default function ApiKeysPage() {
               {apiKeys.map((key: {
                 _id: string;
                 name: string;
-                keyPrefix: string;
+                key: string;
                 isActive: boolean;
                 lastUsedAt?: string;
                 createdAt: string;
@@ -160,7 +160,7 @@ export default function ApiKeysPage() {
                     </div>
                     <div>
                       <p className="text-sm font-medium">{key.name}</p>
-                      <p className="text-xs font-mono text-muted-foreground">{key.keyPrefix}••••••••</p>
+                      <p className="text-xs font-mono text-muted-foreground">{key.key?.substring(0, 14)}••••</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -193,21 +193,34 @@ export default function ApiKeysPage() {
       <Card className="bg-muted/30">
         <CardContent className="pt-4">
           <h3 className="text-sm font-semibold mb-2">Widget Installation</h3>
-          <p className="text-xs text-muted-foreground mb-3">Add this snippet to your website to embed the chat widget:</p>
-          <div className="bg-background rounded border p-3 font-mono text-xs overflow-x-auto">
-            <span className="text-blue-500">&lt;script</span>
-            <span className="text-orange-500"> src</span>
-            <span>=</span>
-            <span className="text-green-500">&quot;{process.env.NEXT_PUBLIC_APP_URL || 'https://yourdomain.com'}/widget.js&quot;</span>
-            <span className="text-blue-500">&gt;&lt;/script&gt;</span>
-            <br />
-            <span className="text-blue-500">&lt;script&gt;</span>
-            <br />
-            <span className="pl-4">SupportFlow.init(&#123; apiKey: </span>
-            <span className="text-green-500">&apos;YOUR_API_KEY&apos;</span>
-            <span> &#125;);</span>
-            <br />
-            <span className="text-blue-500">&lt;/script&gt;</span>
+          <p className="text-xs text-muted-foreground mb-3">
+            Paste this before the <code className="bg-muted px-1 rounded">&lt;/body&gt;</code> tag on your website.
+            Replace <strong>YOUR_API_KEY</strong> with your active key above.
+          </p>
+          <div className="relative bg-gray-900 rounded-lg p-4 font-mono text-xs overflow-x-auto text-green-400 leading-relaxed">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute top-2 right-2 h-6 text-[10px] text-gray-400 hover:text-white"
+              onClick={() => copyToClipboard(
+                `<script>\n  window.SupportFlowConfig = {\n    apiKey: "YOUR_API_KEY",\n    baseUrl: "${process.env.NEXT_PUBLIC_APP_URL || 'https://yourdomain.com'}",\n  };\n</script>\n<script src="${process.env.NEXT_PUBLIC_APP_URL || 'https://yourdomain.com'}/widget.js" async></script>`
+              )}
+            >
+              <Copy className="h-3 w-3 mr-1" /> Copy
+            </Button>
+            <span className="text-gray-500">{"<!-- SupportFlow Widget -->"}</span><br />
+            <span className="text-blue-400">&lt;script&gt;</span><br />
+            <span className="pl-4 text-white">{"  window.SupportFlowConfig = {"}</span><br />
+            <span className="pl-8"><span className="text-yellow-300">apiKey</span><span className="text-white">: </span><span className="text-green-400">&quot;YOUR_API_KEY&quot;</span><span className="text-white">,</span></span><br />
+            <span className="pl-8"><span className="text-yellow-300">baseUrl</span><span className="text-white">: </span><span className="text-green-400">&quot;{process.env.NEXT_PUBLIC_APP_URL || 'https://yourdomain.com'}&quot;</span><span className="text-white">,</span></span><br />
+            <span className="pl-4 text-white">{"  };"}</span><br />
+            <span className="text-blue-400">&lt;/script&gt;</span><br />
+            <span className="text-blue-400">&lt;script </span>
+            <span className="text-yellow-300">src</span>
+            <span className="text-white">=</span>
+            <span className="text-green-400">&quot;{process.env.NEXT_PUBLIC_APP_URL || 'https://yourdomain.com'}/widget.js&quot;</span>
+            <span className="text-yellow-300"> async</span>
+            <span className="text-blue-400">&gt;&lt;/script&gt;</span>
           </div>
         </CardContent>
       </Card>
