@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getInitials, formatDate, timeAgo } from "@/lib/utils";
-import { Tag, Ticket, UserPlus, Star, Globe, Clock, MessageSquare, Phone, Mail, Bot, User, Wifi } from "lucide-react";
+import { Tag, Ticket, Star, Globe, Clock, MessageSquare, Phone, Mail, Bot, User, Wifi, History } from "lucide-react";
 
 interface Conversation {
   _id: string;
@@ -46,6 +46,17 @@ export function ConversationDetails({ conversationId }: { conversationId: string
       const d = await res.json();
       return d.data;
     },
+  });
+
+  const { data: visitorHistory } = useQuery({
+    queryKey: ["visitor-history", conv?.visitor?.visitorId],
+    queryFn: async () => {
+      const res = await fetch(`/api/chat/conversations?visitorId=${conv!.visitor.visitorId}&limit=10`);
+      const d = await res.json();
+      return (d.data as { _id: string; status: string; messageCount: number; createdAt: string }[])
+        .filter((c) => c._id !== conversationId);
+    },
+    enabled: !!conv?.visitor?.visitorId,
   });
 
   const assignMutation = useMutation({
@@ -283,9 +294,30 @@ export function ConversationDetails({ conversationId }: { conversationId: string
       )}
 
       {conv.visitor?.referrer && (
-        <div className="p-4">
+        <div className="p-4 border-b">
           <p className="text-xs font-medium text-gray-500 mb-1">Referrer</p>
           <p className="text-xs text-gray-700 break-all">{conv.visitor.referrer}</p>
+        </div>
+      )}
+
+      {/* Visitor conversation history */}
+      {visitorHistory && visitorHistory.length > 0 && (
+        <div className="p-4">
+          <p className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1.5">
+            <History className="w-3.5 h-3.5" /> Previous Conversations ({visitorHistory.length})
+          </p>
+          <div className="space-y-1.5">
+            {visitorHistory.map((prev) => (
+              <div key={prev._id} className="flex items-center justify-between text-xs bg-gray-50 border rounded-lg px-2.5 py-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className={`w-1.5 h-1.5 rounded-full ${prev.status === "RESOLVED" ? "bg-gray-400" : "bg-blue-400"}`} />
+                  <span className="text-gray-600 font-mono text-[10px]">#{prev._id.slice(-6)}</span>
+                  <span className="text-gray-400">· {prev.messageCount} msgs</span>
+                </div>
+                <span className="text-gray-400">{timeAgo(prev.createdAt)}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

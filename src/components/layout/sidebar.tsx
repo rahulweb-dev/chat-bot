@@ -8,7 +8,7 @@ import {
   Settings, Bell, Key, Bot, Workflow, CreditCard,
   LayoutDashboard, BookOpen, Puzzle, Tag, Globe, Shield,
   ChevronLeft, ChevronRight, Inbox, MessageCircle,
-  Brain, Zap, ArrowUpRight,
+  Brain, Zap, ArrowUpRight, Trophy,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -69,7 +69,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Reports",
     items: [
-      { label: "Analytics", href: "/dashboard/analytics", icon: BarChart3, roles: ["COMPANY_ADMIN", "MANAGER", "TEAM_LEADER"] },
+      { label: "Analytics",    href: "/dashboard/analytics",   icon: BarChart3, roles: ["COMPANY_ADMIN", "MANAGER", "TEAM_LEADER"] },
+      { label: "Leaderboard",  href: "/dashboard/leaderboard", icon: Trophy,    roles: ["COMPANY_ADMIN", "MANAGER", "TEAM_LEADER"] },
     ],
   },
   {

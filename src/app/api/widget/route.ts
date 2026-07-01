@@ -8,6 +8,7 @@ import Message from "@/models/Message";
 import { v4 as uuidv4 } from "uuid";
 import { getIO } from "@/server/socket";
 import { pusherConfigured } from "@/lib/pusher";
+import { autoAssignConversation } from "@/lib/auto-assign";
 
 // Resolves a widget API key to a company — supports both Company.apiKey and ApiKey model
 async function resolveCompany(apiKey: string) {
@@ -69,6 +70,11 @@ export async function GET(request: NextRequest) {
       },
       pusherKey: pusherConfigured() ? (process.env.PUSHER_KEY ?? null) : null,
       pusherCluster: process.env.PUSHER_CLUSTER ?? "ap2",
+      preChatForm: settings?.chat?.preChatForm ?? false,
+      requireName: settings?.chat?.requireName ?? false,
+      requireEmail: settings?.chat?.requireEmail ?? false,
+      requirePhone: settings?.chat?.requirePhone ?? false,
+      proactiveDelay: 0,
     },
   }, { headers: CORS });
 }
@@ -103,14 +109,41 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Notify admin live chat in real-time (works when Socket.IO is running with custom server)
-    getIO()?.to(`company:${companyId}`).emit("conversation:new", {
-      conversationId: conversation._id.toString(),
+    const convId = conversation._id.toString();
+
+    // Auto-assign to next available agent (round-robin); posts busy/offline bot msg if none
+    const { assigned, agent } = await autoAssignConversation(companyId, convId, data.visitorName || data.name);
+
+    const io = getIO();
+    // Notify admin live chat
+    io?.to(`company:${companyId}`).emit("conversation:new", {
+      conversationId: convId,
       visitor: { name: data.visitorName || data.name, phone: data.visitorPhone || data.phone, visitorId },
+      assignedTo: assigned && agent ? agent._id.toString() : null,
     });
+    // Notify assigned agent directly
+    if (assigned && agent) {
+      io?.to(`user:${agent._id}`).emit("conversation:assigned", { conversationId: convId });
+    }
+
+    // Outbound webhook
+    const settings = await Settings.findOne({ companyId: company._id }).select("notifications.webhookUrl").lean<{ notifications?: { webhookUrl?: string } }>();
+    if (settings?.notifications?.webhookUrl) {
+      fetch(settings.notifications.webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "conversation.created",
+          conversationId: convId,
+          visitor: { name: data.visitorName || data.name, email: data.email, phone: data.visitorPhone || data.phone },
+          assignedTo: assigned ? agent?._id : null,
+          timestamp: new Date().toISOString(),
+        }),
+      }).catch(() => {});
+    }
 
     return NextResponse.json(
-      { success: true, data: { conversationId: conversation._id, visitorId } },
+      { success: true, data: { conversationId: conversation._id, visitorId, assignedTo: assigned ? agent?._id : null } },
       { headers: corsHeaders }
     );
   }

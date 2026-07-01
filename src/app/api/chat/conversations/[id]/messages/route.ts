@@ -24,6 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const [messages, total] = await Promise.all([
     Message.find({ conversationId: id, companyId: ctx.companyId })
       .populate("senderId", "name avatar role")
+      .populate("replyTo", "content senderType senderId")
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: 1 }),

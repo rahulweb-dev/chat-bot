@@ -38,6 +38,17 @@
   var pusherCluster = cfg.pusherCluster || "ap2";
   var pusherChannel = null; // active Pusher subscription
 
+  // Agent typing state (from Pusher)
+  var agentIsTyping = false;
+  var agentTypingTimer = null;
+
+  // Pre-chat form
+  var preChatEnabled   = false;
+  var pcfRequireName   = false;
+  var pcfRequireEmail  = false;
+  var pcfRequirePhone  = false;
+  var preChatSubmitted = false;
+
   // Load persisted data
   try {
     convId    = localStorage.getItem("sf_conv");
@@ -165,6 +176,17 @@
       "#sf-send:hover:not(:disabled){transform:scale(1.1);box-shadow:0 6px 18px " + C60 + "}" +
       "#sf-send:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}" +
 
+      // Pre-chat form
+      "#sf-pcf-wrap{flex:1;display:flex;flex-direction:column;justify-content:center;padding:24px 20px;gap:14px;background:" + BG2 + "}" +
+      "#sf-pcf-title{font-size:15px;font-weight:700;color:" + TXT + ";text-align:center;margin-bottom:4px}" +
+      "#sf-pcf-sub{font-size:12px;color:" + MUTED + ";text-align:center;margin-bottom:8px}" +
+      ".sf-pcf-field{display:flex;flex-direction:column;gap:5px}" +
+      ".sf-pcf-label{font-size:12px;font-weight:600;color:" + TXT + "}" +
+      ".sf-pcf-input{border:1.5px solid " + BORD + ";border-radius:12px;padding:10px 14px;font-size:13px;outline:none;background:" + BG + ";color:" + TXT + ";transition:border-color .15s}" +
+      ".sf-pcf-input:focus{border-color:" + COLOR + ";box-shadow:0 0 0 3px " + C20 + "}" +
+      "#sf-pcf-btn{margin-top:4px;background:" + COLOR + ";color:white;border:none;border-radius:14px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s}" +
+      "#sf-pcf-btn:hover{opacity:.88}" +
+
       // Powered by
       "#sf-pwr{text-align:center;font-size:10.5px;color:" + MUTED + ";padding:5px 0 6px;flex-shrink:0;background:" + BG + "}" +
       "#sf-pwr a{color:" + COLOR + ";text-decoration:none;font-weight:600}" +
@@ -199,6 +221,11 @@
           '<button id="sf-hx" aria-label="Close">' +
             '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>' +
           '</button>' +
+        '</div>' +
+        '<div id="sf-pcf-wrap" style="display:none">' +
+          '<p id="sf-pcf-title">Before we start…</p>' +
+          '<p id="sf-pcf-sub">Please share a few details so we can help you better.</p>' +
+          '<form id="sf-pcf" style="display:flex;flex-direction:column;gap:12px"></form>' +
         '</div>' +
         '<div id="sf-msgs"></div>' +
         '<div id="sf-qr" style="display:none"></div>' +
@@ -240,45 +267,21 @@
       unreadCount = 0;
 
       if (!chatStarted) {
-        chatStarted = true;
-        showTyping();
-        isBusy = true;
-
-        var initWithSession = function() {
-          callChat("__INIT__").then(function(data) {
-            isBusy = false;
-            hideTyping();
-            if (data) renderBotResponse(data);
-            startPoll(); // start polling only after init completes
-          }).catch(function() { isBusy = false; hideTyping(); startPoll(); });
-        };
-
-        if (!convId) {
-          startConv().then(initWithSession);
+        // Show pre-chat form if enabled and visitor data not yet collected
+        if (preChatEnabled && !preChatSubmitted) {
+          showPreChatForm();
         } else {
-          loadHistory().then(function(hasHistory) {
-            if (!hasHistory) {
-              // Stale convId — reset and start fresh, preserving visitor identity
-              convId = null;
-              try { localStorage.removeItem("sf_conv"); } catch(_){}
-              sessionData = { flow: "INITIAL", step: "", collected: sessionData.collected || {} };
-              saveSession(sessionData);
-              startConv().then(initWithSession);
-            } else {
-              isBusy = false;
-              hideTyping();
-              // Restore last quick replies so user knows what to click
-              if (lastQR && lastQR.length) setOptions(lastQR, true);
-              startPoll(); // start polling only after history fully loaded
-            }
-          });
+          startChatFlow();
         }
       } else {
         // Widget already started — just restart polling on re-open
         startPoll();
       }
 
-      setTimeout(function() { document.getElementById("sf-inp").focus(); }, 300);
+      setTimeout(function() {
+        var inp = document.getElementById("sf-inp");
+        if (inp && inp.style.display !== "none") inp.focus();
+      }, 300);
     } else {
       stopPoll();
     }
@@ -467,11 +470,29 @@
           var type = msg.senderType;
           if (type !== "AGENT" && type !== "BOT") return;
           renderedIds.add(msg.id);
+          // Hide agent typing indicator when message arrives
+          if (agentIsTyping) { agentIsTyping = false; if (!isBusy) hideTyping(); }
           var label = (type === "AGENT" && msg.senderName) ? msg.senderName : null;
           addBubble(msg.content, "bot", msg.createdAt, label);
           if (msg.createdAt) lastMsgAt = msg.createdAt;
           if (!isOpen) { unreadCount++; showDot(); }
           else playBeep();
+        });
+        pusherChannel.bind("typing", function(data) {
+          if (data && data.isTyping) {
+            agentIsTyping = true;
+            clearTimeout(agentTypingTimer);
+            if (!isBusy) showTyping();
+            // Auto-hide after 5s as a safety net
+            agentTypingTimer = setTimeout(function() {
+              agentIsTyping = false;
+              if (!isBusy) hideTyping();
+            }, 5000);
+          } else {
+            agentIsTyping = false;
+            clearTimeout(agentTypingTimer);
+            if (!isBusy) hideTyping();
+          }
         });
         stopPoll(); // Pusher is now the source of truth
       } catch(e) {} // any Pusher init error → polling continues
@@ -603,14 +624,141 @@
           var el = document.getElementById("sf-hname");
           if (el) el.textContent = companyName;
         }
-        // Pick up Pusher config from server (so customers don't need to put keys in their embed snippet)
+        // Pick up Pusher config from server
         if (d.data.pusherKey) {
           pusherKey     = d.data.pusherKey;
           pusherCluster = d.data.pusherCluster || "ap2";
-          // If a conversation already exists (returning visitor), subscribe now
           if (convId && !pusherChannel) subscribeRealtime(convId);
         }
+        // Pre-chat form settings
+        if (d.data.preChatForm) {
+          preChatEnabled  = true;
+          pcfRequireName  = !!d.data.requireName;
+          pcfRequireEmail = !!d.data.requireEmail;
+          pcfRequirePhone = !!d.data.requirePhone;
+          // Check if visitor data already collected
+          try {
+            var saved = localStorage.getItem("sf_visitor");
+            if (saved) {
+              var vd = JSON.parse(saved);
+              if (vd && (vd.name || vd.email)) preChatSubmitted = true;
+            }
+          } catch(_){}
+          // Build the form DOM after settings load
+          buildPreChatForm();
+        }
+        // Proactive trigger: auto-open widget after N seconds
+        var delay = parseInt(d.data.proactiveDelay || "0", 10);
+        if (delay > 0) {
+          setTimeout(function() {
+            if (!isOpen && !chatStarted) toggle();
+          }, delay * 1000);
+        }
       }).catch(function(){});
+  }
+
+  // ── Pre-chat form ─────────────────────────────────────────────────────────────
+  function buildPreChatForm() {
+    var form = document.getElementById("sf-pcf");
+    if (!form) return;
+    form.innerHTML = "";
+
+    var fields = [];
+    if (pcfRequireName  || preChatEnabled) fields.push({ id: "pcf-name",  label: "Your Name",  type: "text",  placeholder: "John Doe",         key: "name"  });
+    if (pcfRequireEmail)                    fields.push({ id: "pcf-email", label: "Email",       type: "email", placeholder: "you@example.com",  key: "email" });
+    if (pcfRequirePhone)                    fields.push({ id: "pcf-phone", label: "Phone",       type: "tel",   placeholder: "+1 555 000 0000",  key: "phone" });
+    // Default: always show name if nothing specific is required
+    if (!fields.length) fields.push({ id: "pcf-name", label: "Your Name", type: "text", placeholder: "John Doe", key: "name" });
+
+    fields.forEach(function(f) {
+      var wrap = document.createElement("div");
+      wrap.className = "sf-pcf-field";
+      var lbl = document.createElement("label");
+      lbl.className = "sf-pcf-label";
+      lbl.textContent = f.label;
+      lbl.setAttribute("for", f.id);
+      var inp = document.createElement("input");
+      inp.className = "sf-pcf-input";
+      inp.id = f.id;
+      inp.type = f.type;
+      inp.placeholder = f.placeholder;
+      inp.setAttribute("data-key", f.key);
+      wrap.appendChild(lbl);
+      wrap.appendChild(inp);
+      form.appendChild(wrap);
+    });
+
+    var btn = document.createElement("button");
+    btn.id = "sf-pcf-btn";
+    btn.type = "submit";
+    btn.textContent = "Start Chat →";
+    form.appendChild(btn);
+
+    form.addEventListener("submit", function(e) {
+      e.preventDefault();
+      var collected = {};
+      form.querySelectorAll("[data-key]").forEach(function(el) {
+        var v = el.value.trim();
+        if (v) collected[el.getAttribute("data-key")] = v;
+      });
+      // Save visitor data
+      try { localStorage.setItem("sf_visitor", JSON.stringify(collected)); } catch(_){}
+      if (sessionData.collected) {
+        Object.assign(sessionData.collected, collected);
+      } else {
+        sessionData.collected = collected;
+      }
+      saveSession(sessionData);
+      preChatSubmitted = true;
+      // Hide form, show chat
+      document.getElementById("sf-pcf-wrap").style.display = "none";
+      document.getElementById("sf-msgs").style.display = "flex";
+      document.getElementById("sf-foot").style.display = "flex";
+      // Now start the conversation
+      startChatFlow();
+    });
+  }
+
+  function showPreChatForm() {
+    var pcf = document.getElementById("sf-pcf-wrap");
+    var msgs = document.getElementById("sf-msgs");
+    var foot = document.getElementById("sf-foot");
+    if (pcf) pcf.style.display = "flex";
+    if (msgs) msgs.style.display = "none";
+    if (foot) foot.style.display = "none";
+  }
+
+  function startChatFlow() {
+    if (chatStarted) { startPoll(); return; }
+    chatStarted = true;
+    showTyping();
+    isBusy = true;
+    var initWithSession = function() {
+      callChat("__INIT__").then(function(data) {
+        isBusy = false;
+        hideTyping();
+        if (data) renderBotResponse(data);
+        startPoll();
+      }).catch(function() { isBusy = false; hideTyping(); startPoll(); });
+    };
+    if (!convId) {
+      startConv().then(initWithSession);
+    } else {
+      loadHistory().then(function(hasHistory) {
+        if (!hasHistory) {
+          convId = null;
+          try { localStorage.removeItem("sf_conv"); } catch(_){}
+          sessionData = { flow: "INITIAL", step: "", collected: sessionData.collected || {} };
+          saveSession(sessionData);
+          startConv().then(initWithSession);
+        } else {
+          isBusy = false;
+          hideTyping();
+          if (lastQR && lastQR.length) setOptions(lastQR, true);
+          startPoll();
+        }
+      });
+    }
   }
 
   // ── CSAT Rating ──────────────────────────────────────────────────────────────

@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
   const assignedTo = searchParams.get("assignedTo");
   const search = searchParams.get("search");
 
+  const visitorId = searchParams.get("visitorId");
+
   const query: Record<string, unknown> = { companyId: ctx.companyId };
   if (status) query.status = status;
 
@@ -23,6 +25,10 @@ export async function GET(request: NextRequest) {
     query.assignedTo = ctx.userId;
   } else if (assignedTo) {
     query.assignedTo = assignedTo;
+  }
+
+  if (visitorId) {
+    query["visitor.visitorId"] = visitorId;
   }
 
   if (search) {

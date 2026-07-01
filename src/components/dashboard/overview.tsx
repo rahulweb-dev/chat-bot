@@ -8,6 +8,7 @@ import {
   MessageSquare, Tag, TicketIcon, Clock, Bot,
   ArrowUpRight, Copy, CheckCircle2, Circle,
   Inbox, UserPlus, Code2, Zap, TrendingUp, Phone,
+  Users, CheckSquare, Timer, Activity,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -49,6 +50,12 @@ export function DashboardOverview({ role }: OverviewProps) {
     queryKey: ["chatbot-config"],
     queryFn: () => fetch("/api/chatbot-config").then(r => r.json()).then(d => d.data),
     enabled: role !== "AGENT",
+  });
+
+  const { data: liveStats } = useQuery({
+    queryKey: ["live-stats"],
+    queryFn: () => fetch("/api/chat/stats").then(r => r.json()).then(d => d.data),
+    refetchInterval: 30_000,
   });
 
   const overview  = analytics?.overview;
@@ -111,6 +118,33 @@ export function DashboardOverview({ role }: OverviewProps) {
 
   return (
     <div className="space-y-6 pb-8">
+
+      {/* ── Live Stats ──────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: "Active Chats",    value: liveStats?.totalActive ?? "—",    icon: Activity,    color: "text-blue-600",   bg: "bg-blue-50",   href: "/dashboard/conversations" },
+          { label: "Online Agents",   value: liveStats?.onlineAgents ?? "—",   icon: Users,       color: "text-green-600",  bg: "bg-green-50",  href: null },
+          { label: "Avg Wait",        value: liveStats ? `${liveStats.avgWaitMinutes}m` : "—", icon: Timer, color: "text-orange-600", bg: "bg-orange-50", href: null },
+          { label: "Resolved Today",  value: liveStats?.resolvedToday ?? "—",  icon: CheckSquare, color: "text-purple-600", bg: "bg-purple-50", href: null },
+        ].map(({ label, value, icon: Icon, color, bg, href }) => (
+          <Card key={label} className="border border-gray-100 shadow-none">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className={`w-9 h-9 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
+                <Icon className={`w-4.5 h-4.5 ${color}`} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xl font-bold text-gray-900 tabular-nums leading-tight">{value}</p>
+                <p className="text-xs text-gray-500 truncate">{label}</p>
+              </div>
+              {href && (
+                <Link href={href} className="ml-auto shrink-0">
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-300 hover:text-gray-600" />
+                </Link>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
       {/* ── Welcome ─────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -368,6 +402,7 @@ export function DashboardOverview({ role }: OverviewProps) {
                   { label: "Add Agents",        href: "/dashboard/agents",        icon: UserPlus,    roles: ["COMPANY_ADMIN", "MANAGER"] },
                   { label: "Widget Builder",    href: "/dashboard/widget",        icon: Code2,       roles: ["COMPANY_ADMIN"] },
                   { label: "View Analytics",    href: "/dashboard/analytics",     icon: TrendingUp,  roles: ["COMPANY_ADMIN", "MANAGER"] },
+                  { label: "Leaderboard",       href: "/dashboard/leaderboard",   icon: Users,       roles: ["COMPANY_ADMIN", "MANAGER"] },
                 ].filter(l => !l.roles || l.roles.includes(role)).map(({ label, href, icon: Icon }) => (
                   <Link
                     key={href}

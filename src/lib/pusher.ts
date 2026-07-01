@@ -27,6 +27,15 @@ export async function triggerChat(
   );
 }
 
+export async function triggerTyping(
+  conversationId: string,
+  data: { isTyping: boolean }
+): Promise<void> {
+  const pusher = getPusher();
+  if (!pusher) return;
+  await pusher.trigger(`chat-${conversationId}`, "typing", data).catch(() => {});
+}
+
 export function pusherConfigured(): boolean {
   return !!(process.env.PUSHER_APP_ID && process.env.PUSHER_KEY && process.env.PUSHER_SECRET && process.env.PUSHER_CLUSTER);
 }

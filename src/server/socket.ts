@@ -5,11 +5,14 @@ import { connectDB } from "@/lib/mongodb";
 import Conversation from "@/models/Conversation";
 import Message from "@/models/Message";
 import User from "@/models/User";
+import { autoAssignConversation } from "@/lib/auto-assign";
+import { triggerTyping } from "@/lib/pusher";
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
   userRole?: string;
   companyId?: string;
+  viewingConversation?: string;
 }
 
 // Next.js bundles API route handlers separately from the custom server.ts process.
@@ -89,18 +92,49 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
     }
 
     socket.on("join:conversation", async (conversationId: string) => {
-      const conversation = await Conversation.findOne({
-        _id: conversationId,
-        companyId: socket.companyId,
-      });
+      await connectDB();
+      // Visitors must match their company. Agents join if conversation exists
+      // (companyId may be undefined for super-admins — don't block them).
+      const query: Record<string, unknown> = { _id: conversationId };
+      if (socket.userRole === "VISITOR" && socket.companyId) {
+        query.companyId = socket.companyId;
+      } else if (socket.companyId) {
+        query.companyId = socket.companyId;
+      }
+      const conversation = await Conversation.findOne(query);
       if (conversation) {
+        // Leave previous conversation view first
+        if (socket.viewingConversation && socket.viewingConversation !== conversationId && socket.userId && socket.userRole !== "VISITOR") {
+          socket.to(`conversation:${socket.viewingConversation}`).emit("conversation:viewer:left", {
+            userId: socket.userId,
+            conversationId: socket.viewingConversation,
+          });
+          socket.leave(`conversation:${socket.viewingConversation}`);
+        }
         socket.join(`conversation:${conversationId}`);
+        socket.viewingConversation = conversationId;
         socket.emit("joined:conversation", { conversationId });
+        // Broadcast to other agents viewing the same conversation
+        if (socket.userId && socket.userRole !== "VISITOR") {
+          const viewer = await User.findById(socket.userId).select("name").lean<{ name: string }>();
+          socket.to(`conversation:${conversationId}`).emit("conversation:viewer:joined", {
+            userId: socket.userId,
+            name: viewer?.name || "Agent",
+            conversationId,
+          });
+        }
       }
     });
 
     socket.on("leave:conversation", (conversationId: string) => {
       socket.leave(`conversation:${conversationId}`);
+      if (socket.userId && socket.userRole !== "VISITOR" && socket.viewingConversation === conversationId) {
+        socket.to(`conversation:${conversationId}`).emit("conversation:viewer:left", {
+          userId: socket.userId,
+          conversationId,
+        });
+        socket.viewingConversation = undefined;
+      }
     });
 
     socket.on("message:send", async (data: {
@@ -165,6 +199,10 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
         userId: socket.userId,
         conversationId: data.conversationId,
       });
+      // Forward to visitor widget via Pusher
+      if (socket.userRole !== "VISITOR") {
+        triggerTyping(data.conversationId, { isTyping: true }).catch(() => {});
+      }
     });
 
     socket.on("typing:stop", (data: { conversationId: string }) => {
@@ -172,6 +210,9 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
         userId: socket.userId,
         conversationId: data.conversationId,
       });
+      if (socket.userRole !== "VISITOR") {
+        triggerTyping(data.conversationId, { isTyping: false }).catch(() => {});
+      }
     });
 
     socket.on("message:read", async (data: { conversationId: string; messageId: string }) => {
@@ -210,13 +251,13 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
       socket.join(`conversation:${conversation._id}`);
       socket.emit("conversation:created", { conversationId: conversation._id });
 
-      const autoAssignAgent = await findAvailableAgent(socket.companyId!);
-      if (autoAssignAgent) {
-        await Conversation.findByIdAndUpdate(conversation._id, {
-          assignedTo: autoAssignAgent._id,
-          status: "ASSIGNED",
-        });
-        io.to(`user:${autoAssignAgent._id}`).emit("conversation:assigned", {
+      const { assigned, agent } = await autoAssignConversation(
+        socket.companyId!,
+        conversation._id.toString()
+      );
+
+      if (assigned && agent) {
+        io.to(`user:${agent._id}`).emit("conversation:assigned", {
           conversationId: conversation._id,
           visitor: data,
         });
@@ -225,7 +266,7 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
       io.to(`company:${socket.companyId}`).emit("conversation:new", {
         conversationId: conversation._id,
         visitor: data,
-        assignedTo: autoAssignAgent?._id,
+        assignedTo: assigned ? agent?._id : null,
       });
     });
 
@@ -243,6 +284,13 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
 
     socket.on("disconnect", async () => {
       if (socket.userId) {
+        // Notify if this agent was viewing a conversation
+        if (socket.viewingConversation && socket.userRole !== "VISITOR") {
+          io.to(`conversation:${socket.viewingConversation}`).emit("conversation:viewer:left", {
+            userId: socket.userId,
+            conversationId: socket.viewingConversation,
+          });
+        }
         await User.findByIdAndUpdate(socket.userId, { isOnline: false, lastSeen: new Date() });
         io.to(`company:${socket.companyId}`).emit("agent:status:changed", {
           agentId: socket.userId,
@@ -252,6 +300,38 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
     });
   });
 
+  // Auto-close inactive conversations every 30 minutes
+  setInterval(async () => {
+    try {
+      await connectDB();
+      const { default: Settings } = await import("@/models/Settings");
+      const configs = await Settings.find({ "chat.autoCloseTimeout": { $gt: 0 } })
+        .select("companyId chat.autoCloseTimeout")
+        .lean<{ companyId: string; chat: { autoCloseTimeout: number } }[]>();
+
+      for (const cfg of configs) {
+        const hours = cfg.chat.autoCloseTimeout;
+        const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
+        const companyIdStr = String(cfg.companyId);
+        const result = await Conversation.updateMany(
+          {
+            companyId: companyIdStr,
+            status: { $in: ["OPEN", "PENDING"] },
+            lastMessageAt: { $lt: cutoff },
+          },
+          { $set: { status: "RESOLVED", resolvedAt: new Date() } }
+        );
+        if (result.modifiedCount > 0) {
+          io.to(`company:${companyIdStr}`).emit("conversations:auto-closed", {
+            count: result.modifiedCount,
+          });
+        }
+      }
+    } catch (e) {
+      console.error("[auto-close]", e);
+    }
+  }, 30 * 60 * 1000);
+
   globalForIO.__io = io;
   return io;
 }
@@ -260,30 +340,3 @@ export function getIO(): SocketIOServer | undefined {
   return globalForIO.__io;
 }
 
-async function findAvailableAgent(companyId: string) {
-  await connectDB();
-  const agents = await User.find({
-    companyId,
-    role: { $in: ["AGENT", "TEAM_LEADER"] },
-    isActive: true,
-    isOnline: true,
-  });
-
-  if (!agents.length) return null;
-
-  const agentWithCounts = await Promise.all(
-    agents.map(async (agent) => {
-      const activeChats = await Conversation.countDocuments({
-        companyId,
-        assignedTo: agent._id,
-        status: { $in: ["OPEN", "ASSIGNED"] },
-      });
-      return { agent, activeChats };
-    })
-  );
-
-  agentWithCounts.sort((a, b) => a.activeChats - b.activeChats);
-  const available = agentWithCounts.find((a) => a.activeChats < a.agent.maxConcurrentChats);
-
-  return available?.agent || null;
-}

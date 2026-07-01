@@ -8,7 +8,8 @@ import { ConversationList } from "./conversation-list";
 import { ChatWindow } from "./chat-window";
 import { ConversationDetails } from "./conversation-details";
 import { cn } from "@/lib/utils";
-import { X, Bell, MessageSquare, Tag } from "lucide-react";
+import { X, Bell, MessageSquare, Tag, Circle } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   playMessage,
   playNewConversation,
@@ -27,11 +28,20 @@ interface LiveNotification {
   conversationId?: string;
 }
 
+type AgentStatus = "online" | "busy" | "offline";
+const STATUS_CONFIG: Record<AgentStatus, { label: string; color: string; dot: string }> = {
+  online:  { label: "Online",  color: "text-green-600",  dot: "bg-green-500" },
+  busy:    { label: "Busy",    color: "text-yellow-600", dot: "bg-yellow-400" },
+  offline: { label: "Offline", color: "text-gray-400",   dot: "bg-gray-400"  },
+};
+
 export function LiveChat() {
   const { data: session } = useSession();
   const qc = useQueryClient();
   const [showDetails, setShowDetails] = useState(true);
   const [notifications, setNotifications] = useState<LiveNotification[]>([]);
+  const [agentStatus, setAgentStatus] = useState<AgentStatus>("online");
+  const [viewers, setViewers] = useState<Record<string, { userId: string; name: string }[]>>({});
   const notifTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const {
@@ -40,6 +50,8 @@ export function LiveChat() {
     addMessage,
     updateConversation,
     setTyping,
+    incrementUnread,
+    clearUnread,
   } = useChatStore();
 
   // Keep a ref so socket handlers always see the latest active conversation
@@ -78,7 +90,11 @@ export function LiveChat() {
     });
 
     socket.on("connect", () => {
-      socket?.emit("agent:status", { status: "online" });
+      socket?.emit("agent:status", { status: agentStatus });
+      // Re-join active conversation after reconnect
+      if (activeConvRef.current) {
+        socket?.emit("join:conversation", activeConvRef.current);
+      }
     });
 
     socket.on("connect_error", (err) => {
@@ -94,6 +110,7 @@ export function LiveChat() {
       qc.invalidateQueries({ queryKey: ["messages", message.conversationId] });
 
       if (message.senderType === "VISITOR" && message.conversationId !== activeConvRef.current) {
+        incrementUnread(message.conversationId);
         playMessage();
         const name = message.visitorName || "Visitor";
         pushNotification({
@@ -152,6 +169,7 @@ export function LiveChat() {
 
     socket.on("conversation:updated", (data) => {
       updateConversation(data.conversationId, { lastMessageAt: data.lastMessageAt });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
     });
 
     socket.on("conversation:assigned", (data) => {
@@ -177,6 +195,21 @@ export function LiveChat() {
       qc.invalidateQueries({ queryKey: ["messages", data.conversationId] });
     });
 
+    socket.on("conversation:viewer:joined", (data: { userId: string; name: string; conversationId: string }) => {
+      setViewers((prev) => {
+        const existing = prev[data.conversationId] || [];
+        if (existing.some((v) => v.userId === data.userId)) return prev;
+        return { ...prev, [data.conversationId]: [...existing, { userId: data.userId, name: data.name }] };
+      });
+    });
+
+    socket.on("conversation:viewer:left", (data: { userId: string; conversationId: string }) => {
+      setViewers((prev) => ({
+        ...prev,
+        [data.conversationId]: (prev[data.conversationId] || []).filter((v) => v.userId !== data.userId),
+      }));
+    });
+
     return () => {
       socket?.emit("agent:status", { status: "offline" });
       socket?.disconnect();
@@ -187,6 +220,9 @@ export function LiveChat() {
   const handleSelectConversation = (id: string) => {
     if (activeConversationId) socket?.emit("leave:conversation", activeConversationId);
     setActiveConversation(id);
+    clearUnread(id);
+    // Clear old viewers so we start fresh for the newly selected conversation
+    setViewers((prev) => ({ ...prev, [id]: [] }));
     socket?.emit("join:conversation", id);
   };
 
@@ -194,7 +230,8 @@ export function LiveChat() {
     content: string,
     type: string = "TEXT",
     isNote: boolean = false,
-    attachments?: { name: string; url: string; type: string; size: number }[]
+    attachments?: { name: string; url: string; type: string; size: number }[],
+    replyToId?: string
   ) => {
     if (!activeConversationId) return;
 
@@ -203,7 +240,7 @@ export function LiveChat() {
       const res = await fetch(`/api/chat/conversations/${activeConversationId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, type, isNote, attachments }),
+        body: JSON.stringify({ content, type, isNote, attachments, replyTo: replyToId }),
       });
       const data = await res.json();
       if (data.success && data.data) {
@@ -219,6 +256,11 @@ export function LiveChat() {
   const handleTyping = (isTyping: boolean) => {
     if (!activeConversationId || !socket) return;
     socket.emit(isTyping ? "typing:start" : "typing:stop", { conversationId: activeConversationId });
+  };
+
+  const changeStatus = (status: AgentStatus) => {
+    setAgentStatus(status);
+    socket?.emit("agent:status", { status });
   };
 
   return (
@@ -283,6 +325,33 @@ export function LiveChat() {
         </div>
       )}
 
+      {/* Agent status toggle — top-right corner */}
+      <div className="absolute top-3 left-3 z-40">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className={cn(
+              "flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full border bg-white shadow-sm hover:shadow-md transition-shadow",
+              STATUS_CONFIG[agentStatus].color
+            )}>
+              <Circle className={cn("w-2 h-2 fill-current", STATUS_CONFIG[agentStatus].dot.replace("bg-", "text-"))} />
+              {STATUS_CONFIG[agentStatus].label}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-36">
+            {(Object.keys(STATUS_CONFIG) as AgentStatus[]).map((s) => (
+              <DropdownMenuItem
+                key={s}
+                onClick={() => changeStatus(s)}
+                className={cn("gap-2 text-xs", agentStatus === s && "font-semibold")}
+              >
+                <span className={cn("w-2 h-2 rounded-full", STATUS_CONFIG[s].dot)} />
+                {STATUS_CONFIG[s].label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
       <ConversationList activeId={activeConversationId} onSelect={handleSelectConversation} />
 
       {activeConversationId ? (
@@ -294,6 +363,7 @@ export function LiveChat() {
             onToggleDetails={() => setShowDetails(!showDetails)}
             showDetails={showDetails}
             socket={socket}
+            viewers={viewers[activeConversationId] || []}
           />
           {showDetails && <ConversationDetails conversationId={activeConversationId} />}
         </>
