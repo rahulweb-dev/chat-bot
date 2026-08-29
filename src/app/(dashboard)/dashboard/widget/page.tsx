@@ -569,8 +569,8 @@ export default function WidgetBuilderPage() {
                   </div>
                   <div className="w-0.5 h-5 bg-gray-300" />
                   <div className="bg-gray-100 border border-gray-200 rounded-2xl px-6 py-3 text-sm font-medium shadow-sm w-full max-w-sm text-center text-gray-700">
-                    👋 Welcome to Ashok Leyland!
-                    <p className="text-gray-400 text-xs font-normal mt-0.5">Bot welcome message</p>
+                    👋 {settings.welcomeMessage || "Hi! How can we help you today?"}
+                    <p className="text-gray-400 text-xs font-normal mt-0.5">Bot welcome message — edit in the Content tab</p>
                   </div>
                   <div className="w-0.5 h-5 bg-gray-300" />
                   <div className="bg-white border-2 border-indigo-200 rounded-2xl px-6 py-3 text-sm font-semibold shadow-sm w-full max-w-sm text-center text-indigo-700">
