@@ -6,6 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Plus, Search, FileText, Globe, Upload, Check, Trash2, Loader2, Link2 } from "lucide-react";
 import { timeAgo, formatBytes } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
@@ -64,7 +68,7 @@ export default function KnowledgeBasePage() {
   const [manTags, setManTags]     = useState("");
 
   const { data, isLoading } = useQuery({
-    queryKey: ["knowledge-base", search],
+    queryKey: ["knowledge-base"],
     queryFn: async () => {
       const res = await fetch("/api/knowledge-base?limit=50");
       const d = await res.json();
@@ -96,11 +100,16 @@ export default function KnowledgeBasePage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await fetch(`/api/knowledge-base/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/knowledge-base/${id}`, { method: "DELETE" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || d?.success === false) throw new Error(d?.error || "Failed to delete document");
     },
     onSuccess: () => {
       toast({ title: "Document deleted" });
       qc.invalidateQueries({ queryKey: ["knowledge-base"] });
+    },
+    onError: (err: unknown) => {
+      toast({ title: err instanceof Error ? err.message : "Failed to delete document", variant: "destructive" });
     },
   });
 
@@ -282,12 +291,25 @@ export default function KnowledgeBasePage() {
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusCfg.color}`}>
                       {statusCfg.label}
                     </span>
-                    <button
-                      onClick={() => { if (confirm("Delete this document?")) deleteMutation.mutate(item._id); }}
-                      className="text-gray-400 hover:text-red-500 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <button aria-label={`Delete ${item.name}`} className="text-gray-400 hover:text-red-500 transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete &quot;{item.name}&quot;?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            The chatbot will no longer use this document to answer questions. This can&apos;t be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteMutation.mutate(item._id)}>Delete</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
 

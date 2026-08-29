@@ -12,6 +12,7 @@ import { z } from "zod";
 import { Plus, Search, IndianRupee, Mail, Phone, Bot, Zap, Download } from "lucide-react";
 import { timeAgo } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 const STAGES = ["NEW", "CONTACTED", "QUALIFIED", "MEETING", "PROPOSAL", "WON", "LOST"] as const;
 
@@ -45,11 +46,13 @@ export default function LeadsPage() {
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [activeStage, setActiveStage] = useState("all");
 
+  const debouncedSearch = useDebouncedValue(search);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["leads", search],
+    queryKey: ["leads", debouncedSearch],
     queryFn: async () => {
       const params = new URLSearchParams({ limit: "200" });
-      if (search) params.set("search", search);
+      if (debouncedSearch) params.set("search", debouncedSearch);
       const res = await fetch(`/api/leads?${params}`);
       const d = await res.json();
       return d.data as Lead[];
@@ -276,6 +279,7 @@ export default function LeadsPage() {
               <div>
                 <label className="text-sm font-medium">Email</label>
                 <Input {...register("email")} type="email" className="mt-1" />
+                {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
