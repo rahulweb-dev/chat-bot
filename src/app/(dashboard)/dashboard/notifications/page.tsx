@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Bell, CheckCheck, MessageSquare, Ticket, Users, AlertTriangle, Star } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
 
 const typeIcon: Record<string, React.ReactNode> = {
   NEW_CONVERSATION: <MessageSquare className="h-4 w-4 text-blue-500" />,
@@ -31,11 +32,13 @@ export default function NotificationsPage() {
   const markAllRead = useMutation({
     mutationFn: () => axios.patch("/api/notifications", { markAllRead: true }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications-all"] }),
+    onError: () => toast({ title: "Failed to mark all as read", variant: "destructive" }),
   });
 
   const markRead = useMutation({
     mutationFn: (id: string) => axios.patch("/api/notifications", { notificationId: id }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications-all"] }),
+    onError: () => toast({ title: "Failed to mark as read", variant: "destructive" }),
   });
 
   const notifications = data?.notifications || [];
@@ -91,11 +94,20 @@ export default function NotificationsPage() {
               }) => (
                 <div
                   key={n._id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={n.isRead ? n.title : `${n.title} (unread, activate to mark as read)`}
                   className={cn(
-                    "flex items-start gap-4 p-4 hover:bg-muted/50 cursor-pointer transition-colors",
+                    "flex items-start gap-4 p-4 hover:bg-muted/50 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                     !n.isRead && "bg-blue-50/50 dark:bg-blue-950/20"
                   )}
                   onClick={() => !n.isRead && markRead.mutate(n._id)}
+                  onKeyDown={(e) => {
+                    if ((e.key === "Enter" || e.key === " ") && !n.isRead) {
+                      e.preventDefault();
+                      markRead.mutate(n._id);
+                    }
+                  }}
                 >
                   <div className="mt-0.5 flex-shrink-0">
                     {typeIcon[n.type] || <Bell className="h-4 w-4 text-gray-500" />}

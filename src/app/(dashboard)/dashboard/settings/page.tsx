@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,8 @@ import { Loader2, Save, Bell, Shield, MessageSquare, Globe, Palette } from "luci
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
+  const brandColorRef = useRef<HTMLInputElement>(null);
+  const brandColorHexRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["settings"],
@@ -257,8 +259,18 @@ export default function SettingsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="brandColor">Brand Color</Label>
                     <div className="flex gap-2">
-                      <Input id="brandColor" name="brandColor" type="color" className="w-16 h-10 p-1" defaultValue={s.widget?.brandColor || "#6366f1"} />
-                      <Input name="brandColorHex" defaultValue={s.widget?.brandColor || "#6366f1"} className="flex-1" />
+                      <Input
+                        id="brandColor" name="brandColor" type="color" ref={brandColorRef}
+                        className="w-16 h-10 p-1" defaultValue={s.widget?.brandColor || "#6366f1"}
+                        onChange={(e) => { if (brandColorHexRef.current) brandColorHexRef.current.value = e.target.value; }}
+                      />
+                      <Input
+                        ref={brandColorHexRef}
+                        defaultValue={s.widget?.brandColor || "#6366f1"} className="flex-1"
+                        onChange={(e) => {
+                          if (brandColorRef.current && /^#[0-9a-f]{6}$/i.test(e.target.value)) brandColorRef.current.value = e.target.value;
+                        }}
+                      />
                     </div>
                   </div>
                   <div className="space-y-2">

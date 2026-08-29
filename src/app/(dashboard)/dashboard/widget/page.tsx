@@ -407,11 +407,16 @@ export default function WidgetBuilderPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ widget: data }),
       });
-      return res.json();
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || d?.success === false) throw new Error(d?.error || "Failed to save widget settings");
+      return d;
     },
     onSuccess: () => {
       toast({ title: "Widget settings saved" });
       qc.invalidateQueries({ queryKey: ["company-settings"] });
+    },
+    onError: (err: unknown) => {
+      toast({ title: err instanceof Error ? err.message : "Failed to save widget settings", variant: "destructive" });
     },
   });
 
@@ -433,11 +438,15 @@ export default function WidgetBuilderPage() {
 </script>
 <script src="${appUrl}/widget.js" async></script>`;
 
-  const copySnippet = () => {
-    navigator.clipboard.writeText(snippetCode);
-    setCopied(true);
-    toast({ title: "Code copied to clipboard!" });
-    setTimeout(() => setCopied(false), 2000);
+  const copySnippet = async () => {
+    try {
+      await navigator.clipboard.writeText(snippetCode);
+      setCopied(true);
+      toast({ title: "Code copied to clipboard!" });
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast({ title: "Couldn't copy — your browser blocked clipboard access", variant: "destructive" });
+    }
   };
 
   return (
@@ -490,6 +499,7 @@ export default function WidgetBuilderPage() {
                       <div className="flex gap-2">
                         {["#6366f1", "#2563eb", "#16a34a", "#dc2626", "#d97706", "#7c3aed", "#ec4899", "#0ea5e9"].map((c) => (
                           <button key={c} onClick={() => setSettings({ ...settings, primaryColor: c })}
+                            aria-label={`Set primary color to ${c}`}
                             className={`w-7 h-7 rounded-full border-2 shadow transition-transform hover:scale-110 ${settings.primaryColor === c ? "border-gray-700 scale-110" : "border-white"}`}
                             style={{ backgroundColor: c }} />
                         ))}

@@ -94,6 +94,7 @@ export default function ProfilePage() {
         toast({ title: data.error || "Update failed", variant: "destructive" });
       }
     },
+    onError: () => toast({ title: "Update failed — check your connection", variant: "destructive" }),
   });
 
   const passwordMutation = useMutation({
@@ -113,6 +114,7 @@ export default function ProfilePage() {
         toast({ title: data.error || "Password change failed", variant: "destructive" });
       }
     },
+    onError: () => toast({ title: "Password change failed — check your connection", variant: "destructive" }),
   });
 
   const user = session?.user;
