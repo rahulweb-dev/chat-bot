@@ -169,6 +169,7 @@ export function Sidebar() {
                     title={collapsed ? item.label : undefined}
                     className={cn(
                       "relative flex items-center gap-2.5 rounded-lg text-sm font-medium transition-all duration-150 group mb-0.5",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950",
                       collapsed ? "justify-center w-10 h-9 mx-auto px-0" : "px-3 py-2",
                       isActive
                         ? "bg-indigo-500/15 text-indigo-300"
@@ -233,7 +234,7 @@ export function Sidebar() {
           )}
         >
           <Avatar className="w-8 h-8 shrink-0 ring-2 ring-indigo-500/20 ring-offset-1 ring-offset-gray-950">
-            <AvatarImage src={session?.user?.image || ""} />
+            <AvatarImage src={session?.user?.image || ""} alt={session?.user?.name || "User avatar"} />
             <AvatarFallback className="bg-gradient-to-br from-indigo-600 to-violet-700 text-white text-xs font-bold">
               {getInitials(session?.user?.name || "U")}
             </AvatarFallback>
@@ -253,6 +254,7 @@ export function Sidebar() {
       <Button
         variant="ghost"
         size="icon"
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         className="absolute -right-3 top-[72px] w-6 h-6 bg-gray-950 border border-gray-800 rounded-full text-gray-500 hover:text-white hover:bg-gray-800 z-20 shadow-sm"
         onClick={() => setCollapsed(!collapsed)}
       >

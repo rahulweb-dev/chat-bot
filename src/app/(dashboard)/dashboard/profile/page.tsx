@@ -131,7 +131,7 @@ export default function ProfilePage() {
           <div className="flex items-center gap-6">
             <div className="relative">
               <Avatar className="w-20 h-20">
-                <AvatarImage src={user?.image || ""} />
+                <AvatarImage src={user?.image || ""} alt={user?.name || "Your avatar"} />
                 <AvatarFallback className="bg-indigo-600 text-white text-2xl">
                   {getInitials(user?.name || "U")}
                 </AvatarFallback>

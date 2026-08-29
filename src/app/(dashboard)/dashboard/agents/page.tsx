@@ -234,7 +234,7 @@ export default function AgentsPage() {
                 <div className="flex items-start gap-3 mb-4">
                   <div className="relative shrink-0">
                     <Avatar className="w-12 h-12 ring-2 ring-white shadow-sm">
-                      <AvatarImage src={agent.avatar} />
+                      <AvatarImage src={agent.avatar} alt={agent.name} />
                       <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold text-sm">
                         {getInitials(agent.name)}
                       </AvatarFallback>

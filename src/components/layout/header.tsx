@@ -93,7 +93,12 @@ export function Header() {
       <div className="flex items-center gap-1.5 shrink-0">
         {/* Notifications */}
         <Link href="/dashboard/notifications">
-          <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-xl hover:bg-gray-100 text-gray-500 hover:text-gray-900">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+            className="relative h-9 w-9 rounded-xl hover:bg-gray-100 text-gray-500 hover:text-gray-900"
+          >
             <Bell className="w-4 h-4" />
             {unreadCount > 0 && (
               <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 text-[9px] font-bold flex items-center justify-center bg-red-500 text-white rounded-full border-2 border-white px-0.5">
@@ -108,7 +113,7 @@ export function Header() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="flex items-center gap-2 h-9 pl-2 pr-2.5 rounded-xl hover:bg-gray-100 transition-colors">
               <Avatar className="w-7 h-7 ring-2 ring-indigo-100 shrink-0">
-                <AvatarImage src={session?.user?.image || ""} />
+                <AvatarImage src={session?.user?.image || ""} alt={session?.user?.name || "User avatar"} />
                 <AvatarFallback className="bg-linear-to-br from-indigo-600 to-violet-600 text-white text-xs font-bold">
                   {getInitials(session?.user?.name || "U")}
                 </AvatarFallback>
