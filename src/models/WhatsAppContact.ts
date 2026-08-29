@@ -10,6 +10,7 @@ export interface IWhatsAppContact extends Document {
   tags: string[];
   optIn: boolean;
   optInAt?: Date;
+  optOutAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -24,6 +25,7 @@ const WhatsAppContactSchema = new Schema<IWhatsAppContact>(
     tags: [{ type: String }],
     optIn: { type: Boolean, default: false },
     optInAt: { type: Date },
+    optOutAt: { type: Date },
   },
   { timestamps: true }
 );

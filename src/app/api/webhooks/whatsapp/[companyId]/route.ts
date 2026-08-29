@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { decrypt } from "@/lib/crypto";
 import { recomputeCampaignStats } from "@/lib/whatsappCampaignStats";
+import { sendText } from "@/lib/whatsapp";
 import WhatsAppIntegration from "@/models/WhatsAppIntegration";
 import WhatsAppContact from "@/models/WhatsAppContact";
 import WhatsAppConversation from "@/models/WhatsAppConversation";
@@ -29,6 +30,17 @@ interface WAStatus {
 }
 
 type WAMessageType = "TEXT" | "IMAGE" | "DOCUMENT" | "AUDIO" | "VIDEO";
+
+// WhatsApp Business Policy requires honoring opt-out replies to any message we send.
+const STOP_KEYWORDS = new Set(["stop", "unsubscribe", "optout", "opt out", "cancel", "remove me"]);
+const START_KEYWORDS = new Set(["start", "subscribe", "unstop", "resume"]);
+
+function classifyOptKeyword(text: string): "STOP" | "START" | null {
+  const normalized = text.trim().toLowerCase();
+  if (STOP_KEYWORDS.has(normalized)) return "STOP";
+  if (START_KEYWORDS.has(normalized)) return "START";
+  return null;
+}
 
 function extractContent(msg: WAMessage): { messageType: WAMessageType; content: string; mediaId?: string } {
   switch (msg.type) {
@@ -100,6 +112,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             { $setOnInsert: { companyId, phone: msg.from }, ...(customerName ? { $set: { name: customerName } } : {}) },
             { upsert: true, new: true }
           );
+
+          if (messageType === "TEXT") {
+            const optKeyword = classifyOptKeyword(content);
+            if (optKeyword === "STOP" && contact.optIn) {
+              await WhatsAppContact.updateOne({ _id: contact._id }, { optIn: false, optOutAt: new Date() });
+              const accessToken = decrypt(integration.encryptedAccessToken);
+              sendText(integration.phoneNumberId, accessToken, msg.from, "You've been unsubscribed and won't receive further messages from us. Reply START to resubscribe.").catch(() => {});
+            } else if (optKeyword === "START" && !contact.optIn) {
+              await WhatsAppContact.updateOne({ _id: contact._id }, { optIn: true, optInAt: new Date() });
+              const accessToken = decrypt(integration.encryptedAccessToken);
+              sendText(integration.phoneNumberId, accessToken, msg.from, "You're resubscribed. Reply STOP anytime to opt out.").catch(() => {});
+            }
+          }
 
           const conversation = await WhatsAppConversation.findOneAndUpdate(
             { companyId, customerPhone: msg.from },
