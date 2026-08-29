@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/use-toast";
 import { Loader2, Plus, Building2, Trash2, Users } from "lucide-react";
@@ -43,6 +47,10 @@ export default function DepartmentsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["departments"] });
       toast({ title: "Department deleted" });
+    },
+    onError: (err: unknown) => {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error : "Failed to delete department";
+      toast({ title: msg, variant: "destructive" });
     },
   });
 
@@ -118,14 +126,30 @@ export default function DepartmentsPage() {
                       )}
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive"
-                    onClick={() => deleteDept.mutate(dept._id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Delete ${dept.name}`}
+                        className="h-8 w-8 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete {dept.name}?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This can&apos;t be undone. Agents assigned to this department will need to be reassigned.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => deleteDept.mutate(dept._id)}>Delete</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </CardHeader>
               <CardContent>

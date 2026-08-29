@@ -9,9 +9,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Search, Ticket, Clock, CheckCircle, XCircle, Send, MessageSquare, Phone, Mail, Car } from "lucide-react";
+import { Plus, Search, Ticket, Clock, CheckCircle, XCircle, Send, MessageSquare, Phone, Mail, Car, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
 import { timeAgo } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 const ticketSchema = z.object({
   subject: z.string().min(3),
@@ -54,16 +55,19 @@ export default function TicketsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
+  const [page, setPage] = useState(1);
   const [selectedTicket, setSelectedTicket] = useState<TicketDetail | null>(null);
   const [comment, setComment] = useState("");
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["tickets", statusFilter, priorityFilter, search],
+  const debouncedSearch = useDebouncedValue(search);
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["tickets", statusFilter, priorityFilter, debouncedSearch, page],
     queryFn: async () => {
-      const params = new URLSearchParams({ limit: "50" });
+      const params = new URLSearchParams({ limit: "50", page: String(page) });
       if (statusFilter !== "all") params.set("status", statusFilter);
       if (priorityFilter !== "all") params.set("priority", priorityFilter);
-      if (search) params.set("search", search);
+      if (debouncedSearch) params.set("search", debouncedSearch);
       const res = await fetch(`/api/tickets?${params}`);
       const d = await res.json();
       return d;
@@ -156,16 +160,16 @@ export default function TicketsPage() {
       <div className="flex gap-3 flex-wrap">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search tickets..." className="pl-9 w-64" />
+          <Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search tickets..." className="pl-9 w-64" />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
           <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
             {Object.keys(statusConfig).map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+        <Select value={priorityFilter} onValueChange={(v) => { setPriorityFilter(v); setPage(1); }}>
           <SelectTrigger className="w-36"><SelectValue placeholder="Priority" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Priority</SelectItem>
@@ -179,7 +183,17 @@ export default function TicketsPage() {
           <div key={i} className="h-20 bg-white rounded-xl animate-pulse border" />
         ))}
 
-        {!isLoading && tickets.length === 0 && (
+        {!isLoading && isError && (
+          <Card className="border-0 shadow-sm">
+            <CardContent className="py-16 text-center text-red-500">
+              <AlertTriangle className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p className="font-medium">Couldn&apos;t load tickets</p>
+              <p className="text-sm text-gray-400 mt-1">Try refreshing the page.</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {!isLoading && !isError && tickets.length === 0 && (
           <Card className="border-0 shadow-sm">
             <CardContent className="py-16 text-center text-gray-400">
               <Ticket className="w-12 h-12 mx-auto mb-3 opacity-30" />
@@ -227,7 +241,7 @@ export default function TicketsPage() {
                       <div className="ml-auto flex gap-2">
                         {ticket.status !== "RESOLVED" && (
                           <button
-                            onClick={() => updateStatus(ticket._id, "RESOLVED")}
+                            onClick={(e) => { e.stopPropagation(); updateStatus(ticket._id, "RESOLVED"); }}
                             className="text-green-600 hover:underline"
                           >
                             Resolve
@@ -235,7 +249,7 @@ export default function TicketsPage() {
                         )}
                         {ticket.status !== "CLOSED" && ticket.status === "RESOLVED" && (
                           <button
-                            onClick={() => updateStatus(ticket._id, "CLOSED")}
+                            onClick={(e) => { e.stopPropagation(); updateStatus(ticket._id, "CLOSED"); }}
                             className="text-gray-600 hover:underline"
                           >
                             Close
@@ -250,6 +264,22 @@ export default function TicketsPage() {
           );
         })}
       </div>
+
+      {pagination && pagination.pages > 1 && (
+        <div className="flex items-center justify-between pt-2">
+          <span className="text-xs text-gray-500">
+            Page {pagination.page} of {pagination.pages} · {pagination.total} total
+          </span>
+          <div className="flex gap-1.5">
+            <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= pagination.pages} onClick={() => setPage((p) => p + 1)}>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent className="max-w-lg">

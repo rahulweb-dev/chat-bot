@@ -6,6 +6,10 @@ import axios from "axios";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "@/components/ui/use-toast";
 import { Plus, Ban, Megaphone } from "lucide-react";
 import { EmptyState, PageLoading } from "@/components/whatsapp/empty-state";
@@ -48,6 +52,10 @@ export function EmailCampaignsTab() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["email-campaigns"] });
       toast({ title: "Campaign canceled" });
+    },
+    onError: (err: unknown) => {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error : "Failed to cancel campaign";
+      toast({ title: msg, variant: "destructive" });
     },
   });
 
@@ -101,9 +109,25 @@ export function EmailCampaignsTab() {
                     <span className="text-indigo-600">{c.stats.clicked} clicked</span>
                     <span className="text-red-600">{c.stats.bounced} bounced</span>
                     {["DRAFT", "SCHEDULED"].includes(c.status) && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => cancel.mutate(c._id)}>
-                        <Ban className="h-3.5 w-3.5" />
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" aria-label={`Cancel ${c.name}`} className="h-7 w-7 text-destructive">
+                            <Ban className="h-3.5 w-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Cancel &quot;{c.name}&quot;?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {c.status === "SCHEDULED" ? "This scheduled send will not go out. " : ""}This can&apos;t be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Keep Campaign</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => cancel.mutate(c._id)}>Cancel Campaign</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     )}
                   </div>
                 </div>

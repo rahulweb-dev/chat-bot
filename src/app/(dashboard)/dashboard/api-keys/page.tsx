@@ -9,6 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "@/components/ui/use-toast";
 import { Loader2, Plus, Key, Copy, Trash2, Eye, EyeOff, AlertTriangle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -44,6 +48,10 @@ export default function ApiKeysPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["api-keys"] });
       toast({ title: "API key revoked" });
+    },
+    onError: (err: unknown) => {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error : "Failed to revoke API key";
+      toast({ title: msg, variant: "destructive" });
     },
   });
 
@@ -173,14 +181,30 @@ export default function ApiKeysPage() {
                         : `Created ${formatDistanceToNow(new Date(key.createdAt), { addSuffix: true })}`}
                     </span>
                     {key.isActive && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100"
-                        onClick={() => revoke.mutate(key._id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Revoke ${key.name}`}
+                            className="h-8 w-8 text-destructive hover:text-destructive opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Revoke &quot;{key.name}&quot;?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Any integration using this key will immediately stop working. This can&apos;t be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => revoke.mutate(key._id)}>Revoke</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     )}
                   </div>
                 </div>

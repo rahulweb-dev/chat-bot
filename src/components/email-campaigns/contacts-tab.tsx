@@ -10,9 +10,14 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "@/components/ui/use-toast";
 import { Plus, Search, Trash2, Loader2, Users, Upload, CheckCircle, XCircle, Download } from "lucide-react";
 import { EmptyState, PageLoading } from "@/components/whatsapp/empty-state";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 interface Contact {
   _id: string;
@@ -41,9 +46,11 @@ export function EmailContactsTab() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({ name: "", email: "", tags: "", optIn: true });
 
+  const debouncedSearch = useDebouncedValue(search);
+
   const { data: contacts, isLoading } = useQuery<Contact[]>({
-    queryKey: ["email-contacts", search],
-    queryFn: () => axios.get("/api/email-contacts", { params: { search: search || undefined, limit: 100 } }).then((r) => r.data.data),
+    queryKey: ["email-contacts", debouncedSearch],
+    queryFn: () => axios.get("/api/email-contacts", { params: { search: debouncedSearch || undefined, limit: 100 } }).then((r) => r.data.data),
   });
 
   const create = useMutation({
@@ -76,6 +83,10 @@ export function EmailContactsTab() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["email-contacts"] });
       toast({ title: "Contact deleted" });
+    },
+    onError: (err: unknown) => {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error : "Failed to delete contact";
+      toast({ title: msg, variant: "destructive" });
     },
   });
 
@@ -210,14 +221,28 @@ export function EmailContactsTab() {
                       <Switch checked={c.optIn} onCheckedChange={(v) => toggleOptIn.mutate({ id: c._id, optIn: v })} />
                       <span className="text-xs text-muted-foreground">{c.optIn ? "Opted in" : "Opted out"}</span>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100"
-                      onClick={() => remove.mutate(c._id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Delete ${c.name || c.email}`}
+                          className="h-8 w-8 text-destructive opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete {c.name || c.email}?</AlertDialogTitle>
+                          <AlertDialogDescription>This can&apos;t be undone.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => remove.mutate(c._id)}>Delete</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               ))}

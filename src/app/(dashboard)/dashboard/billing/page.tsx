@@ -130,10 +130,10 @@ export default function BillingPage() {
                   </div>
                   <div className="w-full bg-gray-100 rounded-full h-1.5">
                     <div
-                      className={`h-1.5 rounded-full transition-all ₹{
+                      className={`h-1.5 rounded-full transition-all ${
                         metric.isExceeded ? "bg-red-500" : metric.isDanger ? "bg-orange-500" : metric.isWarning ? "bg-yellow-500" : "bg-green-500"
                       }`}
-                      style={{ width: `₹{Math.min(100, metric.percentage)}%` }}
+                      style={{ width: `${Math.min(100, metric.percentage)}%` }}
                     />
                   </div>
                   <p className="text-xs text-gray-400">{metric.percentage}% used</p>
@@ -150,13 +150,13 @@ export default function BillingPage() {
           <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
             <button
               onClick={() => setBilling("MONTHLY")}
-              className={`px-3 py-1.5 text-sm rounded-md transition-colors ₹{billing === "MONTHLY" ? "bg-white shadow font-medium" : "text-gray-500"}`}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${billing === "MONTHLY" ? "bg-white shadow font-medium" : "text-gray-500"}`}
             >
               Monthly
             </button>
             <button
               onClick={() => setBilling("ANNUALLY")}
-              className={`px-3 py-1.5 text-sm rounded-md transition-colors ₹{billing === "ANNUALLY" ? "bg-white shadow font-medium" : "text-gray-500"}`}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${billing === "ANNUALLY" ? "bg-white shadow font-medium" : "text-gray-500"}`}
             >
               Annual <span className="text-green-600 text-xs ml-1">Save 17%</span>
             </button>
@@ -172,7 +172,7 @@ export default function BillingPage() {
             return (
               <Card
                 key={plan.type}
-                className={`border-0 shadow-sm relative overflow-hidden ₹{plan.popular ? "ring-2 ring-indigo-400" : ""}`}
+                className={`border-0 shadow-sm relative overflow-hidden ${plan.popular ? "ring-2 ring-indigo-400" : ""}`}
               >
                 {plan.popular && (
                   <div className="absolute top-0 right-0 bg-indigo-500 text-white text-xs px-3 py-1 rounded-bl-lg font-medium">
@@ -180,8 +180,8 @@ export default function BillingPage() {
                   </div>
                 )}
                 <CardContent className="p-6">
-                  <div className={`w-10 h-10 ₹{plan.bg} rounded-lg flex items-center justify-center mb-4`}>
-                    <Icon className={`w-5 h-5 ₹{plan.color}`} />
+                  <div className={`w-10 h-10 ${plan.bg} rounded-lg flex items-center justify-center mb-4`}>
+                    <Icon className={`w-5 h-5 ${plan.color}`} />
                   </div>
                   <h3 className="text-lg font-semibold">{plan.name}</h3>
                   <div className="my-3">
