@@ -6,6 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import {
   HelpCircle, Tag, Truck, Clock, Plus, Trash2, Save,
@@ -34,9 +38,11 @@ const CATEGORY_COLORS: Record<string, string> = {
   EV:  "bg-emerald-100 text-emerald-700",
 };
 
-async function patchConfig(body: Partial<Config>) {
-  const r = await fetch("/api/chatbot-config", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  return r.json();
+async function patchConfig(body: Partial<Config>): Promise<{ success: true; data: Config } | { success: false; error: string }> {
+  const res = await fetch("/api/chatbot-config", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok || d?.success === false) return { success: false, error: d?.error || "Failed to save" };
+  return { success: true, data: d.data };
 }
 
 // ── FAQ Tab ────────────────────────────────────────────────────────────────────
@@ -50,7 +56,8 @@ function FAQTab({ config, refetch }: { config: Config; refetch: () => void }) {
     setSaving(true);
     const r = await patchConfig({ faqs: updated });
     setSaving(false);
-    if (r.success) { setFaqs(updated); refetch(); toast({ title: "FAQs saved" }); }
+    if (r.success) { setFaqs(r.data.faqs); refetch(); toast({ title: "FAQs saved" }); }
+    else toast({ title: r.error, variant: "destructive" });
   }
 
   function add() {
@@ -82,7 +89,7 @@ function FAQTab({ config, refetch }: { config: Config; refetch: () => void }) {
       <div className="space-y-2">
         {faqs.length === 0 && <p className="text-sm text-gray-400 text-center py-8">No FAQs yet. Add your first FAQ above.</p>}
         {faqs.map((faq, i) => (
-          <FAQRow key={i} faq={faq} onToggle={() => toggle(i)} onDelete={() => remove(i)} onSave={(q, a) => saveEdit(i, q, a)} isEditing={editIdx === i} onEdit={() => setEditIdx(i)} onCancel={() => setEditIdx(null)} />
+          <FAQRow key={faq._id ?? i} faq={faq} onToggle={() => toggle(i)} onDelete={() => remove(i)} onSave={(q, a) => saveEdit(i, q, a)} isEditing={editIdx === i} onEdit={() => setEditIdx(i)} onCancel={() => setEditIdx(null)} />
         ))}
       </div>
     </div>
@@ -116,8 +123,22 @@ function FAQRow({ faq, onToggle, onDelete, onSave, isEditing, onEdit, onCancel }
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <Switch checked={faq.isActive} onCheckedChange={onToggle} />
-              <button onClick={onEdit} className="p-1 text-gray-400 hover:text-indigo-600"><Pencil className="w-3.5 h-3.5" /></button>
-              <button onClick={onDelete} className="p-1 text-gray-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+              <button onClick={onEdit} aria-label={`Edit "${faq.question}"`} className="p-1 text-gray-400 hover:text-indigo-600"><Pencil className="w-3.5 h-3.5" /></button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <button aria-label={`Delete "${faq.question}"`} className="p-1 text-gray-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete this FAQ?</AlertDialogTitle>
+                    <AlertDialogDescription>&quot;{faq.question}&quot; will no longer be answered by the bot. This can&apos;t be undone.</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={onDelete}>Delete</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
         )}
@@ -136,7 +157,8 @@ function OffersTab({ config, refetch }: { config: Config; refetch: () => void })
     setSaving(true);
     const r = await patchConfig({ offers: updated });
     setSaving(false);
-    if (r.success) { setOffers(updated); refetch(); toast({ title: "Offers saved" }); }
+    if (r.success) { setOffers(r.data.offers); refetch(); toast({ title: "Offers saved" }); }
+    else toast({ title: r.error, variant: "destructive" });
   }
 
   return (
@@ -155,7 +177,7 @@ function OffersTab({ config, refetch }: { config: Config; refetch: () => void })
 
       <div className="grid gap-3 sm:grid-cols-2">
         {offers.map((o, i) => (
-          <Card key={i} className={`border-l-4 ${o.isActive ? "border-l-green-400" : "border-l-gray-200"}`}>
+          <Card key={o._id ?? i} className={`border-l-4 ${o.isActive ? "border-l-green-400" : "border-l-gray-200"}`}>
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1">
@@ -165,7 +187,21 @@ function OffersTab({ config, refetch }: { config: Config; refetch: () => void })
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Switch checked={o.isActive} onCheckedChange={() => { const u = [...offers]; u[i].isActive = !u[i].isActive; save(u); }} />
-                  <button onClick={() => save(offers.filter((_, idx) => idx !== i))} className="p-1 text-gray-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <button aria-label={`Delete "${o.title}"`} className="p-1 text-gray-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this offer?</AlertDialogTitle>
+                        <AlertDialogDescription>&quot;{o.title}&quot; will no longer be shown to visitors. This can&apos;t be undone.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => save(offers.filter((_, idx) => idx !== i))}>Delete</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
             </CardContent>
@@ -187,7 +223,8 @@ function VehiclesTab({ config, refetch }: { config: Config; refetch: () => void 
     setSaving(true);
     const r = await patchConfig({ vehicles: updated });
     setSaving(false);
-    if (r.success) { setVehicles(updated); refetch(); toast({ title: "Vehicles saved" }); }
+    if (r.success) { setVehicles(r.data.vehicles); refetch(); toast({ title: "Vehicles saved" }); }
+    else toast({ title: r.error, variant: "destructive" });
   }
 
   return (
@@ -210,7 +247,7 @@ function VehiclesTab({ config, refetch }: { config: Config; refetch: () => void 
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {vehicles.map((v, i) => (
-          <Card key={i} className={`border overflow-hidden ${!v.isActive ? "opacity-50" : ""}`}>
+          <Card key={v._id ?? i} className={`border overflow-hidden ${!v.isActive ? "opacity-50" : ""}`}>
             <div className={`h-1 w-full ${v.isActive ? "bg-indigo-400" : "bg-gray-200"}`} />
             <CardContent className="p-4">
               <div className="flex items-start justify-between mb-2">
@@ -220,7 +257,21 @@ function VehiclesTab({ config, refetch }: { config: Config; refetch: () => void 
                 </div>
                 <div className="flex items-center gap-1">
                   <Switch checked={v.isActive} onCheckedChange={() => { const u = [...vehicles]; u[i].isActive = !u[i].isActive; save(u); }} />
-                  <button onClick={() => save(vehicles.filter((_, idx) => idx !== i))} className="p-1 text-gray-400 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <button aria-label={`Delete ${v.name}`} className="p-1 text-gray-400 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete {v.name}?</AlertDialogTitle>
+                        <AlertDialogDescription>This can&apos;t be undone.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => save(vehicles.filter((_, idx) => idx !== i))}>Delete</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
               {v.payload    && <p className="text-xs text-gray-500">Payload: {v.payload}</p>}
@@ -245,6 +296,7 @@ function HoursTab({ config, refetch }: { config: Config; refetch: () => void }) 
     const r = await patchConfig({ businessHours: hours, welcomeMessage: messages.welcome, agentOnlineMessage: messages.online, agentOfflineMessage: messages.offline });
     setSaving(false);
     if (r.success) { refetch(); toast({ title: "Settings saved" }); }
+    else toast({ title: r.error, variant: "destructive" });
   }
 
   function update(i: number, field: keyof BizHour, val: string | boolean) {
@@ -316,8 +368,8 @@ function TrainingTab({ config, refetch }: { config: Config; refetch: () => void 
     setSaving(true);
     const r = await patchConfig({ training: updated });
     setSaving(false);
-    if (r.success) { setEntries(updated); refetch(); toast({ title: "Training saved" }); }
-    else toast({ title: "Save failed", variant: "destructive" });
+    if (r.success) { setEntries(r.data.training); refetch(); toast({ title: "Training saved" }); }
+    else toast({ title: r.error, variant: "destructive" });
   }
 
   function addEntry() {
@@ -473,9 +525,23 @@ function TrainingTab({ config, refetch }: { config: Config; refetch: () => void 
                     onCheckedChange={() => { const u = [...entries]; u[i].isActive = !u[i].isActive; save(u); }}
                     className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-300"
                   />
-                  <button onClick={() => save(entries.filter((_, idx) => idx !== i))} className="p-1 text-gray-400 hover:text-red-500 transition-colors">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <button aria-label={`Delete rule${e.trigger ? ` "${e.trigger}"` : ""}`} className="p-1 text-gray-400 hover:text-red-500 transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this training rule?</AlertDialogTitle>
+                        <AlertDialogDescription>This can&apos;t be undone.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => save(entries.filter((_, idx) => idx !== i))}>Delete</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
             </CardContent>
@@ -514,7 +580,12 @@ function CannedTab() {
   }
 
   async function remove(id: string) {
-    await fetch(`/api/canned-responses?id=${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/canned-responses?id=${id}`, { method: "DELETE" });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || d?.success === false) {
+      toast({ title: d?.error || "Failed to delete", variant: "destructive" });
+      return;
+    }
     qc.invalidateQueries({ queryKey: ["canned-responses"] });
     toast({ title: "Deleted" });
   }
@@ -578,9 +649,23 @@ function CannedTab() {
                   <p className="text-sm text-gray-600 line-clamp-2">{item.content}</p>
                   {item.usageCount ? <p className="text-xs text-gray-400 mt-1">Used {item.usageCount}×</p> : null}
                 </div>
-                <button onClick={() => item._id && remove(item._id)} className="p-1 text-gray-300 hover:text-red-500 transition-colors shrink-0">
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <button aria-label={`Delete "${item.title}"`} className="p-1 text-gray-300 hover:text-red-500 transition-colors shrink-0">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete &quot;{item.title}&quot;?</AlertDialogTitle>
+                      <AlertDialogDescription>This can&apos;t be undone.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => item._id && remove(item._id)}>Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </CardContent>
           </Card>
