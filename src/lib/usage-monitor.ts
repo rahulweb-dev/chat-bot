@@ -17,6 +17,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   knowledgeFiles: "Knowledge Base Files",
   workflows: "Workflows",
   emailSends: "Email Campaign Sends",
+  rcsSends: "RCS Campaign Sends",
 };
 
 export async function checkAndSendUsageAlerts() {

@@ -1,0 +1,43 @@
+import { NextRequest } from "next/server";
+import { connectDB } from "@/lib/mongodb";
+import { getRequestContext, apiError, apiSuccess } from "@/lib/api-helpers";
+import RCSContact from "@/models/RCSContact";
+
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const ctx = await getRequestContext(request);
+  if (!ctx || !ctx.companyId) return apiError("Unauthorized", 401);
+
+  await connectDB();
+  const body = await request.json();
+  const { name, tags, optIn } = body;
+
+  const update: Record<string, unknown> = {};
+  if (name !== undefined) update.name = name;
+  if (tags !== undefined) update.tags = tags;
+  if (optIn !== undefined) {
+    update.optIn = optIn;
+    update[optIn ? "optInAt" : "optOutAt"] = new Date();
+  }
+
+  const contact = await RCSContact.findOneAndUpdate(
+    { _id: id, companyId: ctx.companyId },
+    { $set: update },
+    { new: true }
+  );
+  if (!contact) return apiError("Not found", 404);
+
+  return apiSuccess(contact, "Contact updated");
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const ctx = await getRequestContext(request);
+  if (!ctx || !ctx.companyId) return apiError("Unauthorized", 401);
+
+  await connectDB();
+  const contact = await RCSContact.findOneAndDelete({ _id: id, companyId: ctx.companyId });
+  if (!contact) return apiError("Not found", 404);
+
+  return apiSuccess(null, "Contact deleted");
+}

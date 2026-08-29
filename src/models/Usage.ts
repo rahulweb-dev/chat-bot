@@ -16,6 +16,7 @@ export interface IUsage extends Document {
   workflows: number;
   chatbots: number;
   emailSends: number;
+  rcsSends: number;
   alerts: {
     type: "75" | "90" | "100";
     resource: string;
@@ -42,6 +43,7 @@ const UsageSchema = new Schema<IUsage>(
     workflows: { type: Number, default: 0 },
     chatbots: { type: Number, default: 0 },
     emailSends: { type: Number, default: 0 },
+    rcsSends: { type: Number, default: 0 },
     alerts: [
       {
         type: { type: String, enum: ["75", "90", "100"] },
