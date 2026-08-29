@@ -92,9 +92,9 @@ function reset(col: Record<string, string>): SessionData {
   return { flow: "INITIAL", step: "", collected: col };
 }
 
-function mainMenu(col: Record<string, string> = {}): BotResponse {
+function mainMenu(col: Record<string, string> = {}, greeting: string = "👋 Hi! Welcome!"): BotResponse {
   return {
-    messages: ["👋 Welcome to Ashok Leyland!\n\nHow can we help you today? Please select an option:"],
+    messages: [`${greeting}\n\nHow can we help you today? Please select an option:`],
     quickReplies: MAIN_MENU,
     sessionData: { flow: "INITIAL", step: "", collected: col },
     action: "NONE",
@@ -212,12 +212,15 @@ export async function matchTraining(message: string, companyId: string): Promise
   return null;
 }
 
-export function processFlow(input: string, session: SessionData): BotResponse {
+export function processFlow(input: string, session: SessionData, welcomeMessage?: string): BotResponse {
   const inp = input.trim();
   const s   = session;
   const col = { ...s.collected };
+  // Falls back to a neutral default if the company hasn't set one — never the old
+  // hardcoded "Welcome to Ashok Leyland!" copy, which doesn't belong in every tenant's bot.
+  const greeting = welcomeMessage?.trim() || "👋 Hi! Welcome!";
 
-  if (match(inp, "Main Menu") || match(inp, "Start Over") || match(inp, "Go Back")) return mainMenu(col);
+  if (match(inp, "Main Menu") || match(inp, "Start Over") || match(inp, "Go Back")) return mainMenu(col, greeting);
 
   // ── IDENTIFY (first-time visitor: collect name then phone conversationally) ─
   if (s.flow === "IDENTIFY") {
@@ -234,7 +237,7 @@ export function processFlow(input: string, session: SessionData): BotResponse {
       }
       col.phone = inp;
       return {
-        messages: [`Thank you, ${col.name}! ✅`, `🚛 Welcome to Ashok Leyland!\n\nHow can I help you today?`],
+        messages: [`Thank you, ${col.name}! ✅`, `${greeting}\n\nHow can I help you today?`],
         quickReplies: MAIN_MENU,
         sessionData: { flow: "INITIAL", step: "", collected: col },
         action: "NONE",
@@ -248,15 +251,17 @@ export function processFlow(input: string, session: SessionData): BotResponse {
       if (!col.name) {
         // First-time: start conversational identify flow
         return {
-          messages: ["👋 Hi! Welcome to Ashok Leyland!\n\nI'm Lexi, your virtual assistant. May I know your name?"],
+          messages: [`${greeting}\n\nI'm your virtual assistant. May I know your name?`],
           quickReplies: [],
           sessionData: { flow: "IDENTIFY", step: "ask_name", collected: col },
           action: "NONE",
         };
       }
-      // Returning visitor — personalised welcome
+      // Returning visitor — still leads with the company's own greeting (this is what
+      // the dashboard preview always hits, since it pre-fills a name to skip straight
+      // past the identify flow), personalised with a welcome-back line.
       return {
-        messages: [`👋 Welcome back, ${col.name}!\n\nHow can I help you today?`],
+        messages: [`${greeting}\n\nWelcome back, ${col.name}! How can I help you today?`],
         quickReplies: MAIN_MENU,
         sessionData: { flow: "INITIAL", step: "", collected: col },
         action: "NONE",
@@ -303,7 +308,7 @@ export function processFlow(input: string, session: SessionData): BotResponse {
       return ask("ON_ROAD_PRICE", "ask_variant", col, `Great! Which variant of ${directVehicle} are you interested in?`, ["Base", "Standard", "Plus", "Premium", "Not Sure"]);
     }
 
-    return mainMenu(col);
+    return mainMenu(col, greeting);
   }
 
   // ── FIND VEHICLE ───────────────────────────────────────────────────────────
@@ -584,5 +589,5 @@ export function processFlow(input: string, session: SessionData): BotResponse {
     if (s.step === "ask_city") { col.city = inp; return escalate(col, col.category); }
   }
 
-  return mainMenu(col);
+  return mainMenu(col, greeting);
 }

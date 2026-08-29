@@ -1,14 +1,15 @@
 import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess } from "@/lib/api-helpers";
-import { processFlow, matchTraining, SessionData, MAIN_MENU } from "@/lib/chatbot-flow";
-import Chatbot from "@/models/Chatbot";
+import { processFlow, matchTraining, SessionData } from "@/lib/chatbot-flow";
+import Settings from "@/models/Settings";
 
 export async function POST(request: NextRequest) {
   const ctx = await getRequestContext(request);
   if (!ctx) return apiError("Unauthorized", 401);
+  if (!ctx.companyId) return apiError("Company required", 400);
 
-  const { message, sessionData, chatbotId } = await request.json();
+  const { message, sessionData } = await request.json();
   if (!message) return apiError("message required", 400);
 
   // In test mode, always skip the IDENTIFY flow — admin is not a first-time visitor
@@ -16,33 +17,17 @@ export async function POST(request: NextRequest) {
     ? sessionData
     : { flow: "INITIAL", step: "", collected: { name: "Test" } };
 
-  // On __INIT__, use the chatbot's own welcome message (not the flow's generic greeting)
-  if (message === "__INIT__") {
-    let welcomeMsg = "👋 Welcome to Ashok Leyland!\n\nHow can I help you today? Please select an option:";
-    if (chatbotId) {
-      await connectDB();
-      const bot = await Chatbot.findOne({ _id: chatbotId, companyId: ctx.companyId })
-        .select("welcomeMessage")
-        .lean() as { welcomeMessage?: string } | null;
-      if (bot?.welcomeMessage) welcomeMsg = bot.welcomeMessage;
-    }
-    return apiSuccess({
-      messages: [welcomeMsg],
-      quickReplies: MAIN_MENU,
-      action: "NONE",
-      sessionData: { flow: "INITIAL", step: "", collected: { name: "Test" } },
-    });
-  }
-
   // Same precedence as the real widget: a company's own Training rules and FAQs
-  // take priority over the hardcoded flow, so this test panel actually reflects
-  // what's configured in Chatbot Settings.
-  let trained = null;
-  if (session.flow === "INITIAL" && ctx.companyId) {
-    await connectDB();
-    trained = await matchTraining(message, ctx.companyId);
-  }
-  const result = trained ?? processFlow(message, session);
+  // take priority over the hardcoded flow, and the saved Widget welcome message
+  // (Widget Builder → Content) replaces the generic greeting — same single source
+  // of truth as /api/widget/chat and /api/widget/preview, so this test panel
+  // actually reflects what's configured elsewhere instead of its own copy of it.
+  await connectDB();
+  const trained = session.flow === "INITIAL" && message !== "__INIT__"
+    ? await matchTraining(message, ctx.companyId)
+    : null;
+  const settings = await Settings.findOne({ companyId: ctx.companyId }).select("widget.welcomeMessage").lean() as { widget?: { welcomeMessage?: string } } | null;
+  const result = trained ?? processFlow(message, session, settings?.widget?.welcomeMessage);
 
   return apiSuccess({
     messages: result.messages,

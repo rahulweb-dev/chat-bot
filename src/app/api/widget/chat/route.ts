@@ -7,6 +7,7 @@ import Conversation from "@/models/Conversation";
 import Message from "@/models/Message";
 import Lead from "@/models/Lead";
 import Ticket from "@/models/Ticket";
+import Settings from "@/models/Settings";
 import { getIO } from "@/server/socket";
 import { triggerChat } from "@/lib/pusher";
 import { rateLimit, rateLimitError } from "@/lib/rate-limit";
@@ -94,7 +95,8 @@ export async function POST(request: NextRequest) {
   const trained = session.flow === "INITIAL" && message !== "__INIT__"
     ? await matchTraining(message, companyId)
     : null;
-  const result = trained ?? processFlow(message, session);
+  const companySettings = await Settings.findOne({ companyId }).select("widget.welcomeMessage").lean() as { widget?: { welcomeMessage?: string } } | null;
+  const result = trained ?? processFlow(message, session, companySettings?.widget?.welcomeMessage);
 
   if (conversationId) {
     if (message !== "__INIT__") {
