@@ -16,6 +16,9 @@ const publicRoutes = [
   // Inbound provider webhooks authenticate themselves (Meta's X-Hub-Signature-256,
   // WhatsApp's verify-token handshake) rather than carrying a session/API key.
   "/api/webhooks",
+  // One-click unsubscribe, clicked from an email by a recipient with no account/session.
+  // Its own unguessable per-contact token is the auth, not a login.
+  "/api/email/unsubscribe",
 ];
 const superAdminRoutes = ["/admin", "/api/admin"];
 

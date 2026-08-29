@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess } from "@/lib/api-helpers";
 import { decrypt } from "@/lib/crypto";
 import { sendTemplate, buildTemplateComponents } from "@/lib/whatsapp";
+import { rateLimit, rateLimitError } from "@/lib/rate-limit";
 import WhatsAppCampaign from "@/models/WhatsAppCampaign";
 import WhatsAppIntegration from "@/models/WhatsAppIntegration";
 import AuditLog from "@/models/AuditLog";
@@ -12,6 +13,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const ctx = await getRequestContext(request);
   if (!ctx || !ctx.companyId) return apiError("Unauthorized", 401);
   if (!["COMPANY_ADMIN", "MANAGER"].includes(ctx.userRole)) return apiError("Forbidden", 403);
+
+  // Test sends aren't charged against the wallet, so they need their own cap.
+  if (!(await rateLimit(`whatsapp-test-send:${ctx.companyId}`, 20, 60 * 60 * 1000))) {
+    return rateLimitError();
+  }
 
   await connectDB();
   const body = await request.json();

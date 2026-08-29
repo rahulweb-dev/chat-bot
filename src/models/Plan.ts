@@ -26,6 +26,7 @@ export interface IPlan extends Document {
     chatbots: number;
     leads: number;
     tickets: number;
+    emailSends: number;
   };
   features: string[];
   isActive: boolean;
@@ -61,6 +62,7 @@ const PlanSchema = new Schema<IPlan>(
       chatbots: { type: Number, default: 1 },
       leads: { type: Number, default: 500 },
       tickets: { type: Number, default: 500 },
+      emailSends: { type: Number, default: 1000 },
     },
     features: [{ type: String }],
     isActive: { type: Boolean, default: true },

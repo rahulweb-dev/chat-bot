@@ -36,7 +36,7 @@ async function seed() {
         limits: {
           agents: 2, chats: 1000, aiMessages: 500, storage: 1024,
           knowledgeFiles: 10, workflows: 3, apiRequests: 10000,
-          departments: 2, chatbots: 1, leads: 500, tickets: 500,
+          departments: 2, chatbots: 1, leads: 500, tickets: 500, emailSends: 1000,
         },
         features: ["2 Agents", "1,000 Chats/month", "500 AI Messages", "1 Chatbot", "Basic Analytics", "Email Support"],
         isActive: true,
@@ -52,7 +52,7 @@ async function seed() {
         limits: {
           agents: 10, chats: 10000, aiMessages: 5000, storage: 10240,
           knowledgeFiles: 50, workflows: 20, apiRequests: 100000,
-          departments: 10, chatbots: 5, leads: 5000, tickets: 5000,
+          departments: 10, chatbots: 5, leads: 5000, tickets: 5000, emailSends: 10000,
         },
         features: ["10 Agents", "10,000 Chats/month", "5,000 AI Messages", "5 Chatbots", "Advanced Analytics", "CRM & Leads", "API Access", "Priority Support"],
         isActive: true,
@@ -68,7 +68,7 @@ async function seed() {
         limits: {
           agents: -1, chats: -1, aiMessages: -1, storage: -1,
           knowledgeFiles: -1, workflows: -1, apiRequests: -1,
-          departments: -1, chatbots: -1, leads: -1, tickets: -1,
+          departments: -1, chatbots: -1, leads: -1, tickets: -1, emailSends: -1,
         },
         features: ["Unlimited Agents", "Unlimited Chats", "Unlimited AI Messages", "White Labeling", "Custom Domain", "Dedicated Support", "SLA Guarantee", "Custom Integrations"],
         isActive: true,
