@@ -1,0 +1,230 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { toast } from "@/components/ui/use-toast";
+import { Plus, Search, Trash2, Loader2, Users, Upload, CheckCircle, XCircle, Download } from "lucide-react";
+import { EmptyState, PageLoading } from "@/components/whatsapp/empty-state";
+
+interface Contact {
+  _id: string;
+  name?: string;
+  email: string;
+  tags: string[];
+  optIn: boolean;
+  bounced: boolean;
+}
+
+interface ImportResult {
+  total: number;
+  createdCount: number;
+  updatedCount: number;
+  invalidCount: number;
+  rows: { row: number; email: string; name?: string; status: string; reason?: string }[];
+}
+
+export function EmailContactsTab() {
+  const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [form, setForm] = useState({ name: "", email: "", tags: "", optIn: true });
+
+  const { data: contacts, isLoading } = useQuery<Contact[]>({
+    queryKey: ["email-contacts", search],
+    queryFn: () => axios.get("/api/email-contacts", { params: { search: search || undefined, limit: 100 } }).then((r) => r.data.data),
+  });
+
+  const create = useMutation({
+    mutationFn: () =>
+      axios.post("/api/email-contacts", {
+        name: form.name,
+        email: form.email,
+        tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
+        optIn: form.optIn,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["email-contacts"] });
+      toast({ title: "Contact created" });
+      setOpen(false);
+      setForm({ name: "", email: "", tags: "", optIn: true });
+    },
+    onError: (err: unknown) => {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error : "Failed to create contact";
+      toast({ title: msg, variant: "destructive" });
+    },
+  });
+
+  const toggleOptIn = useMutation({
+    mutationFn: ({ id, optIn }: { id: string; optIn: boolean }) => axios.patch(`/api/email-contacts/${id}`, { optIn }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["email-contacts"] }),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => axios.delete(`/api/email-contacts/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["email-contacts"] });
+      toast({ title: "Contact deleted" });
+    },
+  });
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await axios.post("/api/email-contacts/import", fd);
+      setImportResult(res.data.data);
+      qc.invalidateQueries({ queryKey: ["email-contacts"] });
+    } catch (err) {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error : "Upload failed";
+      toast({ title: msg, variant: "destructive" });
+    } finally {
+      setImporting(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="p-6 max-w-5xl mx-auto space-y-4">
+      <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileUpload} />
+
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Email Contacts</h1>
+          <p className="text-muted-foreground">Manage opted-in contacts for email campaigns</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => { setImportResult(null); setImportOpen(true); }}>
+            <Upload className="h-4 w-4 mr-2" />Upload Excel
+          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button><Plus className="h-4 w-4 mr-2" />Add Contact</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Add Contact</DialogTitle></DialogHeader>
+              <form onSubmit={(e) => { e.preventDefault(); create.mutate(); }} className="space-y-4">
+                <div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+                <div className="space-y-2"><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></div>
+                <div className="space-y-2"><Label>Tags (comma separated)</Label><Input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} placeholder="vip, mumbai" /></div>
+                <div className="flex items-center justify-between">
+                  <Label>Opted-in for marketing emails</Label>
+                  <Switch checked={form.optIn} onCheckedChange={(v) => setForm({ ...form, optIn: v })} />
+                </div>
+                <Button type="submit" className="w-full" disabled={create.isPending}>
+                  {create.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Add Contact
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Import Contacts from Excel / CSV</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg border border-dashed p-6 text-center space-y-2">
+              <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Columns: <span className="font-mono text-xs">Name, Email, Tags</span> (Email required)</p>
+              <p className="text-xs text-muted-foreground">Supports .xlsx, .xls, .csv · Max 5000 rows · All imports set as opted-in</p>
+              <div className="flex items-center justify-center gap-2">
+                <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={importing}>
+                  {importing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                  {importing ? "Uploading…" : "Choose File"}
+                </Button>
+                <Button variant="outline" asChild>
+                  <a href="/api/email-contacts/sample" download><Download className="h-4 w-4 mr-2" />Sample CSV</a>
+                </Button>
+              </div>
+            </div>
+
+            {importResult && (
+              <div className="space-y-3">
+                <div className="flex gap-4 text-sm">
+                  <span className="flex items-center gap-1 text-green-600"><CheckCircle className="h-4 w-4" />{importResult.createdCount} created</span>
+                  {importResult.updatedCount > 0 && <span className="text-blue-600">{importResult.updatedCount} updated</span>}
+                  {importResult.invalidCount > 0 && <span className="flex items-center gap-1 text-red-500"><XCircle className="h-4 w-4" />{importResult.invalidCount} skipped</span>}
+                </div>
+                {importResult.invalidCount > 0 && (
+                  <div className="max-h-40 overflow-y-auto rounded border text-xs divide-y">
+                    {importResult.rows.filter((r) => r.status === "INVALID").map((r) => (
+                      <div key={r.row} className="px-3 py-1.5 flex justify-between text-red-600">
+                        <span>Row {r.row}: {r.email || "—"}</span>
+                        <span>{r.reason}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <Button className="w-full" onClick={() => setImportOpen(false)}>Done</Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <div className="relative max-w-sm">
+        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search contacts" className="pl-8" />
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <PageLoading />
+          ) : contacts?.length === 0 ? (
+            <EmptyState icon={Users} title="No contacts yet" description="Add a contact manually, or import a list from CSV/Excel." />
+          ) : (
+            <div className="divide-y">
+              {contacts?.map((c) => (
+                <div key={c._id} className="flex items-center justify-between p-4 group">
+                  <div>
+                    <p className="text-sm font-medium">{c.name || "Unnamed"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {c.email}
+                      {c.bounced && <span className="text-red-500 ml-1.5">· bounced</span>}
+                    </p>
+                    {c.tags.length > 0 && (
+                      <div className="flex gap-1 mt-1">
+                        {c.tags.map((t) => <Badge key={t} variant="outline" className="text-[10px] px-1.5 py-0">{t}</Badge>)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5">
+                      <Switch checked={c.optIn} onCheckedChange={(v) => toggleOptIn.mutate({ id: c._id, optIn: v })} />
+                      <span className="text-xs text-muted-foreground">{c.optIn ? "Opted in" : "Opted out"}</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100"
+                      onClick={() => remove.mutate(c._id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

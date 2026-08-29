@@ -8,7 +8,7 @@ import {
   Settings, Bell, Key, Bot, Workflow, CreditCard,
   LayoutDashboard, BookOpen, Puzzle, Tag, Globe, Shield,
   ChevronLeft, ChevronRight, Inbox, MessageCircle,
-  Brain, Zap, ArrowUpRight, Trophy,
+  Brain, Zap, ArrowUpRight, Trophy, Mail,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Live Chat",      href: "/dashboard/chat",          icon: MessageSquare, badge: "Live" },
       { label: "WhatsApp",       href: "/dashboard/whatsapp",      icon: MessageCircle },
+      { label: "Email Campaigns", href: "/dashboard/email-campaigns", icon: Mail },
       { label: "Conversations",  href: "/dashboard/conversations", icon: Inbox },
     ],
   },
