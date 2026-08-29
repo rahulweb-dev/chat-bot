@@ -5,7 +5,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -454,19 +453,56 @@ export function SuperAdminDashboard() {
                         )}
 
                         {/* Active toggle */}
-                        <div className={`flex items-center gap-2 px-2.5 py-1 rounded-lg border transition-colors ${
-                          company.isActive ? "bg-green-50 border-green-200" : "bg-gray-50 border-gray-200"
-                        }`}>
-                          <span className={`text-xs font-medium w-14 text-right ${company.isActive ? "text-green-700" : "text-gray-400"}`}>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={company.isActive}
+                          aria-label={company.isActive ? "Deactivate company" : "Activate company"}
+                          disabled={isToggling || company.isSuspended}
+                          title={company.isSuspended ? "Restore company before activating" : undefined}
+                          onClick={() => toggleActiveMutation.mutate({ id: company._id, isActive: !company.isActive })}
+                          className={`
+                            inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full border
+                            transition-colors duration-200 shadow-sm
+                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-indigo-400
+                            disabled:cursor-not-allowed disabled:opacity-60
+                            ${isToggling ? "cursor-wait" : company.isSuspended ? "" : "cursor-pointer"}
+                            ${company.isActive
+                              ? "bg-emerald-50 border-emerald-200 hover:border-emerald-300"
+                              : "bg-rose-50/70 border-rose-200/80 hover:border-rose-300"
+                            }
+                          `}
+                        >
+                          {/* Status dot */}
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-200
+                              ${company.isActive ? "bg-emerald-500" : "bg-rose-400"}
+                            `}
+                          />
+
+                          {/* Label */}
+                          <span
+                            className={`text-[11px] font-medium tracking-wide transition-colors duration-200 w-12 text-left
+                              ${company.isActive ? "text-emerald-700" : "text-rose-500"}
+                            `}
+                          >
                             {isToggling ? "…" : company.isActive ? "Active" : "Inactive"}
                           </span>
-                          <Switch
-                            checked={company.isActive}
-                            disabled={isToggling || company.isSuspended}
-                            onCheckedChange={(checked) => toggleActiveMutation.mutate({ id: company._id, isActive: checked })}
-                            title={company.isSuspended ? "Restore company before activating" : undefined}
-                          />
-                        </div>
+
+                          {/* Mini switch */}
+                          <span
+                            className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full ml-0.5
+                              transition-colors duration-200
+                              ${company.isActive ? "bg-emerald-500" : "bg-gray-300"}
+                            `}
+                          >
+                            <span
+                              className={`inline-block h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 ease-out
+                                ${company.isActive ? "translate-x-3.5" : "translate-x-0.5"}
+                              `}
+                            />
+                          </span>
+                        </button>
 
                         <Button variant="outline" size="sm" className="h-7 text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
                           onClick={() => setCreditsModal({ id: company._id, name: company.name })}>
