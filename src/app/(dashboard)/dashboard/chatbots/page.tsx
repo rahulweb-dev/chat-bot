@@ -9,6 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/use-toast";
 import {
@@ -209,9 +213,14 @@ export default function ChatbotsPage() {
   const deleteBot = useMutation({
     mutationFn: async (id: string) => {
       const r = await fetch(`/api/chatbots/${id}`, { method: "DELETE" });
-      return r.json();
+      const d = await r.json();
+      if (!r.ok || d?.success === false) throw new Error(d?.error || "Failed to delete chatbot");
+      return d;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["chatbots"] }); toast({ title: "Deleted" }); },
+    onError: (err: unknown) => {
+      toast({ title: err instanceof Error ? err.message : "Failed to delete chatbot", variant: "destructive" });
+    },
   });
 
   const chatbots = data || [];
@@ -377,17 +386,31 @@ export default function ChatbotsPage() {
                       </Badge>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setConfigBot(bot)}>
+                  <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                    <Button variant="ghost" size="icon" aria-label={`Configure ${bot.name}`} className="h-8 w-8" onClick={() => setConfigBot(bot)}>
                       <Settings className="h-4 w-4" />
                     </Button>
-                    <Button
-                      variant="ghost" size="icon"
-                      className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
-                      onClick={() => { if (confirm("Delete this chatbot?")) deleteBot.mutate(bot._id); }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost" size="icon"
+                          aria-label={`Delete ${bot.name}`}
+                          className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete {bot.name}?</AlertDialogTitle>
+                          <AlertDialogDescription>This can&apos;t be undone.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteBot.mutate(bot._id)}>Delete</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               </CardHeader>

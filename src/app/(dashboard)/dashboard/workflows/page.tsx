@@ -11,6 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "@/components/ui/use-toast";
 import { Loader2, Plus, Zap, Trash2, ArrowRight } from "lucide-react";
 
@@ -59,6 +63,10 @@ export default function WorkflowsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workflows"] });
       toast({ title: "Workflow deleted" });
+    },
+    onError: (err: unknown) => {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error : "Failed to delete workflow";
+      toast({ title: msg, variant: "destructive" });
     },
   });
 
@@ -156,14 +164,28 @@ export default function WorkflowsPage() {
                       checked={wf.isActive}
                       onCheckedChange={(checked) => toggle.mutate({ id: wf._id, isActive: checked })}
                     />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100"
-                      onClick={() => deleteWorkflow.mutate(wf._id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Delete ${wf.name}`}
+                          className="h-8 w-8 text-destructive hover:text-destructive opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete {wf.name}?</AlertDialogTitle>
+                          <AlertDialogDescription>This can&apos;t be undone.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteWorkflow.mutate(wf._id)}>Delete</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               </CardHeader>
