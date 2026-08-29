@@ -319,36 +319,47 @@ export default function AgentsPage() {
                   <button
                     onClick={() => toggleActive(agent._id, agent.isActive)}
                     disabled={isToggling}
+                    aria-pressed={agent.isActive}
+                    aria-label={agent.isActive ? "Deactivate agent" : "Activate agent"}
                     className={`
-                      group/btn relative flex items-center gap-2 px-3.5 py-1.5 rounded-full
-                      text-xs font-semibold border transition-all duration-200 select-none
-                      ${isToggling ? "opacity-60 cursor-wait" : "cursor-pointer"}
+                      inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full border
+                      transition-colors duration-200 select-none shadow-sm
+                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-indigo-400
+                      ${isToggling ? "opacity-70 cursor-wait" : "cursor-pointer"}
                       ${agent.isActive
-                        ? "bg-green-50 text-green-700 border-green-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
-                        : "bg-red-50 text-red-600 border-red-200 hover:bg-green-50 hover:text-green-700 hover:border-green-200"
+                        ? "bg-emerald-50 border-emerald-200 hover:border-emerald-300"
+                        : "bg-rose-50/70 border-rose-200/80 hover:border-rose-300"
                       }
                     `}
                   >
-                    {/* Animated dot */}
-                    <span className="relative flex items-center justify-center w-2 h-2">
-                      <span
-                        className={`absolute inline-flex w-full h-full rounded-full opacity-60 animate-ping
-                          ${agent.isActive ? "bg-green-500 group-hover/btn:bg-red-500" : "bg-red-400 group-hover/btn:bg-green-500"}
-                        `}
-                      />
-                      <span
-                        className={`relative inline-flex w-2 h-2 rounded-full
-                          ${agent.isActive ? "bg-green-500 group-hover/btn:bg-red-500" : "bg-red-400 group-hover/btn:bg-green-500"}
-                        `}
-                      />
-                    </span>
+                    {/* Status dot */}
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-200
+                        ${agent.isActive ? "bg-emerald-500" : "bg-rose-400"}
+                      `}
+                    />
 
-                    {/* Label — flips on hover */}
-                    <span className="group-hover/btn:hidden">
+                    {/* Label */}
+                    <span
+                      className={`text-[11px] font-medium tracking-wide transition-colors duration-200
+                        ${agent.isActive ? "text-emerald-700" : "text-rose-500"}
+                      `}
+                    >
                       {isToggling ? "Updating…" : agent.isActive ? "Active" : "Inactive"}
                     </span>
-                    <span className="hidden group-hover/btn:inline">
-                      {agent.isActive ? "Deactivate" : "Activate"}
+
+                    {/* Mini switch */}
+                    <span
+                      className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full ml-0.5
+                        transition-colors duration-200
+                        ${agent.isActive ? "bg-emerald-500" : "bg-gray-300"}
+                      `}
+                    >
+                      <span
+                        className={`inline-block h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 ease-out
+                          ${agent.isActive ? "translate-x-3.5" : "translate-x-0.5"}
+                        `}
+                      />
                     </span>
                   </button>
 
