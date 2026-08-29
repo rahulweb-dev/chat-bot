@@ -8,12 +8,13 @@ import {
   Settings, Bell, Key, Bot, Workflow, CreditCard,
   LayoutDashboard, BookOpen, Puzzle, Tag, Globe, Shield,
   ChevronLeft, ChevronRight, Inbox, MessageCircle,
-  Brain, Zap, ArrowUpRight, Trophy, Mail,
+  Brain, Zap, ArrowUpRight, Trophy, Mail, X,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { getInitials } from "@/lib/utils";
 import { useState } from "react";
+import { useUIStore } from "@/store/ui-store";
 
 interface NavItem {
   label: string;
@@ -114,15 +115,31 @@ export function Sidebar() {
   const { data: session } = useSession();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const mobileNavOpen = useUIStore((s) => s.mobileNavOpen);
+  const closeMobileNav = useUIStore((s) => s.closeMobileNav);
   const isSuperAdmin = session?.user?.role === "SUPER_ADMIN";
   const groups = isSuperAdmin ? SUPER_ADMIN_GROUPS : NAV_GROUPS;
   const userRole = session?.user?.role || "";
 
   return (
-    <aside className={cn(
-      "relative flex flex-col h-full transition-all duration-300 border-r border-gray-800/60 bg-gray-950 shrink-0",
-      collapsed ? "w-[60px]" : "w-64"
-    )}>
+    <>
+      {/* Mobile backdrop — dismisses the drawer, never rendered/needed at lg+ */}
+      {mobileNavOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={closeMobileNav}
+          aria-hidden="true"
+        />
+      )}
+      <aside className={cn(
+        "flex flex-col h-full border-r border-gray-800/60 bg-gray-950 shrink-0 transition-transform duration-300",
+        // Mobile: fixed off-canvas drawer, slides in over content
+        "fixed inset-y-0 left-0 z-50 w-64",
+        mobileNavOpen ? "translate-x-0" : "-translate-x-full",
+        // Desktop: back in normal flow, collapse toggle applies, never translated
+        "lg:relative lg:z-auto lg:translate-x-0 lg:transition-[width]",
+        collapsed ? "lg:w-[60px]" : "lg:w-64"
+      )}>
       {/* Brand */}
       <div className={cn(
         "flex items-center h-16 border-b border-gray-800/60 shrink-0 px-4 gap-3",
@@ -132,11 +149,20 @@ export function Sidebar() {
           <MessageSquare className="w-4 h-4 text-white" />
         </div>
         {!collapsed && (
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="font-bold text-white text-sm leading-none tracking-tight">SupportFlow</p>
             <p className="text-[10px] text-indigo-400/80 mt-0.5 font-semibold tracking-widest uppercase">AI Platform</p>
           </div>
         )}
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Close menu"
+          className="lg:hidden h-8 w-8 text-gray-500 hover:text-white hover:bg-white/10 shrink-0"
+          onClick={closeMobileNav}
+        >
+          <X className="w-4 h-4" />
+        </Button>
       </div>
 
       {/* Navigation */}
@@ -167,6 +193,7 @@ export function Sidebar() {
                     key={item.href}
                     href={item.href}
                     title={collapsed ? item.label : undefined}
+                    onClick={closeMobileNav}
                     className={cn(
                       "relative flex items-center gap-2.5 rounded-lg text-sm font-medium transition-all duration-150 group mb-0.5",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950",
@@ -250,16 +277,17 @@ export function Sidebar() {
         </Link>
       </div>
 
-      {/* Collapse toggle */}
+      {/* Collapse toggle — a collapsed icon rail doesn't apply to the mobile drawer */}
       <Button
         variant="ghost"
         size="icon"
         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        className="absolute -right-3 top-[72px] w-6 h-6 bg-gray-950 border border-gray-800 rounded-full text-gray-500 hover:text-white hover:bg-gray-800 z-20 shadow-sm"
+        className="hidden lg:flex absolute -right-3 top-[72px] w-6 h-6 bg-gray-950 border border-gray-800 rounded-full text-gray-500 hover:text-white hover:bg-gray-800 z-20 shadow-sm"
         onClick={() => setCollapsed(!collapsed)}
       >
         {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
       </Button>
-    </aside>
+      </aside>
+    </>
   );
 }

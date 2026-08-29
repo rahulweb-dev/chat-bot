@@ -1,7 +1,8 @@
 "use client";
 import { useSession, signOut } from "next-auth/react";
-import { Bell, LogOut, Settings, User, Search, ChevronDown } from "lucide-react";
+import { Bell, LogOut, Settings, User, Search, ChevronDown, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useUIStore } from "@/store/ui-store";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -45,6 +46,7 @@ const PAGE_TITLES: Record<string, string> = {
 export function Header() {
   const { data: session } = useSession();
   const pathname = usePathname();
+  const openMobileNav = useUIStore((s) => s.openMobileNav);
 
   const pageTitle = PAGE_TITLES[pathname] ?? "Dashboard";
   const today = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
@@ -61,7 +63,18 @@ export function Header() {
   const unreadCount = notifData?.unreadCount || 0;
 
   return (
-    <header className="h-16 border-b border-gray-200/80 bg-white flex items-center gap-4 px-6 shrink-0">
+    <header className="h-16 border-b border-gray-200/80 bg-white flex items-center gap-4 px-4 sm:px-6 shrink-0">
+      {/* Mobile nav toggle */}
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Open menu"
+        className="lg:hidden h-9 w-9 shrink-0 -ml-1 text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+        onClick={openMobileNav}
+      >
+        <Menu className="w-5 h-5" />
+      </Button>
+
       {/* Page title */}
       <div className="shrink-0 min-w-0">
         <h1 className="text-[15px] font-semibold text-gray-900 leading-none">{pageTitle}</h1>
