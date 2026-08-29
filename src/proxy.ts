@@ -13,6 +13,9 @@ const publicRoutes = [
   "/api/auth",
   "/api/health",
   "/api/agents/invite",
+  // Inbound provider webhooks authenticate themselves (Meta's X-Hub-Signature-256,
+  // WhatsApp's verify-token handshake) rather than carrying a session/API key.
+  "/api/webhooks",
 ];
 const superAdminRoutes = ["/admin", "/api/admin"];
 

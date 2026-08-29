@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
     lastTestStatus: integration.lastTestStatus,
     lastTestError: integration.lastTestError,
     maskedAccessToken: maskSecret(decrypt(integration.encryptedAccessToken)),
+    hasAppSecret: !!integration.encryptedAppSecret,
     webhookCallbackUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/whatsapp/${ctx.companyId}`,
   });
 }
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
   if (!["COMPANY_ADMIN", "MANAGER"].includes(ctx.userRole)) return apiError("Forbidden", 403);
 
   const body = await request.json();
-  const { businessAccountId, phoneNumberId, accessToken, webhookVerifyToken } = body;
+  const { businessAccountId, phoneNumberId, accessToken, webhookVerifyToken, appSecret } = body;
   if (!businessAccountId || !phoneNumberId || !accessToken || !webhookVerifyToken) {
     return apiError("All fields are required");
   }
@@ -43,6 +44,11 @@ export async function POST(request: NextRequest) {
   const conflict = await WhatsAppIntegration.findOne({ phoneNumberId, companyId: { $ne: ctx.companyId } });
   if (conflict) return apiError("This Phone Number ID is already connected to another account");
 
+  const existing = await WhatsAppIntegration.findOne({ companyId: ctx.companyId }).select("encryptedAppSecret");
+  if (!appSecret && !existing?.encryptedAppSecret) {
+    return apiError("App Secret is required — find it in Meta App Dashboard → Settings → Basic. It's needed to verify incoming webhook requests are really from Meta.");
+  }
+
   const integration = await WhatsAppIntegration.findOneAndUpdate(
     { companyId: ctx.companyId },
     {
@@ -51,6 +57,7 @@ export async function POST(request: NextRequest) {
       phoneNumberId,
       encryptedAccessToken: encrypt(accessToken),
       encryptedWebhookVerifyToken: encrypt(webhookVerifyToken),
+      ...(appSecret ? { encryptedAppSecret: encrypt(appSecret) } : {}),
       enabled: true,
       lastTestStatus: undefined,
       lastTestedAt: undefined,

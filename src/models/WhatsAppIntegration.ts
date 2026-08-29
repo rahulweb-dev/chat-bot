@@ -8,6 +8,7 @@ export interface IWhatsAppIntegration extends Document {
   displayPhoneNumber?: string;
   encryptedAccessToken: string;
   encryptedWebhookVerifyToken: string;
+  encryptedAppSecret?: string;
   enabled: boolean;
   lastTestedAt?: Date;
   lastTestStatus?: "SUCCESS" | "FAILURE";
@@ -24,6 +25,7 @@ const WhatsAppIntegrationSchema = new Schema<IWhatsAppIntegration>(
     displayPhoneNumber: { type: String },
     encryptedAccessToken: { type: String, required: true },
     encryptedWebhookVerifyToken: { type: String, required: true },
+    encryptedAppSecret: { type: String },
     enabled: { type: Boolean, default: true },
     lastTestedAt: { type: Date },
     lastTestStatus: { type: String, enum: ["SUCCESS", "FAILURE"] },

@@ -23,6 +23,7 @@ interface IntegrationStatus {
   lastTestStatus?: "SUCCESS" | "FAILURE";
   lastTestError?: string;
   maskedAccessToken: string;
+  hasAppSecret: boolean;
   webhookCallbackUrl: string;
 }
 
@@ -35,6 +36,7 @@ export function SettingsTab() {
   const [phoneNumberId, setPhoneNumberId] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [webhookVerifyToken, setWebhookVerifyToken] = useState("");
+  const [appSecret, setAppSecret] = useState("");
   const [loadedIntegrationId, setLoadedIntegrationId] = useState<string | null>(null);
 
   const { data: integration, isLoading } = useQuery<IntegrationStatus | null>({
@@ -52,12 +54,13 @@ export function SettingsTab() {
 
   const connect = useMutation({
     mutationFn: () =>
-      axios.post("/api/whatsapp/integration", { businessAccountId, phoneNumberId, accessToken, webhookVerifyToken }),
+      axios.post("/api/whatsapp/integration", { businessAccountId, phoneNumberId, accessToken, webhookVerifyToken, appSecret: appSecret || undefined }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["whatsapp-integration"] });
       toast({ title: "WhatsApp connected" });
       setAccessToken("");
       setWebhookVerifyToken("");
+      setAppSecret("");
     },
     onError: (err: unknown) => {
       const msg = axios.isAxiosError(err) ? err.response?.data?.error : "Failed to connect";
@@ -185,6 +188,15 @@ export function SettingsTab() {
                     </Button>
                   </div>
                 </div>
+                {!integration.hasAppSecret && (
+                  <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
+                    <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+                    <div className="text-xs text-red-800 space-y-1">
+                      <p className="font-medium">No App Secret on file — incoming messages are being rejected</p>
+                      <p>Add your App Secret below (Meta App Dashboard → Settings → Basic) so this connection can verify and accept incoming WhatsApp messages and delivery updates.</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -308,6 +320,17 @@ export function SettingsTab() {
                     required={!integration}
                   />
                   <p className="text-xs text-muted-foreground">Any string you choose — re-enter the same value in the Meta App webhook setup screen.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>App Secret</Label>
+                  <Input
+                    type="password"
+                    value={appSecret}
+                    onChange={(e) => setAppSecret(e.target.value)}
+                    placeholder={integration?.hasAppSecret ? "On file — leave blank to keep" : ""}
+                    required={!integration?.hasAppSecret}
+                  />
+                  <p className="text-xs text-muted-foreground">From Meta App Dashboard → Settings → Basic. Used to verify that incoming webhook requests really come from Meta.</p>
                 </div>
                 <Button type="submit" disabled={connect.isPending} className="w-full">
                   {connect.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plug className="h-4 w-4 mr-2" />}

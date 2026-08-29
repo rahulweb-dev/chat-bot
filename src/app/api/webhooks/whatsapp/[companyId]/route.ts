@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { connectDB } from "@/lib/mongodb";
 import { decrypt } from "@/lib/crypto";
 import { recomputeCampaignStats } from "@/lib/whatsappCampaignStats";
@@ -40,6 +41,17 @@ function classifyOptKeyword(text: string): "STOP" | "START" | null {
   if (STOP_KEYWORDS.has(normalized)) return "STOP";
   if (START_KEYWORDS.has(normalized)) return "START";
   return null;
+}
+
+// Meta signs every webhook POST with X-Hub-Signature-256 = HMAC-SHA256(App Secret, rawBody).
+// This is the only thing standing between this public endpoint and anyone on the internet
+// being able to forge inbound messages, delivery statuses, or opt-out requests.
+function verifyMetaSignature(rawBody: string, signatureHeader: string | null, appSecret: string): boolean {
+  if (!signatureHeader?.startsWith("sha256=")) return false;
+  const expected = "sha256=" + crypto.createHmac("sha256", appSecret).update(rawBody).digest("hex");
+  const a = Buffer.from(signatureHeader);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
 function extractContent(msg: WAMessage): { messageType: WAMessageType; content: string; mediaId?: string } {
@@ -86,7 +98,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const integration = await WhatsAppIntegration.findOne({ companyId, enabled: true });
   if (!integration) return NextResponse.json({ success: true }); // ack anyway, nothing to process
 
-  const body = await request.json();
+  if (!integration.encryptedAppSecret) {
+    console.error(`[whatsapp-webhook] company ${companyId} has no App Secret configured — rejecting. Add one in WhatsApp Settings to receive messages.`);
+    return NextResponse.json({ success: false, error: "Webhook not fully configured" }, { status: 401 });
+  }
+
+  const rawBody = await request.text();
+  const appSecret = decrypt(integration.encryptedAppSecret);
+  if (!verifyMetaSignature(rawBody, request.headers.get("x-hub-signature-256"), appSecret)) {
+    return NextResponse.json({ success: false, error: "Invalid signature" }, { status: 401 });
+  }
+
+  const body = JSON.parse(rawBody);
   const entries = body?.entry || [];
 
   for (const entry of entries) {
