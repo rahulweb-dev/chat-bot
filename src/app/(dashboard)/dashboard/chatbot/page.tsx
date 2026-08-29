@@ -16,7 +16,7 @@ import {
   HelpCircle, Tag, Truck, Clock, Plus, Trash2, Save, Loader2,
   Pencil, Check, X, Bot, MessageSquare, Brain, Code, Sparkles,
   Zap, ExternalLink, CheckCircle2, Circle, Copy, Reply, Palette,
-  GitBranch, ChevronDown, ChevronRight, Ticket, UserCheck, ArrowRight, RotateCcw, Eye,
+  GitBranch, ChevronDown, ChevronRight, ChevronUp, Ticket, UserCheck, ArrowRight, RotateCcw, Eye,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -25,9 +25,16 @@ interface Offer    { _id?: string; title: string; description: string; validUnti
 interface Vehicle  { _id?: string; name: string; category: string; payload: string; priceRange: string; description: string; isActive: boolean }
 interface BizHour  { day: string; open: string; close: string; isClosed: boolean }
 interface Training { _id?: string; trigger: string; keywords: string[]; response: string; isActive: boolean }
+interface CustomFlowStep { question: string; type: "choice" | "text"; options: string[]; saveAs: string }
+interface CustomFlowItem {
+  key: string; label: string; steps: CustomFlowStep[];
+  outcome: "NONE" | "CREATE_LEAD" | "CREATE_TICKET" | "ASSIGN_AGENT";
+  closingMessage: string; leadType?: string; leadScore?: number; ticketSubject?: string;
+}
+interface CustomFlow { enabled: boolean; menuIntro: string; flows: CustomFlowItem[] }
 interface Config   {
   faqs: FAQ[]; offers: Offer[]; vehicles: Vehicle[];
-  businessHours: BizHour[]; training: Training[];
+  businessHours: BizHour[]; training: Training[]; customFlow?: CustomFlow;
   welcomeMessage: string; agentOnlineMessage: string; agentOfflineMessage: string;
 }
 
@@ -90,7 +97,7 @@ function FAQTab({ config, refetch, showStepBanner = true }: { config: Config; re
   return (
     <div className="space-y-4">
       {showStepBanner && (
-        <StepBanner n={3} of={6} title="FAQs">
+        <StepBanner n={3} of={7} title="FAQs">
           Add common questions and answers. When a visitor&apos;s message matches an active FAQ, the bot answers with it directly — before falling back to the menu flow.
         </StepBanner>
       )}
@@ -219,7 +226,7 @@ function TrainingTab({ config, refetch, showStepBanner = true }: { config: Confi
   return (
     <div className="space-y-4">
       {showStepBanner && (
-        <StepBanner n={4} of={6} title="Training rules">
+        <StepBanner n={4} of={7} title="Training rules">
           Keyword → response rules. If a visitor&apos;s message contains any keyword in an active rule, the bot replies with that rule&apos;s response. Checked after FAQs, before the menu flow.
         </StepBanner>
       )}
@@ -393,7 +400,7 @@ function CatalogTab({ config, refetch, showStepBanner = true }: { config: Config
   return (
     <div className="space-y-8">
       {showStepBanner && (
-        <StepBanner n={5} of={6} title="Catalog">
+        <StepBanner n={5} of={7} title="Catalog">
           Offers and vehicles are reference data your team can keep up to date here. They&apos;re shown to visitors through the Offers and Find a Vehicle menu options.
         </StepBanner>
       )}
@@ -881,6 +888,269 @@ const OUTCOME_LABELS: Record<string, { label: string; color: string; icon: typeo
   NONE:          { label: "Back to Menu",   color: "text-gray-600 bg-gray-100 border-gray-200",      icon: ArrowRight },
 };
 
+function slugifyKey(s: string): string {
+  const base = s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return `${base || "option"}_${Date.now().toString(36)}`;
+}
+
+// Read-only reference for the built-in demo menu — shown when a company hasn't
+// turned on their own custom menu yet, so they can see what visitors get by default.
+function DefaultFlowReference({ expandedFlow, setExpandedFlow }: { expandedFlow: string | null; setExpandedFlow: (v: string | null) => void }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {FLOWS.map((flow) => {
+        const isOpen = expandedFlow === flow.key;
+        const outcome = OUTCOME_LABELS[flow.outcome];
+        const OutcomeIcon = outcome.icon;
+        return (
+          <div key={flow.key} className="rounded-2xl border overflow-hidden shadow-sm transition-shadow hover:shadow-md" style={{ borderColor: flow.color + "44" }}>
+            <button onClick={() => setExpandedFlow(isOpen ? null : flow.key)} className="w-full flex items-center justify-between p-3 text-left transition-colors" style={{ backgroundColor: flow.bg }}>
+              <span className="font-semibold text-sm" style={{ color: flow.color }}>{flow.label}</span>
+              {isOpen ? <ChevronDown className="w-4 h-4 shrink-0" style={{ color: flow.color }} /> : <ChevronRight className="w-4 h-4 shrink-0" style={{ color: flow.color }} />}
+            </button>
+            {isOpen && (
+              <div className="bg-white p-3 space-y-2 border-t" style={{ borderColor: flow.color + "22" }}>
+                {flow.steps.map((step, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5" style={{ backgroundColor: flow.color }}>{i + 1}</div>
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-gray-700">{step.q}</p>
+                      {step.opts.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {step.opts.map((o) => <span key={o} className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{o}</span>)}
+                        </div>
+                      )}
+                      {step.input && <span className="text-[10px] text-gray-400 italic">✏️ Free text input</span>}
+                    </div>
+                  </div>
+                ))}
+                <div className={`flex items-center gap-1.5 mt-2 pt-2 border-t text-xs font-semibold px-2 py-1 rounded-lg ${outcome.color} border`}>
+                  <OutcomeIcon className="w-3.5 h-3.5" />
+                  {outcome.label}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Menu Flow Builder Tab ───────────────────────────────────────────────────────
+function FlowBuilderTab({ config, refetch, showStepBanner = true }: { config: Config; refetch: () => void; showStepBanner?: boolean }) {
+  const seed: CustomFlow = config.customFlow ?? { enabled: false, menuIntro: "How can we help you today? Please select an option:", flows: [] };
+  const [enabled, setEnabled] = useState(seed.enabled);
+  const [menuIntro, setMenuIntro] = useState(seed.menuIntro);
+  const [flows, setFlows] = useState<CustomFlowItem[]>(seed.flows);
+  const [openIdx, setOpenIdx] = useState<number | null>(null);
+  const [expandedFlow, setExpandedFlow] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function save(patch: Partial<{ enabled: boolean; menuIntro: string; flows: CustomFlowItem[] }> = {}) {
+    const payload = { enabled: patch.enabled ?? enabled, menuIntro: patch.menuIntro ?? menuIntro, flows: patch.flows ?? flows };
+    setSaving(true);
+    const r = await patchConfig({ customFlow: payload });
+    setSaving(false);
+    if (r.success) {
+      const cf = r.data.customFlow ?? payload;
+      setEnabled(cf.enabled); setMenuIntro(cf.menuIntro); setFlows(cf.flows);
+      refetch();
+      toast({ title: "Menu flow saved" });
+    } else toast({ title: r.error, variant: "destructive" });
+  }
+
+  function addFlow() {
+    const item: CustomFlowItem = { key: slugifyKey("option"), label: "New Option", steps: [], outcome: "NONE", closingMessage: "", leadType: "", leadScore: 60, ticketSubject: "" };
+    const next = [...flows, item];
+    setFlows(next);
+    setOpenIdx(next.length - 1);
+  }
+
+  function updateFlow(i: number, patch: Partial<CustomFlowItem>) {
+    setFlows((fs) => fs.map((f, idx) => (idx === i ? { ...f, ...patch } : f)));
+  }
+
+  function removeFlow(i: number) {
+    const next = flows.filter((_, idx) => idx !== i);
+    setFlows(next);
+    if (openIdx === i) setOpenIdx(null);
+    save({ flows: next });
+  }
+
+  function addStep(i: number) {
+    updateFlow(i, { steps: [...flows[i].steps, { question: "", type: "choice", options: [], saveAs: "" }] });
+  }
+  function updateStep(i: number, si: number, patch: Partial<CustomFlowStep>) {
+    updateFlow(i, { steps: flows[i].steps.map((st, idx) => (idx === si ? { ...st, ...patch } : st)) });
+  }
+  function removeStep(i: number, si: number) {
+    updateFlow(i, { steps: flows[i].steps.filter((_, idx) => idx !== si) });
+  }
+  function moveStep(i: number, si: number, dir: -1 | 1) {
+    const steps = [...flows[i].steps];
+    const target = si + dir;
+    if (target < 0 || target >= steps.length) return;
+    [steps[si], steps[target]] = [steps[target], steps[si]];
+    updateFlow(i, { steps });
+  }
+
+  return (
+    <div className="space-y-4">
+      {showStepBanner && (
+        <StepBanner n={2} of={7} title="Menu flow">
+          Build your own bot menu to replace the built-in demo below. Each option can ask a series of questions, then create a Lead, a Ticket, or hand off to an agent — this is what runs for every company that turns it on.
+        </StepBanner>
+      )}
+
+      <Card>
+        <CardContent className="p-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium">Use a custom menu</p>
+            <p className="text-xs text-gray-400 mt-0.5">When off, visitors see the built-in demo menu (Find a Vehicle, Get On-Road Price, …) shown below for reference.</p>
+          </div>
+          <Switch checked={enabled} onCheckedChange={(v) => { setEnabled(v); save({ enabled: v }); }} />
+        </CardContent>
+      </Card>
+
+      {!enabled ? (
+        <DefaultFlowReference expandedFlow={expandedFlow} setExpandedFlow={setExpandedFlow} />
+      ) : (
+        <>
+          <Card>
+            <CardContent className="p-4 space-y-2">
+              <label className="text-sm font-medium">Menu intro text</label>
+              <p className="text-xs text-gray-400">Shown above the menu buttons, right after the welcome message.</p>
+              <Input value={menuIntro} onChange={(e) => setMenuIntro(e.target.value)} />
+            </CardContent>
+          </Card>
+
+          <div className="space-y-2">
+            {flows.length === 0 && (
+              <div className="text-center py-10 text-gray-400 border-2 border-dashed rounded-xl">
+                <GitBranch className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">No menu options yet.</p>
+                <p className="text-xs mt-1">Add your first option below — this becomes a button visitors can tap.</p>
+              </div>
+            )}
+            {flows.map((f, i) => {
+              const isOpen = openIdx === i;
+              return (
+                <Card key={f.key} className="overflow-hidden">
+                  <button onClick={() => setOpenIdx(isOpen ? null : i)} className="w-full flex items-center justify-between p-3.5 text-left bg-gray-50 hover:bg-gray-100 transition-colors">
+                    <span className="text-sm font-semibold flex items-center gap-2">
+                      {f.label || "Untitled option"}
+                      <span className="text-xs font-normal text-gray-400">{f.steps.length} step{f.steps.length === 1 ? "" : "s"}</span>
+                    </span>
+                    {isOpen ? <ChevronDown className="w-4 h-4 shrink-0 text-gray-400" /> : <ChevronRight className="w-4 h-4 shrink-0 text-gray-400" />}
+                  </button>
+                  {isOpen && (
+                    <CardContent className="p-4 space-y-4 border-t">
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Menu button label</label>
+                        <Input value={f.label} onChange={(e) => updateFlow(i, { label: e.target.value })} placeholder="e.g. 🏠 Book a Viewing" />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-gray-600 block">Questions ({f.steps.length})</label>
+                        {f.steps.map((st, si) => (
+                          <div key={si} className="border rounded-lg p-3 bg-gray-50/60">
+                            <div className="flex items-start gap-2">
+                              <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0 mt-1.5">{si + 1}</span>
+                              <div className="flex-1 space-y-2">
+                                <Input placeholder="Question text (e.g. Which city are you in?)" value={st.question} onChange={(e) => updateStep(i, si, { question: e.target.value })} />
+                                <div className="flex items-center gap-2">
+                                  <select className="border rounded-md px-2 py-1.5 text-xs bg-white" value={st.type} onChange={(e) => updateStep(i, si, { type: e.target.value as "choice" | "text" })}>
+                                    <option value="choice">Multiple choice</option>
+                                    <option value="text">Free text</option>
+                                  </select>
+                                  <Input className="text-xs flex-1" placeholder="Save answer as… (e.g. city)" value={st.saveAs} onChange={(e) => updateStep(i, si, { saveAs: e.target.value.replace(/\s+/g, "_") })} />
+                                </div>
+                                {st.type === "choice" && (
+                                  <Input className="text-xs" placeholder="Options, comma separated (e.g. Mumbai, Delhi, Chennai)" value={st.options.join(", ")} onChange={(e) => updateStep(i, si, { options: e.target.value.split(",").map((o) => o.trim()).filter(Boolean) })} />
+                                )}
+                              </div>
+                              <div className="flex flex-col gap-1 shrink-0">
+                                <button onClick={() => moveStep(i, si, -1)} disabled={si === 0} aria-label="Move question up" className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:hover:text-gray-400"><ChevronUp className="w-3.5 h-3.5" /></button>
+                                <button onClick={() => moveStep(i, si, 1)} disabled={si === f.steps.length - 1} aria-label="Move question down" className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:hover:text-gray-400"><ChevronDown className="w-3.5 h-3.5" /></button>
+                                <button onClick={() => removeStep(i, si)} aria-label="Remove question" className="p-1 text-gray-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        <Button size="sm" variant="outline" onClick={() => addStep(i)}><Plus className="w-3.5 h-3.5 mr-1.5" />Add Question</Button>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 items-end">
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">When finished</label>
+                          <select className="w-full border rounded-md px-2 py-2 text-sm bg-white" value={f.outcome} onChange={(e) => updateFlow(i, { outcome: e.target.value as CustomFlowItem["outcome"] })}>
+                            <option value="NONE">Just show the closing message</option>
+                            <option value="CREATE_LEAD">Create a Lead</option>
+                            <option value="CREATE_TICKET">Create a Ticket</option>
+                            <option value="ASSIGN_AGENT">Hand off to an agent</option>
+                          </select>
+                        </div>
+                        {f.outcome === "CREATE_LEAD" && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <Input placeholder="Lead type (e.g. INQUIRY)" value={f.leadType ?? ""} onChange={(e) => updateFlow(i, { leadType: e.target.value })} />
+                            <Input type="number" min={0} max={100} placeholder="Score" value={f.leadScore ?? 60} onChange={(e) => updateFlow(i, { leadScore: Number(e.target.value) || 0 })} />
+                          </div>
+                        )}
+                        {f.outcome === "CREATE_TICKET" && (
+                          <Input placeholder="Ticket subject (e.g. Service request — {{vehicle}})" value={f.ticketSubject ?? ""} onChange={(e) => updateFlow(i, { ticketSubject: e.target.value })} />
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Closing message</label>
+                        <p className="text-xs text-gray-400 mb-1">
+                          Use <code className="bg-gray-100 px-1 rounded">{"{{fieldName}}"}</code> to insert an answer — e.g. <code className="bg-gray-100 px-1 rounded">{"{{city}}"}</code> inserts whatever was saved under &quot;city&quot; above.
+                        </p>
+                        <textarea className="w-full border rounded-md px-3 py-2 text-sm min-h-20 resize-none" placeholder="Thanks! We'll be in touch shortly." value={f.closingMessage} onChange={(e) => updateFlow(i, { closingMessage: e.target.value })} />
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t">
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <button className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5" />Delete this option</button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete &quot;{f.label}&quot;?</AlertDialogTitle>
+                              <AlertDialogDescription>Visitors mid-conversation on this option will be sent back to the menu. This can&apos;t be undone.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => removeFlow(i)}>Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                        <Button size="sm" onClick={() => save()} disabled={saving} className="bg-indigo-600 hover:bg-indigo-700">
+                          {saving ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
+                          Save this option
+                        </Button>
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-between">
+            <Button variant="outline" onClick={addFlow}><Plus className="w-4 h-4 mr-2" />Add Menu Option</Button>
+            <Button onClick={() => save()} disabled={saving} className="bg-indigo-600 hover:bg-indigo-700">
+              {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+              Save Menu
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Overview Tab ─────────────────────────────────────────────────────────────
 function OverviewTab({ config, refetch }: { config: Config; refetch: () => void }) {
   const [expandedFlow, setExpandedFlow] = useState<string | null>(null);
@@ -937,50 +1207,34 @@ function OverviewTab({ config, refetch }: { config: Config; refetch: () => void 
       </div>
 
       <div>
-        <p className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5"><GitBranch className="w-4 h-4" />What the bot can do (fixed menu flow)</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {FLOWS.map((flow) => {
-            const isOpen = expandedFlow === flow.key;
-            const outcome = OUTCOME_LABELS[flow.outcome];
-            const OutcomeIcon = outcome.icon;
-            return (
-              <div key={flow.key} className="rounded-2xl border overflow-hidden shadow-sm transition-shadow hover:shadow-md" style={{ borderColor: flow.color + "44" }}>
-                <button onClick={() => setExpandedFlow(isOpen ? null : flow.key)} className="w-full flex items-center justify-between p-3 text-left transition-colors" style={{ backgroundColor: flow.bg }}>
-                  <span className="font-semibold text-sm" style={{ color: flow.color }}>{flow.label}</span>
-                  {isOpen ? <ChevronDown className="w-4 h-4 shrink-0" style={{ color: flow.color }} /> : <ChevronRight className="w-4 h-4 shrink-0" style={{ color: flow.color }} />}
-                </button>
-                {isOpen && (
-                  <div className="bg-white p-3 space-y-2 border-t" style={{ borderColor: flow.color + "22" }}>
-                    {flow.steps.map((step, i) => (
-                      <div key={i} className="flex items-start gap-2">
-                        <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5" style={{ backgroundColor: flow.color }}>{i + 1}</div>
-                        <div className="flex-1">
-                          <p className="text-xs font-medium text-gray-700">{step.q}</p>
-                          {step.opts.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {step.opts.map((o) => <span key={o} className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{o}</span>)}
-                            </div>
-                          )}
-                          {step.input && <span className="text-[10px] text-gray-400 italic">✏️ Free text input</span>}
-                        </div>
-                      </div>
-                    ))}
-                    <div className={`flex items-center gap-1.5 mt-2 pt-2 border-t text-xs font-semibold px-2 py-1 rounded-lg ${outcome.color} border`}>
-                      <OutcomeIcon className="w-3.5 h-3.5" />
-                      {outcome.label}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        <p className="text-xs text-gray-400 text-center pt-3">Click any flow to see its steps · Try the real thing in the Live Preview →</p>
+        {config.customFlow?.enabled ? (
+          <>
+            <p className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5"><GitBranch className="w-4 h-4" />What the bot can do (your custom menu)</p>
+            <div className="rounded-2xl border p-4 bg-white space-y-2">
+              {config.customFlow.flows.length === 0 ? (
+                <p className="text-sm text-gray-400">Custom menu is on but has no options yet — add some in the Menu Flow tab.</p>
+              ) : config.customFlow.flows.map((f) => (
+                <div key={f.key} className="flex items-center justify-between text-sm py-1.5 border-b last:border-0">
+                  <span className="font-medium text-gray-700">{f.label}</span>
+                  <span className="text-xs text-gray-400">{f.steps.length} step{f.steps.length === 1 ? "" : "s"} · {OUTCOME_LABELS[f.outcome].label}</span>
+                </div>
+              ))}
+              <p className="text-xs text-gray-400 pt-2">Edit this in the <strong>Menu Flow</strong> tab.</p>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5"><GitBranch className="w-4 h-4" />What the bot can do (built-in demo menu)</p>
+            <DefaultFlowReference expandedFlow={expandedFlow} setExpandedFlow={setExpandedFlow} />
+            <p className="text-xs text-gray-400 text-center pt-3">Click any flow to see its steps · Want your own menu instead? Build one in the Menu Flow tab.</p>
+          </>
+        )}
       </div>
 
       <div className="space-y-3">
         <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5"><Pencil className="w-4 h-4" />Manage everything from here</p>
         {[
+          { key: "flow",     label: "Menu Flow", count: config.customFlow?.flows.length ?? 0, icon: GitBranch, render: () => <FlowBuilderTab config={config} refetch={refetch} showStepBanner={false} /> },
           { key: "faqs",     label: "FAQs",     count: config.faqs.length,             icon: HelpCircle, render: () => <FAQTab config={config} refetch={refetch} showStepBanner={false} /> },
           { key: "training", label: "Training", count: (config.training ?? []).length, icon: Brain,      render: () => <TrainingTab config={config} refetch={refetch} showStepBanner={false} /> },
           { key: "catalog",  label: "Catalog (Offers & Vehicles)", count: config.offers.length + config.vehicles.length, icon: Tag, render: () => <CatalogTab config={config} refetch={refetch} showStepBanner={false} /> },
@@ -1243,7 +1497,7 @@ function ChatbotFlowPreview({ color, theme, companyName }: { color: string; them
 }
 
 // ── Main page ──────────────────────────────────────────────────────────────────
-const VALID_TABS = ["overview", "welcome", "faqs", "training", "catalog", "hours", "appearance", "install", "canned", "realtime"];
+const VALID_TABS = ["overview", "welcome", "flow", "faqs", "training", "catalog", "hours", "appearance", "install", "canned", "realtime"];
 
 function ChatbotPageInner() {
   const qc = useQueryClient();
@@ -1367,6 +1621,7 @@ function ChatbotPageInner() {
             <TabsList className="flex flex-wrap gap-1 h-auto w-full justify-start bg-gray-100 p-1">
               <TabsTrigger value="overview"   className="text-xs"><Sparkles className="w-3.5 h-3.5 mr-1" />Overview</TabsTrigger>
               <TabsTrigger value="welcome"    className="text-xs"><MessageSquare className="w-3.5 h-3.5 mr-1" />Welcome Message</TabsTrigger>
+              <TabsTrigger value="flow"       className="text-xs"><GitBranch className="w-3.5 h-3.5 mr-1" />Menu Flow</TabsTrigger>
               <TabsTrigger value="faqs"       className="text-xs"><HelpCircle className="w-3.5 h-3.5 mr-1" />FAQs</TabsTrigger>
               <TabsTrigger value="training"   className="text-xs"><Brain className="w-3.5 h-3.5 mr-1" />Training</TabsTrigger>
               <TabsTrigger value="catalog"    className="text-xs"><Tag className="w-3.5 h-3.5 mr-1" />Catalog</TabsTrigger>
@@ -1386,7 +1641,7 @@ function ChatbotPageInner() {
 
             {/* Welcome Message */}
             <TabsContent value="welcome" className="space-y-4 mt-4">
-              <StepBanner n={1} of={6} title="Welcome message">
+              <StepBanner n={1} of={7} title="Welcome message">
                 This is the very first thing visitors see when they open the chat widget. This is the single, real source of truth for the greeting — it&apos;s what all other pages point to.
               </StepBanner>
               <Card className="border-0 shadow-sm">
@@ -1410,6 +1665,12 @@ function ChatbotPageInner() {
             </TabsContent>
 
             {/* FAQs */}
+            <TabsContent value="flow" className="mt-4">
+              {configLoading || !config ? (
+                <div className="h-48 bg-gray-100 rounded-xl animate-pulse" />
+              ) : <FlowBuilderTab config={config} refetch={refetchConfig} />}
+            </TabsContent>
+
             <TabsContent value="faqs" className="mt-4">
               {configLoading || !config ? (
                 <div className="h-48 bg-gray-100 rounded-xl animate-pulse" />
@@ -1432,7 +1693,7 @@ function ChatbotPageInner() {
 
             {/* Appearance */}
             <TabsContent value="appearance" className="space-y-4 mt-4">
-              <StepBanner n={6} of={6} title="Appearance">
+              <StepBanner n={6} of={7} title="Appearance">
                 How the widget looks on your site — color, position and theme. This is the last setup step; when you&apos;re happy with it, grab the Install Code.
               </StepBanner>
               <Card className="border-0 shadow-sm">
@@ -1494,7 +1755,10 @@ function ChatbotPageInner() {
             </TabsContent>
 
             {/* Install */}
-            <TabsContent value="install" className="mt-4">
+            <TabsContent value="install" className="space-y-4 mt-4">
+              <StepBanner n={7} of={7} title="Install code">
+                Copy this snippet into your website. That&apos;s the whole setup — every earlier step is already live in it.
+              </StepBanner>
               <Card className="border-0 shadow-sm">
                 <CardHeader><CardTitle className="text-base">Installation Code</CardTitle></CardHeader>
                 <CardContent className="space-y-4">

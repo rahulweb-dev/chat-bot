@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError } from "@/lib/api-helpers";
-import { processFlow, matchTraining, SessionData } from "@/lib/chatbot-flow";
+import { getBotReply, SessionData } from "@/lib/chatbot-flow";
 import Settings from "@/models/Settings";
 
 export async function POST(request: NextRequest) {
@@ -23,15 +23,11 @@ export async function POST(request: NextRequest) {
   await connectDB();
 
   // Same precedence as the real widget (/api/widget/chat): a company's own Training
-  // rules and FAQs from Chatbot Settings take priority over the hardcoded flow, and the
-  // saved Widget welcome message replaces the generic greeting. Without this, the
-  // preview never reflects anything an admin configures — it only ever shows the
-  // generic scripted flow, which is confusing to test against.
-  const trained = message !== "__INIT__" && session.flow === "INITIAL"
-    ? await matchTraining(message, ctx.companyId)
-    : null;
+  // rules and FAQs take priority, then their custom menu flow if they've built one,
+  // then the built-in demo flow — this is the exact same call the live widget makes,
+  // so the preview always reflects whatever an admin configures.
   const settings = await Settings.findOne({ companyId: ctx.companyId }).select("widget.welcomeMessage").lean() as { widget?: { welcomeMessage?: string } } | null;
-  const result = trained ?? processFlow(message, session, settings?.widget?.welcomeMessage);
+  const result = await getBotReply(message, session, ctx.companyId, settings?.widget?.welcomeMessage);
 
   return NextResponse.json({
     success: true,

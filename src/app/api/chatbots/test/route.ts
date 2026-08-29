@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess } from "@/lib/api-helpers";
-import { processFlow, matchTraining, SessionData } from "@/lib/chatbot-flow";
+import { getBotReply, SessionData } from "@/lib/chatbot-flow";
 import Settings from "@/models/Settings";
 
 export async function POST(request: NextRequest) {
@@ -18,16 +18,12 @@ export async function POST(request: NextRequest) {
     : { flow: "INITIAL", step: "", collected: { name: "Test" } };
 
   // Same precedence as the real widget: a company's own Training rules and FAQs
-  // take priority over the hardcoded flow, and the saved Widget welcome message
-  // (Widget Builder → Content) replaces the generic greeting — same single source
-  // of truth as /api/widget/chat and /api/widget/preview, so this test panel
-  // actually reflects what's configured elsewhere instead of its own copy of it.
+  // take priority, then their custom menu flow if they've built one, then the
+  // built-in demo flow — same single source of truth as /api/widget/chat and
+  // /api/widget/preview, so this test panel reflects what's configured elsewhere.
   await connectDB();
-  const trained = session.flow === "INITIAL" && message !== "__INIT__"
-    ? await matchTraining(message, ctx.companyId)
-    : null;
   const settings = await Settings.findOne({ companyId: ctx.companyId }).select("widget.welcomeMessage").lean() as { widget?: { welcomeMessage?: string } } | null;
-  const result = trained ?? processFlow(message, session, settings?.widget?.welcomeMessage);
+  const result = await getBotReply(message, session, ctx.companyId, settings?.widget?.welcomeMessage);
 
   return apiSuccess({
     messages: result.messages,

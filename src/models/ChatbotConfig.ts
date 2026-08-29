@@ -7,6 +7,30 @@ export interface ITrainingEntry {
   isActive: boolean;
 }
 
+export interface ICustomFlowStep {
+  question: string;
+  type: "choice" | "text";
+  options: string[];
+  saveAs: string;
+}
+
+export interface ICustomFlowItem {
+  key: string;
+  label: string;
+  steps: ICustomFlowStep[];
+  outcome: "NONE" | "CREATE_LEAD" | "CREATE_TICKET" | "ASSIGN_AGENT";
+  closingMessage: string;
+  leadType: string;
+  leadScore: number;
+  ticketSubject: string;
+}
+
+export interface ICustomFlow {
+  enabled: boolean;
+  menuIntro: string;
+  flows: ICustomFlowItem[];
+}
+
 export interface IChatbotConfig extends Document {
   companyId: mongoose.Types.ObjectId;
   faqs: { question: string; answer: string; isActive: boolean }[];
@@ -14,6 +38,7 @@ export interface IChatbotConfig extends Document {
   vehicles: { name: string; category: string; payload: string; priceRange: string; description: string; isActive: boolean }[];
   businessHours: { day: string; open: string; close: string; isClosed: boolean }[];
   training: ITrainingEntry[];
+  customFlow: ICustomFlow;
   agentOnlineMessage: string;
   agentOfflineMessage: string;
   welcomeMessage: string;
@@ -55,6 +80,25 @@ const ChatbotConfigSchema = new Schema<IChatbotConfig>(
       response: { type: String, required: true },
       isActive: { type: Boolean, default: true },
     }],
+    customFlow: {
+      enabled:   { type: Boolean, default: false },
+      menuIntro: { type: String, default: "How can we help you today? Please select an option:" },
+      flows: [{
+        key:   { type: String, required: true },
+        label: { type: String, required: true },
+        steps: [{
+          question: { type: String, required: true },
+          type:     { type: String, enum: ["choice", "text"], default: "choice" },
+          options:  [{ type: String }],
+          saveAs:   { type: String, default: "" },
+        }],
+        outcome:        { type: String, enum: ["NONE", "CREATE_LEAD", "CREATE_TICKET", "ASSIGN_AGENT"], default: "NONE" },
+        closingMessage: { type: String, default: "" },
+        leadType:       { type: String, default: "" },
+        leadScore:      { type: Number, default: 60 },
+        ticketSubject:  { type: String, default: "" },
+      }],
+    },
     agentOnlineMessage:  { type: String, default: "💬 Connecting you to a live agent..." },
     agentOfflineMessage: { type: String, default: "We're offline. Leave your details and we'll call you back!" },
     welcomeMessage:      { type: String, default: "👋 Welcome to Ashok Leyland! How can we help you today?" },

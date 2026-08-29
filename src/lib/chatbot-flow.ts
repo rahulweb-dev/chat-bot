@@ -15,6 +15,31 @@ export interface BotResponse {
   ticketData?: Record<string, string>;
 }
 
+// ── Per-company custom menu flow (built in the Chatbot Overview tab) ───────────
+export interface CustomFlowStep {
+  question: string;
+  type: "choice" | "text";
+  options: string[];
+  saveAs: string;
+}
+
+export interface CustomFlowItem {
+  key: string;
+  label: string;
+  steps: CustomFlowStep[];
+  outcome: "NONE" | "CREATE_LEAD" | "CREATE_TICKET" | "ASSIGN_AGENT";
+  closingMessage: string;
+  leadType?: string;
+  leadScore?: number;
+  ticketSubject?: string;
+}
+
+export interface CustomFlow {
+  enabled: boolean;
+  menuIntro: string;
+  flows: CustomFlowItem[];
+}
+
 export const MAIN_MENU = [
   "🚛 Find a Vehicle",
   "💰 Get On-Road Price",
@@ -185,7 +210,7 @@ function calcEMI(priceL: number, downL: number, months: number): string {
 // falling back to the hardcoded flow below — this is what makes anything a company
 // configures in Settings actually show up in conversation. Only meaningful at the
 // start of a conversation (mid-flow, the scripted steps below take over).
-export async function matchTraining(message: string, companyId: string): Promise<BotResponse | null> {
+export async function matchTraining(message: string, companyId: string, collected: Record<string, string> = {}): Promise<BotResponse | null> {
   const config = await ChatbotConfig.findOne({ companyId }).lean() as {
     training?: { trigger: string; keywords: string[]; response: string; isActive: boolean }[];
     faqs?: { question: string; answer: string; isActive: boolean }[];
@@ -196,7 +221,7 @@ export async function matchTraining(message: string, companyId: string): Promise
 
   const entry = config.training?.find(t => t.isActive && t.keywords.some(k => lower.includes(k.toLowerCase())));
   if (entry) {
-    return { messages: [entry.response], quickReplies: ["🔙 Main Menu"], action: "NONE", sessionData: { flow: "INITIAL", step: "", collected: {} } };
+    return { messages: [entry.response], quickReplies: ["🔙 Main Menu"], action: "NONE", sessionData: { flow: "INITIAL", step: "", collected } };
   }
 
   // Fallback: FAQ word match
@@ -206,23 +231,22 @@ export async function matchTraining(message: string, companyId: string): Promise
     return words.some(w => lower.includes(w));
   });
   if (faq) {
-    return { messages: [faq.answer], quickReplies: ["🔙 Main Menu"], action: "NONE", sessionData: { flow: "INITIAL", step: "", collected: {} } };
+    return { messages: [faq.answer], quickReplies: ["🔙 Main Menu"], action: "NONE", sessionData: { flow: "INITIAL", step: "", collected } };
   }
 
   return null;
 }
 
-export function processFlow(input: string, session: SessionData, welcomeMessage?: string): BotResponse {
-  const inp = input.trim();
-  const s   = session;
+// Shared first-contact behaviour for both the hardcoded flow and any per-company
+// custom flow: collect name + phone conversationally, then hand off to whichever
+// menu the caller provides. Returns null when the message isn't identify-related,
+// so the caller continues with its own menu-selection logic.
+function identifyThenMenu(
+  inp: string, s: SessionData, greeting: string,
+  showMenu: (col: Record<string, string>) => BotResponse
+): BotResponse | null {
   const col = { ...s.collected };
-  // Falls back to a neutral default if the company hasn't set one — never the old
-  // hardcoded "Welcome to Ashok Leyland!" copy, which doesn't belong in every tenant's bot.
-  const greeting = welcomeMessage?.trim() || "👋 Hi! Welcome!";
 
-  if (match(inp, "Main Menu") || match(inp, "Start Over") || match(inp, "Go Back")) return mainMenu(col, greeting);
-
-  // ── IDENTIFY (first-time visitor: collect name then phone conversationally) ─
   if (s.flow === "IDENTIFY") {
     if (s.step === "ask_name") {
       if (!inp || inp.length < 2) {
@@ -236,37 +260,163 @@ export function processFlow(input: string, session: SessionData, welcomeMessage?
         return { messages: ["⚠️ Please enter a valid 10-digit mobile number:"], quickReplies: [], sessionData: { flow: "IDENTIFY", step: "ask_phone", collected: col }, action: "NONE" };
       }
       col.phone = inp;
-      return {
-        messages: [`Thank you, ${col.name}! ✅`, `${greeting}\n\nHow can I help you today?`],
-        quickReplies: MAIN_MENU,
-        sessionData: { flow: "INITIAL", step: "", collected: col },
-        action: "NONE",
-      };
+      const menuResp = showMenu(col);
+      return { ...menuResp, messages: [`Thank you, ${col.name}! ✅`, `${greeting}\n\nHow can I help you today?`] };
     }
   }
 
-  // ── INITIAL ────────────────────────────────────────────────────────────────
-  if (!s.flow || s.flow === "INITIAL" || !s.step) {
-    if (inp === "__INIT__") {
-      if (!col.name) {
-        // First-time: start conversational identify flow
-        return {
-          messages: [`${greeting}\n\nI'm your virtual assistant. May I know your name?`],
-          quickReplies: [],
-          sessionData: { flow: "IDENTIFY", step: "ask_name", collected: col },
-          action: "NONE",
-        };
-      }
-      // Returning visitor — still leads with the company's own greeting (this is what
-      // the dashboard preview always hits, since it pre-fills a name to skip straight
-      // past the identify flow), personalised with a welcome-back line.
+  if ((!s.flow || s.flow === "INITIAL" || !s.step) && inp === "__INIT__") {
+    if (!col.name) {
+      // First-time: start conversational identify flow
       return {
-        messages: [`${greeting}\n\nWelcome back, ${col.name}! How can I help you today?`],
-        quickReplies: MAIN_MENU,
-        sessionData: { flow: "INITIAL", step: "", collected: col },
+        messages: [`${greeting}\n\nI'm your virtual assistant. May I know your name?`],
+        quickReplies: [],
+        sessionData: { flow: "IDENTIFY", step: "ask_name", collected: col },
         action: "NONE",
       };
     }
+    // Returning visitor — still leads with the company's own greeting (this is what
+    // the dashboard preview always hits, since it pre-fills a name to skip straight
+    // past the identify flow), personalised with a welcome-back line.
+    const menuResp = showMenu(col);
+    return { ...menuResp, messages: [`${greeting}\n\nWelcome back, ${col.name}! How can I help you today?`] };
+  }
+
+  return null;
+}
+
+// ── Custom flow engine (per-company menu built in the Chatbot Overview tab) ────
+function customMenu(cf: CustomFlow, col: Record<string, string>, greeting: string): BotResponse {
+  const intro = cf.menuIntro?.trim() || "How can we help you today? Please select an option:";
+  return {
+    messages: [`${greeting}\n\n${intro}`],
+    quickReplies: cf.flows.map(f => f.label),
+    sessionData: { flow: "INITIAL", step: "", collected: col },
+    action: "NONE",
+  };
+}
+
+function interpolate(text: string, col: Record<string, string>): string {
+  return (text || "").replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k: string) => col[k] ?? "");
+}
+
+function askCustomStep(target: CustomFlowItem, index: number, col: Record<string, string>): BotResponse {
+  const step = target.steps[index];
+  return {
+    messages: [step.question],
+    quickReplies: step.type === "choice" && step.options.length ? [...step.options, "🔙 Main Menu"] : ["🔙 Main Menu"],
+    sessionData: { flow: `CUSTOM::${target.key}`, step: String(index), collected: col },
+    action: "NONE",
+  };
+}
+
+function finalizeCustomFlow(target: CustomFlowItem, col: Record<string, string>): BotResponse {
+  const message = interpolate(target.closingMessage, col) || "✅ Thank you! We'll get back to you shortly.";
+  const sessionData: SessionData = { flow: "INITIAL", step: "", collected: col };
+
+  if (target.outcome === "CREATE_LEAD") {
+    return {
+      messages: [message], quickReplies: ["🔙 Main Menu"], sessionData, action: "CREATE_LEAD",
+      leadData: { ...col, type: target.leadType?.trim() || target.key.toUpperCase(), score: String(target.leadScore ?? 60) },
+    };
+  }
+  if (target.outcome === "CREATE_TICKET") {
+    return {
+      messages: [message], quickReplies: ["🔙 Main Menu"], sessionData, action: "CREATE_TICKET",
+      ticketData: { subject: interpolate(target.ticketSubject ?? "", col) || target.label, description: message, ...col },
+      leadData: col.phone ? { ...col, type: target.key.toUpperCase(), score: "50" } : undefined,
+    };
+  }
+  if (target.outcome === "ASSIGN_AGENT") {
+    return {
+      messages: [message], quickReplies: ["🔙 Main Menu"], sessionData, action: "ASSIGN_AGENT",
+      leadData: { ...col, type: target.key.toUpperCase(), score: String(target.leadScore ?? 70) },
+    };
+  }
+  return { messages: [message], quickReplies: ["🔙 Main Menu"], sessionData, action: "NONE" };
+}
+
+// Runs a company's own menu flow instead of the hardcoded Ashok Leyland one below.
+// Returns null when there's nothing usable to run — caller falls back to processFlow.
+function runCustomFlow(input: string, session: SessionData, cf: CustomFlow, greeting: string): BotResponse | null {
+  if (!cf?.enabled || !cf.flows?.length) return null;
+  const inp = input.trim();
+  const s = session;
+  const showMenu = (c: Record<string, string>) => customMenu(cf, c, greeting);
+
+  const identified = identifyThenMenu(inp, s, greeting, showMenu);
+  if (identified) return identified;
+
+  const col = { ...s.collected };
+
+  if (match(inp, "Main Menu") || match(inp, "Start Over") || match(inp, "Go Back")) return showMenu(col);
+
+  if (!s.flow || s.flow === "INITIAL" || !s.step) {
+    const target = cf.flows.find(f => inp.toLowerCase().includes(f.label.toLowerCase()) || f.label.toLowerCase().includes(inp.toLowerCase()));
+    if (!target) return showMenu(col);
+    if (!target.steps.length) return finalizeCustomFlow(target, col);
+    return askCustomStep(target, 0, col);
+  }
+
+  if (s.flow.startsWith("CUSTOM::")) {
+    const key = s.flow.slice("CUSTOM::".length);
+    const target = cf.flows.find(f => f.key === key);
+    if (!target) return showMenu(col);
+    const stepIndex = parseInt(s.step, 10) || 0;
+    const currentStep = target.steps[stepIndex];
+    if (!currentStep) return showMenu(col);
+    col[currentStep.saveAs || `field_${stepIndex}`] = inp;
+    const nextIndex = stepIndex + 1;
+    if (nextIndex < target.steps.length) return askCustomStep(target, nextIndex, col);
+    return finalizeCustomFlow(target, col);
+  }
+
+  return showMenu(col);
+}
+
+// Fetches a company's enabled custom flow, if any. Returns null when the company
+// hasn't set one up (or disabled it), so the caller falls back to processFlow.
+export async function getCustomFlow(companyId: string): Promise<CustomFlow | null> {
+  const config = await ChatbotConfig.findOne({ companyId }).select("customFlow").lean() as { customFlow?: CustomFlow } | null;
+  const cf = config?.customFlow;
+  return cf?.enabled && cf.flows?.length ? cf : null;
+}
+
+// Single entry point for all three bot surfaces (live widget, dashboard preview,
+// test panel): checks Training/FAQs first, then the company's custom flow if one
+// is enabled, then falls back to the built-in Ashok Leyland demo flow.
+export async function getBotReply(message: string, session: SessionData, companyId: string, welcomeMessage?: string): Promise<BotResponse> {
+  const greeting = welcomeMessage?.trim() || "👋 Hi! Welcome!";
+
+  if (session.flow === "INITIAL" && message !== "__INIT__") {
+    const trained = await matchTraining(message, companyId, session.collected);
+    if (trained) return trained;
+  }
+
+  const cf = await getCustomFlow(companyId);
+  if (cf) {
+    const custom = runCustomFlow(message, session, cf, greeting);
+    if (custom) return custom;
+  }
+
+  return processFlow(message, session, welcomeMessage);
+}
+
+export function processFlow(input: string, session: SessionData, welcomeMessage?: string): BotResponse {
+  const inp = input.trim();
+  const s   = session;
+  const col = { ...s.collected };
+  // Falls back to a neutral default if the company hasn't set one — never the old
+  // hardcoded "Welcome to Ashok Leyland!" copy, which doesn't belong in every tenant's bot.
+  const greeting = welcomeMessage?.trim() || "👋 Hi! Welcome!";
+
+  if (match(inp, "Main Menu") || match(inp, "Start Over") || match(inp, "Go Back")) return mainMenu(col, greeting);
+
+  const identified = identifyThenMenu(inp, s, greeting, (c) => mainMenu(c, greeting));
+  if (identified) return identified;
+
+  // ── INITIAL ────────────────────────────────────────────────────────────────
+  if (!s.flow || s.flow === "INITIAL" || !s.step) {
     if (match(inp, "Find a Vehicle") || match(inp, "find vehicle") || match(inp, "looking for") || match(inp, "i want") || match(inp, "i need") || match(inp, "want to buy") || match(inp, "purchase")) {
       // If they mentioned a specific vehicle, pre-fill it
       const mentioned = AL_VEHICLES.find(v => inp.toLowerCase().includes(v.toLowerCase()));

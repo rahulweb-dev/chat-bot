@@ -78,13 +78,13 @@ export function DashboardOverview({ role }: OverviewProps) {
   // Setup checklist
   const hasConversations = (overview?.totalChats ?? 0) > 0;
   const hasWidget        = !!widgetKey;
-  const hasCustomFlow    = !!(chatbotCfg?.customFlow?.enabled && chatbotCfg?.customFlow?.flow);
+  const hasCustomFlow    = !!(chatbotCfg?.customFlow?.enabled && chatbotCfg?.customFlow?.flows?.length);
   const hasLeads         = (overview?.totalLeads ?? 0) > 0;
 
   const setupSteps = [
     { label: "Create your account",             done: true,             link: null },
     { label: "Get your API key & embed widget", done: hasWidget,        link: "/dashboard/chatbot?tab=install" },
-    { label: "Configure your chatbot flow",     done: hasCustomFlow,    link: "/dashboard/chatbot?tab=training" },
+    { label: "Configure your chatbot flow",     done: hasCustomFlow,    link: "/dashboard/chatbot?tab=flow" },
     { label: "Start your first conversation",   done: hasConversations, link: "/dashboard/conversations" },
     { label: "Capture your first lead",         done: hasLeads,         link: "/dashboard/leads" },
   ];

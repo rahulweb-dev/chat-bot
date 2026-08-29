@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
-import { processFlow, matchTraining, SessionData } from "@/lib/chatbot-flow";
+import { getBotReply, SessionData } from "@/lib/chatbot-flow";
 import Company from "@/models/Company";
 import ApiKey from "@/models/ApiKey";
 import Conversation from "@/models/Conversation";
@@ -91,12 +91,9 @@ export async function POST(request: NextRequest) {
 
   const session: SessionData = sessionData?.flow ? sessionData : { flow: "INITIAL", step: "", collected: {} };
 
-  // Check custom training rules + FAQs before the hardcoded flow (only when not mid-conversation)
-  const trained = session.flow === "INITIAL" && message !== "__INIT__"
-    ? await matchTraining(message, companyId)
-    : null;
+  // Training/FAQs → this company's own custom menu flow (if enabled) → the built-in demo flow
   const companySettings = await Settings.findOne({ companyId }).select("widget.welcomeMessage").lean() as { widget?: { welcomeMessage?: string } } | null;
-  const result = trained ?? processFlow(message, session, companySettings?.widget?.welcomeMessage);
+  const result = await getBotReply(message, session, companyId, companySettings?.widget?.welcomeMessage);
 
   if (conversationId) {
     if (message !== "__INIT__") {
