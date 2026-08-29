@@ -60,7 +60,7 @@ function StepBanner({ n, of, title, children }: { n: number; of: number; title: 
 }
 
 // ── FAQ Tab ────────────────────────────────────────────────────────────────────
-function FAQTab({ config, refetch }: { config: Config; refetch: () => void }) {
+function FAQTab({ config, refetch, showStepBanner = true }: { config: Config; refetch: () => void; showStepBanner?: boolean }) {
   const [faqs, setFaqs] = useState<FAQ[]>(config.faqs);
   const [newQ, setNewQ] = useState(""); const [newA, setNewA] = useState("");
   const [editIdx, setEditIdx] = useState<number | null>(null);
@@ -89,9 +89,11 @@ function FAQTab({ config, refetch }: { config: Config; refetch: () => void }) {
 
   return (
     <div className="space-y-4">
-      <StepBanner n={3} of={6} title="FAQs">
-        Add common questions and answers. When a visitor&apos;s message matches an active FAQ, the bot answers with it directly — before falling back to the menu flow.
-      </StepBanner>
+      {showStepBanner && (
+        <StepBanner n={3} of={6} title="FAQs">
+          Add common questions and answers. When a visitor&apos;s message matches an active FAQ, the bot answers with it directly — before falling back to the menu flow.
+        </StepBanner>
+      )}
       <Card>
         <CardHeader><CardTitle className="text-sm">Add New FAQ</CardTitle></CardHeader>
         <CardContent className="space-y-3">
@@ -165,7 +167,7 @@ function FAQRow({ faq, onToggle, onDelete, onSave, isEditing, onEdit, onCancel }
 }
 
 // ── Training Tab ───────────────────────────────────────────────────────────────
-function TrainingTab({ config, refetch }: { config: Config; refetch: () => void }) {
+function TrainingTab({ config, refetch, showStepBanner = true }: { config: Config; refetch: () => void; showStepBanner?: boolean }) {
   const [entries, setEntries] = useState<Training[]>(config.training ?? []);
   const [mode, setMode] = useState<"form" | "json">("form");
   const [form, setForm] = useState({ trigger: "", keywords: "", response: "" });
@@ -216,9 +218,11 @@ function TrainingTab({ config, refetch }: { config: Config; refetch: () => void 
 
   return (
     <div className="space-y-4">
-      <StepBanner n={4} of={6} title="Training rules">
-        Keyword → response rules. If a visitor&apos;s message contains any keyword in an active rule, the bot replies with that rule&apos;s response. Checked after FAQs, before the menu flow.
-      </StepBanner>
+      {showStepBanner && (
+        <StepBanner n={4} of={6} title="Training rules">
+          Keyword → response rules. If a visitor&apos;s message contains any keyword in an active rule, the bot replies with that rule&apos;s response. Checked after FAQs, before the menu flow.
+        </StepBanner>
+      )}
       <div className="flex items-center gap-2">
         <button
           onClick={() => setMode("form")}
@@ -363,7 +367,7 @@ function TrainingTab({ config, refetch }: { config: Config; refetch: () => void 
 }
 
 // ── Catalog Tab (Offers + Vehicles) ─────────────────────────────────────────────
-function CatalogTab({ config, refetch }: { config: Config; refetch: () => void }) {
+function CatalogTab({ config, refetch, showStepBanner = true }: { config: Config; refetch: () => void; showStepBanner?: boolean }) {
   const [offers, setOffers] = useState<Offer[]>(config.offers);
   const [offerForm, setOfferForm] = useState({ title: "", description: "", validUntil: "" });
   const [vehicles, setVehicles] = useState<Vehicle[]>(config.vehicles);
@@ -388,9 +392,11 @@ function CatalogTab({ config, refetch }: { config: Config; refetch: () => void }
 
   return (
     <div className="space-y-8">
-      <StepBanner n={5} of={6} title="Catalog">
-        Offers and vehicles are reference data your team can keep up to date here. They&apos;re shown to visitors through the Offers and Find a Vehicle menu options.
-      </StepBanner>
+      {showStepBanner && (
+        <StepBanner n={5} of={6} title="Catalog">
+          Offers and vehicles are reference data your team can keep up to date here. They&apos;re shown to visitors through the Offers and Find a Vehicle menu options.
+        </StepBanner>
+      )}
 
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5"><Tag className="w-4 h-4" />Offers</h3>
@@ -876,8 +882,9 @@ const OUTCOME_LABELS: Record<string, { label: string; color: string; icon: typeo
 };
 
 // ── Overview Tab ─────────────────────────────────────────────────────────────
-function OverviewTab({ config }: { config: Config }) {
+function OverviewTab({ config, refetch }: { config: Config; refetch: () => void }) {
   const [expandedFlow, setExpandedFlow] = useState<string | null>(null);
+  const [openSection, setOpenSection] = useState<string | null>(null);
   return (
     <div className="space-y-6">
       <Card className="border-0 shadow-sm bg-linear-to-r from-indigo-50 to-purple-50">
@@ -969,6 +976,37 @@ function OverviewTab({ config }: { config: Config }) {
           })}
         </div>
         <p className="text-xs text-gray-400 text-center pt-3">Click any flow to see its steps · Try the real thing in the Live Preview →</p>
+      </div>
+
+      <div className="space-y-3">
+        <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5"><Pencil className="w-4 h-4" />Manage everything from here</p>
+        {[
+          { key: "faqs",     label: "FAQs",     count: config.faqs.length,             icon: HelpCircle, render: () => <FAQTab config={config} refetch={refetch} showStepBanner={false} /> },
+          { key: "training", label: "Training", count: (config.training ?? []).length, icon: Brain,      render: () => <TrainingTab config={config} refetch={refetch} showStepBanner={false} /> },
+          { key: "catalog",  label: "Catalog (Offers & Vehicles)", count: config.offers.length + config.vehicles.length, icon: Tag, render: () => <CatalogTab config={config} refetch={refetch} showStepBanner={false} /> },
+        ].map((section) => {
+          const isOpen = openSection === section.key;
+          return (
+            <div key={section.key} className="rounded-2xl border overflow-hidden shadow-sm">
+              <button
+                onClick={() => setOpenSection(isOpen ? null : section.key)}
+                className="w-full flex items-center justify-between p-3.5 text-left bg-gray-50 hover:bg-gray-100 transition-colors"
+              >
+                <span className="font-semibold text-sm text-gray-800 flex items-center gap-2">
+                  <section.icon className="w-4 h-4 text-indigo-600" />
+                  {section.label}
+                  <span className="text-xs font-normal text-gray-400 bg-white border rounded-full px-2 py-0.5">{section.count}</span>
+                </span>
+                {isOpen ? <ChevronDown className="w-4 h-4 shrink-0 text-gray-400" /> : <ChevronRight className="w-4 h-4 shrink-0 text-gray-400" />}
+              </button>
+              {isOpen && (
+                <div className="bg-white p-4 border-t">
+                  {section.render()}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -1343,7 +1381,7 @@ function ChatbotPageInner() {
             <TabsContent value="overview" className="mt-4">
               {configLoading || !config ? (
                 <div className="space-y-4"><div className="h-8 w-64 bg-gray-200 rounded animate-pulse" /><div className="h-48 bg-gray-100 rounded-xl animate-pulse" /></div>
-              ) : <OverviewTab config={config} />}
+              ) : <OverviewTab config={config} refetch={refetchConfig} />}
             </TabsContent>
 
             {/* Welcome Message */}
