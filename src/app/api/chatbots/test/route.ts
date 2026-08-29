@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess } from "@/lib/api-helpers";
-import { processFlow, SessionData, MAIN_MENU } from "@/lib/chatbot-flow";
+import { processFlow, matchTraining, SessionData, MAIN_MENU } from "@/lib/chatbot-flow";
 import Chatbot from "@/models/Chatbot";
 
 export async function POST(request: NextRequest) {
@@ -34,7 +34,15 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const result = processFlow(message, session);
+  // Same precedence as the real widget: a company's own Training rules and FAQs
+  // take priority over the hardcoded flow, so this test panel actually reflects
+  // what's configured in Chatbot Settings.
+  let trained = null;
+  if (session.flow === "INITIAL" && ctx.companyId) {
+    await connectDB();
+    trained = await matchTraining(message, ctx.companyId);
+  }
+  const result = trained ?? processFlow(message, session);
 
   return apiSuccess({
     messages: result.messages,

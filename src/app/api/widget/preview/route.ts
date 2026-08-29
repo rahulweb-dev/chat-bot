@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError } from "@/lib/api-helpers";
-import { processFlow, SessionData } from "@/lib/chatbot-flow";
+import { processFlow, matchTraining, SessionData } from "@/lib/chatbot-flow";
 
 export async function POST(request: NextRequest) {
   const ctx = await getRequestContext(request);
@@ -18,7 +19,15 @@ export async function POST(request: NextRequest) {
     ? (sessionData as SessionData)
     : { flow: "INITIAL", step: "", collected: { name: "Preview" } };
 
-  const result = processFlow(message, session);
+  // Same precedence as the real widget (/api/widget/chat): a company's own Training
+  // rules and FAQs from Chatbot Settings take priority over the hardcoded flow. Without
+  // this, the preview never reflects anything an admin configures — it only ever shows
+  // the generic scripted flow, which is confusing to test against.
+  await connectDB();
+  const trained = session.flow === "INITIAL" && message !== "__INIT__"
+    ? await matchTraining(message, ctx.companyId)
+    : null;
+  const result = trained ?? processFlow(message, session);
 
   return NextResponse.json({
     success: true,

@@ -1,3 +1,5 @@
+import ChatbotConfig from "@/models/ChatbotConfig";
+
 export interface SessionData {
   flow: string;
   step: string;
@@ -177,6 +179,37 @@ function calcEMI(priceL: number, downL: number, months: number): string {
   const r = 9.5 / 12 / 100;
   const emi = Math.round(principal * r * Math.pow(1 + r, months) / (Math.pow(1 + r, months) - 1));
   return `💳 EMI Calculation:\n\n🚛 Vehicle Price: ₹${priceL}L\n💵 Down Payment: ₹${downL}L\n🏦 Loan Amount: ₹${(priceL - downL)}L\n📅 Tenure: ${months} months\n📊 Interest Rate: 9.5% p.a.\n\n✅ Monthly EMI: ₹${emi.toLocaleString("en-IN")}\n\n📌 Rate may vary by credit profile & financier.`;
+}
+
+// Checks a company's own Chatbot Settings (Training keyword rules, then FAQs) before
+// falling back to the hardcoded flow below — this is what makes anything a company
+// configures in Settings actually show up in conversation. Only meaningful at the
+// start of a conversation (mid-flow, the scripted steps below take over).
+export async function matchTraining(message: string, companyId: string): Promise<BotResponse | null> {
+  const config = await ChatbotConfig.findOne({ companyId }).lean() as {
+    training?: { trigger: string; keywords: string[]; response: string; isActive: boolean }[];
+    faqs?: { question: string; answer: string; isActive: boolean }[];
+  } | null;
+  if (!config) return null;
+
+  const lower = message.toLowerCase();
+
+  const entry = config.training?.find(t => t.isActive && t.keywords.some(k => lower.includes(k.toLowerCase())));
+  if (entry) {
+    return { messages: [entry.response], quickReplies: ["🔙 Main Menu"], action: "NONE", sessionData: { flow: "INITIAL", step: "", collected: {} } };
+  }
+
+  // Fallback: FAQ word match
+  const faq = config.faqs?.find(f => {
+    if (!f.isActive) return false;
+    const words = f.question.toLowerCase().split(/[\s?!.,]+/).filter(w => w.length > 3);
+    return words.some(w => lower.includes(w));
+  });
+  if (faq) {
+    return { messages: [faq.answer], quickReplies: ["🔙 Main Menu"], action: "NONE", sessionData: { flow: "INITIAL", step: "", collected: {} } };
+  }
+
+  return null;
 }
 
 export function processFlow(input: string, session: SessionData): BotResponse {

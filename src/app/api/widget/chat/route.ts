@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
-import { processFlow, SessionData } from "@/lib/chatbot-flow";
+import { processFlow, matchTraining, SessionData } from "@/lib/chatbot-flow";
 import Company from "@/models/Company";
 import ApiKey from "@/models/ApiKey";
-import ChatbotConfig from "@/models/ChatbotConfig";
 import Conversation from "@/models/Conversation";
 import Message from "@/models/Message";
 import Lead from "@/models/Lead";
@@ -41,33 +40,6 @@ const CORS = {
 
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: CORS });
-}
-
-async function matchTraining(message: string, companyId: string): Promise<ReturnType<typeof processFlow> | null> {
-  const config = await ChatbotConfig.findOne({ companyId }).lean() as {
-    training?: { trigger: string; keywords: string[]; response: string; isActive: boolean }[];
-    faqs?: { question: string; answer: string; isActive: boolean }[];
-  } | null;
-  if (!config) return null;
-
-  const lower = message.toLowerCase();
-
-  const entry = config.training?.find(t => t.isActive && t.keywords.some(k => lower.includes(k.toLowerCase())));
-  if (entry) {
-    return { messages: [entry.response], quickReplies: ["🔙 Main Menu"], action: "NONE", sessionData: { flow: "INITIAL", step: "", collected: {} } };
-  }
-
-  // Fallback: FAQ word match
-  const faq = config.faqs?.find(f => {
-    if (!f.isActive) return false;
-    const words = f.question.toLowerCase().split(/[\s?!.,]+/).filter(w => w.length > 3);
-    return words.some(w => lower.includes(w));
-  });
-  if (faq) {
-    return { messages: [faq.answer], quickReplies: ["🔙 Main Menu"], action: "NONE", sessionData: { flow: "INITIAL", step: "", collected: {} } };
-  }
-
-  return null;
 }
 
 async function nextTicketNumber(companyId: string): Promise<string> {
