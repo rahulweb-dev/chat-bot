@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, ShieldCheck, ShieldAlert } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 const getActionColor = (action: string) => {
   if (action.includes("CREATE")) return "text-green-600 bg-green-50 dark:bg-green-950";
@@ -20,24 +21,18 @@ const getActionColor = (action: string) => {
 
 export default function AdminAuditLogsPage() {
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
   const [page, setPage] = useState(1);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["admin-audit-logs", page],
-    queryFn: () => axios.get(`/api/audit-logs?page=${page}&limit=50`).then((r) => r.data),
+    queryKey: ["admin-audit-logs", page, debouncedSearch],
+    queryFn: () => axios.get("/api/audit-logs", { params: { page, limit: 50, search: debouncedSearch || undefined } }).then((r) => r.data),
     staleTime: 30000,
   });
 
   const logs = data?.data || [];
   const totalPages = data?.totalPages || 1;
   const total = data?.total || 0;
-
-  const filtered = search
-    ? logs.filter((l: { action: string; resource: string }) =>
-        l.action.toLowerCase().includes(search.toLowerCase()) ||
-        l.resource.toLowerCase().includes(search.toLowerCase())
-      )
-    : logs;
 
   return (
     <div className="p-6 space-y-6">
@@ -52,7 +47,7 @@ export default function AdminAuditLogsPage() {
           placeholder="Filter by action or resource..."
           className="pl-9"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
         />
       </div>
 
@@ -65,7 +60,7 @@ export default function AdminAuditLogsPage() {
             </div>
           ) : (
             <div className="divide-y">
-              {filtered.map((log: {
+              {logs.map((log: {
                 _id: string;
                 action: string;
                 resource: string;

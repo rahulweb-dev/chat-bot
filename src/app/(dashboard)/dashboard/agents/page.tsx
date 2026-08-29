@@ -6,6 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,6 +17,7 @@ import { z } from "zod";
 import { Plus, Search, Users, Trash2, Mail, MessageSquare, Clock, ShieldCheck, Send } from "lucide-react";
 import { getInitials, timeAgo } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 const agentSchema = z.object({
   name: z.string().min(2),
@@ -56,10 +61,12 @@ export default function AgentsPage() {
   const [search, setSearch] = useState("");
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
+  const debouncedSearch = useDebouncedValue(search);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["agents", search],
+    queryKey: ["agents", debouncedSearch],
     queryFn: async () => {
-      const res = await fetch(`/api/agents?limit=100${search ? `&search=${search}` : ""}`);
+      const res = await fetch(`/api/agents?limit=100${debouncedSearch ? `&search=${debouncedSearch}` : ""}`);
       const d = await res.json();
       return d.data as Agent[];
     },
@@ -108,23 +115,35 @@ export default function AgentsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await fetch(`/api/agents/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/agents/${id}`, { method: "DELETE" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || d?.success === false) throw new Error(d?.error || "Failed to remove agent");
     },
     onSuccess: () => {
       toast({ title: "Agent removed" });
       qc.invalidateQueries({ queryKey: ["agents"] });
     },
+    onError: (err: unknown) => {
+      toast({ title: err instanceof Error ? err.message : "Failed to remove agent", variant: "destructive" });
+    },
   });
 
   const toggleActive = async (id: string, isActive: boolean) => {
     setTogglingId(id);
-    await fetch(`/api/agents/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isActive: !isActive }),
-    });
-    await qc.invalidateQueries({ queryKey: ["agents"] });
-    setTogglingId(null);
+    try {
+      const res = await fetch(`/api/agents/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !isActive }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || d?.success === false) throw new Error(d?.error || "Failed to update agent status");
+      await qc.invalidateQueries({ queryKey: ["agents"] });
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : "Failed to update agent status", variant: "destructive" });
+    } finally {
+      setTogglingId(null);
+    }
   };
 
   async function sendInvite(e: React.FormEvent) {
@@ -334,16 +353,28 @@ export default function AgentsPage() {
                   </button>
 
                   {/* Delete */}
-                  <button
-                    onClick={() => {
-                      if (confirm(`Remove ${agent.name}?`)) deleteMutation.mutate(agent._id);
-                    }}
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-gray-300
-                      hover:text-red-500 hover:bg-red-50 transition-colors"
-                    title="Delete agent"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <button
+                        aria-label={`Remove ${agent.name}`}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-gray-300
+                          hover:text-red-500 hover:bg-red-50 transition-colors"
+                        title="Delete agent"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Remove {agent.name}?</AlertDialogTitle>
+                        <AlertDialogDescription>They&apos;ll lose access immediately. This can&apos;t be undone.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => deleteMutation.mutate(agent._id)}>Remove</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </CardContent>
             </Card>

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Search, ShieldCheck, ShieldAlert } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 const actionColors: Record<string, string> = {
   CREATE: "text-green-600 bg-green-50 dark:bg-green-950",
@@ -27,25 +28,18 @@ function getActionColor(action: string): string {
 
 export default function AuditLogsPage() {
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
   const [page, setPage] = useState(1);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["audit-logs", page],
-    queryFn: () => axios.get(`/api/audit-logs?page=${page}&limit=50`).then((r) => r.data),
+    queryKey: ["audit-logs", page, debouncedSearch],
+    queryFn: () => axios.get("/api/audit-logs", { params: { page, limit: 50, search: debouncedSearch || undefined } }).then((r) => r.data),
     staleTime: 30000,
   });
 
   const logs = data?.data || [];
   const total = data?.total || 0;
   const totalPages = data?.totalPages || 1;
-
-  const filtered = search
-    ? logs.filter((l: { action: string; resource: string; userId?: { name: string; email: string } }) =>
-        l.action.toLowerCase().includes(search.toLowerCase()) ||
-        l.resource.toLowerCase().includes(search.toLowerCase()) ||
-        (l.userId as { name?: string; email?: string } | null)?.email?.toLowerCase().includes(search.toLowerCase())
-      )
-    : logs;
 
   return (
     <div className="p-6 space-y-6">
@@ -61,7 +55,7 @@ export default function AuditLogsPage() {
             placeholder="Search actions, resources, users..."
             className="pl-9"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           />
         </div>
         <span className="text-sm text-muted-foreground">{total} total events</span>
@@ -76,14 +70,14 @@ export default function AuditLogsPage() {
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
-          ) : filtered.length === 0 ? (
+          ) : logs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
               <ShieldCheck className="h-12 w-12 text-muted-foreground mb-3" />
               <p className="text-muted-foreground">No audit logs found</p>
             </div>
           ) : (
             <div className="divide-y">
-              {filtered.map((log: {
+              {logs.map((log: {
                 _id: string;
                 action: string;
                 resource: string;

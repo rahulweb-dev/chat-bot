@@ -7,6 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -18,6 +22,7 @@ import {
 import axios from "axios";
 import { timeAgo, formatNumber } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -113,6 +118,7 @@ export function SuperAdminDashboard() {
   const [showCreate, setShowCreate] = useState(false);
   const [setupWhatsApp, setSetupWhatsApp] = useState(false);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [suspendModal, setSuspendModal] = useState<{ id: string; name: string } | null>(null);
   const [suspendReason, setSuspendReason] = useState("");
@@ -124,10 +130,10 @@ export function SuperAdminDashboard() {
 
   // ── Queries ──────────────────────────────────────────────────────────────
   const companiesQuery = useQuery({
-    queryKey: ["admin-companies", search, statusFilter],
+    queryKey: ["admin-companies", debouncedSearch, statusFilter],
     queryFn: async () => {
       const params = new URLSearchParams({ limit: "50" });
-      if (search) params.set("search", search);
+      if (debouncedSearch) params.set("search", debouncedSearch);
       if (statusFilter !== "all") params.set("status", statusFilter);
       const res = await fetch(`/api/companies?${params}`);
       return res.json() as Promise<{ data: Company[]; pagination: { total: number } }>;
@@ -194,6 +200,7 @@ export function SuperAdminDashboard() {
         toast({ title: res.error, variant: "destructive" });
       }
     },
+    onError: () => toast({ title: "Failed to create company — check your connection", variant: "destructive" }),
   });
 
   const toggleActiveMutation = useMutation({
@@ -206,16 +213,16 @@ export function SuperAdminDashboard() {
       return res.json();
     },
     onMutate: async ({ id, isActive }) => {
-      await qc.cancelQueries({ queryKey: ["admin-companies", search, statusFilter] });
-      const previous = qc.getQueryData(["admin-companies", search, statusFilter]);
-      qc.setQueryData(["admin-companies", search, statusFilter], (old: { data: Company[]; pagination: { total: number } } | undefined) => {
+      await qc.cancelQueries({ queryKey: ["admin-companies", debouncedSearch, statusFilter] });
+      const previous = qc.getQueryData(["admin-companies", debouncedSearch, statusFilter]);
+      qc.setQueryData(["admin-companies", debouncedSearch, statusFilter], (old: { data: Company[]; pagination: { total: number } } | undefined) => {
         if (!old) return old;
         return { ...old, data: old.data.map((c) => c._id === id ? { ...c, isActive } : c) };
       });
       return { previous };
     },
     onError: (_e, _v, ctx) => {
-      if (ctx?.previous) qc.setQueryData(["admin-companies", search, statusFilter], ctx.previous);
+      if (ctx?.previous) qc.setQueryData(["admin-companies", debouncedSearch, statusFilter], ctx.previous);
       toast({ title: "Failed to update status", variant: "destructive" });
     },
     onSuccess: (res, { isActive }) => {
@@ -231,26 +238,44 @@ export function SuperAdminDashboard() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason }),
       });
-      return res.json();
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || d?.success === false) throw new Error(d?.error || "Failed to suspend company");
+      return d;
     },
     onSuccess: () => {
       toast({ title: "Company suspended" });
       setSuspendModal(null); setSuspendReason("");
       qc.invalidateQueries({ queryKey: ["admin-companies"] });
     },
+    onError: (err: unknown) => {
+      toast({ title: err instanceof Error ? err.message : "Failed to suspend company", variant: "destructive" });
+    },
   });
 
   const unsuspendMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await fetch(`/api/companies/${id}/suspend`, { method: "DELETE" });
-      return res.json();
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || d?.success === false) throw new Error(d?.error || "Failed to unsuspend company");
+      return d;
     },
     onSuccess: () => { toast({ title: "Company unsuspended" }); qc.invalidateQueries({ queryKey: ["admin-companies"] }); },
+    onError: (err: unknown) => {
+      toast({ title: err instanceof Error ? err.message : "Failed to unsuspend company", variant: "destructive" });
+    },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => { await fetch(`/api/companies/${id}`, { method: "DELETE" }); },
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/companies/${id}`, { method: "DELETE" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || d?.success === false) throw new Error(d?.error || "Failed to delete company");
+      return d;
+    },
     onSuccess: () => { toast({ title: "Company deleted" }); qc.invalidateQueries({ queryKey: ["admin-companies"] }); },
+    onError: (err: unknown) => {
+      toast({ title: err instanceof Error ? err.message : "Failed to delete company", variant: "destructive" });
+    },
   });
 
   const addCreditsMutation = useMutation({
@@ -280,6 +305,7 @@ export function SuperAdminDashboard() {
         toast({ title: res.error, variant: "destructive" });
       }
     },
+    onError: () => toast({ title: "Failed to update plan — check your connection", variant: "destructive" }),
   });
 
   // ── Derived state ─────────────────────────────────────────────────────────
@@ -460,11 +486,31 @@ export function SuperAdminDashboard() {
                           </Button>
                         )}
 
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50"
-                          disabled={deleteMutation.isPending}
-                          onClick={() => deleteMutation.mutate(company._id)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost" size="icon"
+                              aria-label={`Delete ${company.name}`}
+                              className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50"
+                              disabled={deleteMutation.isPending}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Permanently delete {company.name}?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This removes the company and cannot be undone. Their agents will lose access immediately.
+                                Consider Suspend instead if you just need to disable access temporarily.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => deleteMutation.mutate(company._id)}>Delete Company</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
                   </CardContent>

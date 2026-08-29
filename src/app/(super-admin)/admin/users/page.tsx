@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Loader2, Search, Users } from "lucide-react";
 import { getInitials } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 const ROLE_COLORS: Record<string, string> = {
   SUPER_ADMIN: "bg-red-100 text-red-700",
@@ -22,10 +23,11 @@ const ROLE_COLORS: Record<string, string> = {
 
 export default function AdminUsersPage() {
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["admin-users", search],
-    queryFn: () => axios.get(`/api/admin/users?search=${search}&limit=100`).then((r) => r.data),
+    queryKey: ["admin-users", debouncedSearch],
+    queryFn: () => axios.get("/api/admin/users", { params: { search: debouncedSearch, limit: 100 } }).then((r) => r.data),
     staleTime: 30000,
   });
 

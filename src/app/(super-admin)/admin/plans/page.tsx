@@ -8,25 +8,38 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Crown, Users, MessageSquare, Brain, Check } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 
 export default function AdminPlansPage() {
   const queryClient = useQueryClient();
 
+  // Deliberately /api/admin/plans, not the public /api/plans: the latter only
+  // returns isActive plans, and this page has an "Active" toggle right on each
+  // card — using the public endpoint means switching a plan off makes it vanish
+  // from the only screen that can switch it back on.
   const { data, isLoading } = useQuery({
     queryKey: ["admin-plans"],
-    queryFn: () => axios.get("/api/plans").then((r) => r.data.data),
+    queryFn: () => axios.get("/api/admin/plans").then((r) => r.data.data),
   });
 
   const toggle = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       axios.patch(`/api/plans/${id}`, { isActive }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-plans"] }),
+    onError: (err: unknown) => {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error : "Failed to update plan";
+      toast({ title: msg, variant: "destructive" });
+    },
   });
 
   const togglePopular = useMutation({
     mutationFn: ({ id, isPopular }: { id: string; isPopular: boolean }) =>
       axios.patch(`/api/plans/${id}`, { isPopular }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-plans"] }),
+    onError: (err: unknown) => {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error : "Failed to update plan";
+      toast({ title: msg, variant: "destructive" });
+    },
   });
 
   if (isLoading) {
@@ -74,7 +87,7 @@ export default function AdminPlansPage() {
                 </Badge>
               </div>
               <div>
-                <span className="text-3xl font-bold">${plan.price.monthly}</span>
+                <span className="text-3xl font-bold">₹{plan.price.monthly.toLocaleString()}</span>
                 <span className="text-muted-foreground">/mo</span>
               </div>
             </CardHeader>

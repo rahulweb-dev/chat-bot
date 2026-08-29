@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
-import { Loader2, DollarSign, TrendingUp, Users, CreditCard } from "lucide-react";
+import { Loader2, IndianRupee, TrendingUp, Users, CreditCard } from "lucide-react";
 
 export default function AdminRevenuePage() {
   const { data, isLoading } = useQuery({
@@ -37,10 +37,10 @@ export default function AdminRevenuePage() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Monthly Recurring Revenue", value: `$${mrr.toLocaleString()}`, icon: DollarSign, color: "text-green-500" },
-          { label: "Total Revenue (All Time)", value: `$${totalRevenue.toLocaleString()}`, icon: TrendingUp, color: "text-blue-500" },
+          { label: "Monthly Recurring Revenue", value: `₹${mrr.toLocaleString()}`, icon: IndianRupee, color: "text-green-500" },
+          { label: "Total Revenue (All Time)", value: `₹${totalRevenue.toLocaleString()}`, icon: TrendingUp, color: "text-blue-500" },
           { label: "Active Subscriptions", value: activeSubscriptions, icon: CreditCard, color: "text-purple-500" },
-          { label: "Avg Revenue / Account", value: `$${avgRevenuePerAccount}`, icon: Users, color: "text-orange-500" },
+          { label: "Avg Revenue / Account", value: `₹${avgRevenuePerAccount.toLocaleString()}`, icon: Users, color: "text-orange-500" },
         ].map(({ label, value, icon: Icon, color }) => (
           <Card key={label}>
             <CardContent className="pt-4">
@@ -68,8 +68,8 @@ export default function AdminRevenuePage() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${v}`} />
-                <Tooltip formatter={(v) => [`$${v ?? 0}`, "MRR"]} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${v}`} />
+                <Tooltip formatter={(v) => [`₹${v ?? 0}`, "MRR"]} />
                 <Area type="monotone" dataKey="mrr" stroke="#6366f1" fill="url(#mrrGrad)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
@@ -83,8 +83,8 @@ export default function AdminRevenuePage() {
               <BarChart data={revenueByPlan}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="plan" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${v}`} />
-                <Tooltip formatter={(v) => [`$${v ?? 0}`, "Revenue"]} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${v}`} />
+                <Tooltip formatter={(v) => [`₹${v ?? 0}`, "Revenue"]} />
                 <Bar dataKey="revenue" fill="#6366f1" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
