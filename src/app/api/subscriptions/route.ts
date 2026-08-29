@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   if (!["SUPER_ADMIN", "COMPANY_ADMIN"].includes(ctx.userRole)) return apiError("Forbidden", 403);
 
   // Rate-limit: max 10 subscription changes per hour per IP
-  if (!rateLimit(ipKey(request, "create-subscription"), 10, 60 * 60 * 1000)) {
+  if (!(await rateLimit(ipKey(request, "create-subscription"), 10, 60 * 60 * 1000))) {
     return rateLimitError();
   }
 

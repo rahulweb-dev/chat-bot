@@ -12,15 +12,15 @@ function AcceptInviteInner() {
   const token = params.get("token");
 
   const [invite, setInvite]   = useState<{ email: string; name: string; role: string } | null>(null);
-  const [error, setError]     = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState<string | null>(token ? null : "No invite token provided.");
+  const [loading, setLoading] = useState(!!token);
   const [pw, setPw]           = useState("");
   const [pw2, setPw2]         = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone]       = useState(false);
 
   useEffect(() => {
-    if (!token) { setError("No invite token provided."); setLoading(false); return; }
+    if (!token) return;
     fetch(`/api/agents/invite?token=${token}`)
       .then(r => r.json())
       .then(d => {

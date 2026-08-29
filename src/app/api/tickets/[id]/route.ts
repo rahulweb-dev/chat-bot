@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess } from "@/lib/api-helpers";
 import Ticket from "@/models/Ticket";
+import Notification from "@/models/Notification";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await getRequestContext(request);
@@ -53,6 +54,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (rest.status === "RESOLVED" && !rest.resolvedAt) updateData.resolvedAt = new Date();
   if (rest.status === "CLOSED" && !rest.closedAt) updateData.closedAt = new Date();
 
+  const before = rest.assignedTo ? await Ticket.findOne({ _id: id, companyId: ctx.companyId }).select("assignedTo") : null;
+
   const ticket = await Ticket.findOneAndUpdate(
     { _id: id, companyId: ctx.companyId },
     updateData,
@@ -60,6 +63,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   ).populate("assignedTo", "name email avatar");
 
   if (!ticket) return apiError("Ticket not found", 404);
+
+  if (rest.assignedTo && before?.assignedTo?.toString() !== rest.assignedTo) {
+    await Notification.create({
+      companyId: ctx.companyId,
+      userId: rest.assignedTo,
+      type: "TICKET_ASSIGNED",
+      title: "Ticket Assigned to You",
+      message: `Ticket ${ticket.ticketNumber}: ${ticket.subject}`,
+      data: { ticketId: ticket._id },
+      link: `/dashboard/tickets/${ticket._id}`,
+    });
+  }
+
   return apiSuccess(ticket, "Ticket updated");
 }
 

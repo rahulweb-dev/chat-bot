@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     passwordResetExpires: expires,
   });
 
-  const resetUrl = `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/reset-password?token=${rawToken}`;
+  const resetUrl = `${process.env.AUTH_URL || process.env.NEXTAUTH_URL || "http://localhost:3000"}/reset-password?token=${rawToken}`;
 
   // Send email if configured
   try {

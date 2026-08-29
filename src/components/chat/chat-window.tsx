@@ -632,7 +632,7 @@ export function ChatWindow({ conversationId, onSend, onTyping, onToggleDetails, 
               </div>
             ))}
             {Object.keys(groupedReplies).length === 0 && (
-              <p className="text-xs text-gray-400 text-center py-4">No replies match "{quickSearch}"</p>
+              <p className="text-xs text-gray-400 text-center py-4">No replies match &quot;{quickSearch}&quot;</p>
             )}
           </div>
         )}

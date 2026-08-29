@@ -298,7 +298,7 @@ function LoginInner() {
               </div>
             </div>
             <p className="text-slate-300 text-xs leading-relaxed">
-              "SupportFlow cut our response time by 60%. The AI handles 90% of queries automatically — our team finally focuses on what matters."
+              &ldquo;SupportFlow cut our response time by 60%. The AI handles 90% of queries automatically — our team finally focuses on what matters.&rdquo;
             </p>
           </div>
         </motion.div>

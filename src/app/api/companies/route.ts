@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
   if (ctx.userRole !== "SUPER_ADMIN") return apiError("Forbidden", 403);
 
   // Rate-limit: max 20 company creations per hour per IP
-  if (!rateLimit(ipKey(request, "create-company"), 20, 60 * 60 * 1000)) {
+  if (!(await rateLimit(ipKey(request, "create-company"), 20, 60 * 60 * 1000))) {
     return rateLimitError();
   }
 

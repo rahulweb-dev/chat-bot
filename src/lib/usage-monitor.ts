@@ -1,7 +1,7 @@
+import cron from "node-cron";
 import { connectDB } from "./mongodb";
 import Company from "../models/Company";
 import Usage from "../models/Usage";
-import Plan from "../models/Plan";
 import Subscription from "../models/Subscription";
 import Notification from "../models/Notification";
 import { sendEmail, usageAlertEmail } from "./email";
@@ -76,4 +76,19 @@ export async function checkAndSendUsageAlerts() {
       }
     }
   }
+}
+
+const globalForUsageScheduler = globalThis as unknown as { __usageAlertScheduler?: boolean };
+
+export function initUsageAlertScheduler(): void {
+  if (globalForUsageScheduler.__usageAlertScheduler) return;
+  globalForUsageScheduler.__usageAlertScheduler = true;
+
+  cron.schedule("0 * * * *", async () => {
+    try {
+      await checkAndSendUsageAlerts();
+    } catch (e) {
+      console.error("[usage-alert-scheduler] tick failed:", e);
+    }
+  });
 }

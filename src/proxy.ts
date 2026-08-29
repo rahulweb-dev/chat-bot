@@ -7,10 +7,12 @@ const publicRoutes = [
   "/register",
   "/forgot-password",
   "/reset-password",
+  "/invite",
   "/widget",
   "/api/widget",
   "/api/auth",
   "/api/health",
+  "/api/agents/invite",
 ];
 const superAdminRoutes = ["/admin", "/api/admin"];
 
