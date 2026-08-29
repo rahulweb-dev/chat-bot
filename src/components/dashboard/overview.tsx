@@ -83,8 +83,8 @@ export function DashboardOverview({ role }: OverviewProps) {
 
   const setupSteps = [
     { label: "Create your account",             done: true,             link: null },
-    { label: "Get your API key & embed widget", done: hasWidget,        link: "/dashboard/widget" },
-    { label: "Configure your chatbot flow",     done: hasCustomFlow,    link: "/dashboard/chatbot-settings" },
+    { label: "Get your API key & embed widget", done: hasWidget,        link: "/dashboard/chatbot?tab=install" },
+    { label: "Configure your chatbot flow",     done: hasCustomFlow,    link: "/dashboard/chatbot?tab=training" },
     { label: "Start your first conversation",   done: hasConversations, link: "/dashboard/conversations" },
     { label: "Capture your first lead",         done: hasLeads,         link: "/dashboard/leads" },
   ];
@@ -166,7 +166,7 @@ export function DashboardOverview({ role }: OverviewProps) {
               </Link>
             </Button>
             <Button size="sm" className="h-9 bg-indigo-600 hover:bg-indigo-700 shadow-sm shadow-indigo-200" asChild>
-              <Link href="/dashboard/widget">
+              <Link href="/dashboard/chatbot?tab=install">
                 <Code2 className="w-3.5 h-3.5 mr-1.5" /> Install Widget
               </Link>
             </Button>
@@ -398,9 +398,8 @@ export function DashboardOverview({ role }: OverviewProps) {
               <div className="space-y-1">
                 {[
                   { label: "Live Inbox",        href: "/dashboard/conversations", icon: Inbox        },
-                  { label: "Manage Chatbot",    href: "/dashboard/chatbots",      icon: Bot          },
+                  { label: "Manage Chatbot",    href: "/dashboard/chatbot",       icon: Bot          },
                   { label: "Add Agents",        href: "/dashboard/agents",        icon: UserPlus,    roles: ["COMPANY_ADMIN", "MANAGER"] },
-                  { label: "Widget Builder",    href: "/dashboard/widget",        icon: Code2,       roles: ["COMPANY_ADMIN"] },
                   { label: "View Analytics",    href: "/dashboard/analytics",     icon: TrendingUp,  roles: ["COMPANY_ADMIN", "MANAGER"] },
                   { label: "Leaderboard",       href: "/dashboard/leaderboard",   icon: Users,       roles: ["COMPANY_ADMIN", "MANAGER"] },
                 ].filter(l => !l.roles || l.roles.includes(role)).map(({ label, href, icon: Icon }) => (

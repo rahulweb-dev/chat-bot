@@ -133,13 +133,10 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit("chat")} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="welcomeMessage">Welcome Message</Label>
-                  <Input id="welcomeMessage" name="welcomeMessage" defaultValue={s.chat?.welcomeMessage || ""} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="offlineMessage">Offline Message</Label>
-                  <Input id="offlineMessage" name="offlineMessage" defaultValue={s.chat?.offlineMessage || ""} />
+                <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2.5 text-xs text-indigo-800">
+                  Looking for the chat Welcome Message? That&apos;s set in{" "}
+                  <a href="/dashboard/chatbot?tab=welcome" className="font-medium underline underline-offset-2">Chatbot → Welcome Message</a>
+                  {" "}— it&apos;s the one place that actually drives what visitors see.
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">

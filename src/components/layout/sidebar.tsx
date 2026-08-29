@@ -6,9 +6,9 @@ import { cn } from "@/lib/utils";
 import {
   MessageSquare, TicketIcon, Users, Building2, BarChart3,
   Settings, Bell, Key, Bot, Workflow, CreditCard,
-  LayoutDashboard, BookOpen, Puzzle, Tag, Globe, Shield,
+  LayoutDashboard, BookOpen, Tag, Globe, Shield,
   ChevronLeft, ChevronRight, Inbox, MessageCircle,
-  Brain, Zap, ArrowUpRight, Trophy, Mail, X,
+  Zap, ArrowUpRight, Trophy, Mail, X,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -62,8 +62,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "AI & Automation",
     items: [
-      { label: "Chatbots",       href: "/dashboard/chatbots",          icon: Bot,      roles: ["COMPANY_ADMIN", "MANAGER"] },
-      { label: "Bot Training",   href: "/dashboard/chatbot-settings",  icon: Brain,    roles: ["COMPANY_ADMIN", "MANAGER"] },
+      { label: "Chatbot",        href: "/dashboard/chatbot",           icon: Bot,      roles: ["COMPANY_ADMIN", "MANAGER"] },
       { label: "Knowledge Base", href: "/dashboard/knowledge-base",    icon: BookOpen },
       { label: "Workflows",      href: "/dashboard/workflows",         icon: Workflow, roles: ["COMPANY_ADMIN", "MANAGER"] },
     ],
@@ -78,7 +77,6 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Account",
     items: [
-      { label: "Widget Builder", href: "/dashboard/widget",         icon: Puzzle,    roles: ["COMPANY_ADMIN"] },
       { label: "Billing",        href: "/dashboard/billing",        icon: CreditCard, roles: ["COMPANY_ADMIN"] },
       { label: "API Keys",       href: "/dashboard/api-keys",       icon: Key,       roles: ["COMPANY_ADMIN"] },
       { label: "Audit Logs",     href: "/dashboard/audit-logs",     icon: Shield,    roles: ["COMPANY_ADMIN"] },
