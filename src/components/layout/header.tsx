@@ -78,7 +78,7 @@ export function Header() {
       {/* Page title */}
       <div className="shrink-0 min-w-0">
         <h1 className="text-[15px] font-semibold text-gray-900 leading-none">{pageTitle}</h1>
-        <p className="text-[11px] text-gray-400 mt-0.5 hidden sm:block">{today}</p>
+        <p className="text-[11px] text-gray-500 mt-0.5 hidden sm:block">{today}</p>
       </div>
 
       {/* Divider */}
@@ -94,7 +94,7 @@ export function Header() {
             className="w-full h-9 pl-9 pr-16 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
           />
           <div className="absolute right-3 flex items-center gap-0.5 pointer-events-none select-none">
-            <kbd className="text-[10px] text-gray-400 bg-white border border-gray-200 rounded px-1 py-0.5 font-mono shadow-sm">⌘K</kbd>
+            <kbd className="text-[10px] text-gray-500 bg-white border border-gray-200 rounded px-1 py-0.5 font-mono shadow-sm">⌘K</kbd>
           </div>
         </div>
       </div>
@@ -133,7 +133,7 @@ export function Header() {
               </Avatar>
               <div className="text-left hidden md:block">
                 <p className="text-xs font-semibold text-gray-900 leading-none">{session?.user?.name}</p>
-                <p className="text-[10px] text-gray-400 mt-0.5 capitalize">
+                <p className="text-[10px] text-gray-500 mt-0.5 capitalize">
                   {session?.user?.role?.toLowerCase().replace(/_/g, " ")}
                 </p>
               </div>
@@ -143,7 +143,7 @@ export function Header() {
           <DropdownMenuContent align="end" className="w-56 rounded-xl shadow-lg border-gray-200/80">
             <DropdownMenuLabel className="font-normal">
               <p className="font-semibold text-gray-900 text-sm leading-none">{session?.user?.name}</p>
-              <p className="text-xs text-gray-400 mt-1">{session?.user?.email}</p>
+              <p className="text-xs text-gray-500 mt-1">{session?.user?.email}</p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
