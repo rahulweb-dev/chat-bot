@@ -118,14 +118,36 @@ export default function AdminPlansPage() {
 
               <div className="space-y-2 pt-2 border-t">
                 <div className="flex items-center justify-between text-sm">
-                  <span>Active</span>
-                  <Switch
-                    checked={plan.isActive}
-                    onCheckedChange={(checked) => toggle.mutate({ id: plan._id, isActive: checked })}
-                  />
+                  <span className="text-muted-foreground">Status</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={plan.isActive}
+                    aria-label={plan.isActive ? "Deactivate plan" : "Activate plan"}
+                    disabled={toggle.isPending && toggle.variables?.id === plan._id}
+                    onClick={() => toggle.mutate({ id: plan._id, isActive: !plan.isActive })}
+                    className={`
+                      inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full border
+                      transition-colors duration-200 shadow-sm
+                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-indigo-400
+                      disabled:cursor-not-allowed disabled:opacity-60
+                      ${plan.isActive
+                        ? "bg-emerald-50 border-emerald-200 hover:border-emerald-300"
+                        : "bg-rose-50/70 border-rose-200/80 hover:border-rose-300"
+                      }
+                    `}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-200 ${plan.isActive ? "bg-emerald-500" : "bg-rose-400"}`} />
+                    <span className={`text-[11px] font-medium tracking-wide transition-colors duration-200 w-12 text-left ${plan.isActive ? "text-emerald-700" : "text-rose-500"}`}>
+                      {plan.isActive ? "Active" : "Inactive"}
+                    </span>
+                    <span className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full ml-0.5 transition-colors duration-200 ${plan.isActive ? "bg-emerald-500" : "bg-gray-300"}`}>
+                      <span className={`inline-block h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 ease-out ${plan.isActive ? "translate-x-3.5" : "translate-x-0.5"}`} />
+                    </span>
+                  </button>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span>Popular badge</span>
+                  <span className="text-muted-foreground">Popular badge</span>
                   <Switch
                     checked={plan.isPopular}
                     onCheckedChange={(checked) => togglePopular.mutate({ id: plan._id, isPopular: checked })}

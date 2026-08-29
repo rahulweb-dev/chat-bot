@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
@@ -56,6 +55,10 @@ export default function WorkflowsPage() {
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       axios.patch(`/api/workflows/${id}`, { isActive }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["workflows"] }),
+    onError: (err: unknown) => {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error : "Failed to update workflow";
+      toast({ title: msg, variant: "destructive" });
+    },
   });
 
   const deleteWorkflow = useMutation({
@@ -145,7 +148,9 @@ export default function WorkflowsPage() {
             isActive: boolean;
             actions: { type: string }[];
             executionCount?: number;
-          }) => (
+          }) => {
+            const isToggling = toggle.isPending && toggle.variables?.id === wf._id;
+            return (
             <Card key={wf._id} className="group">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -160,10 +165,33 @@ export default function WorkflowsPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-xs text-muted-foreground">{wf.executionCount || 0} runs</div>
-                    <Switch
-                      checked={wf.isActive}
-                      onCheckedChange={(checked) => toggle.mutate({ id: wf._id, isActive: checked })}
-                    />
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={wf.isActive}
+                      aria-label={wf.isActive ? "Deactivate workflow" : "Activate workflow"}
+                      disabled={isToggling}
+                      onClick={() => toggle.mutate({ id: wf._id, isActive: !wf.isActive })}
+                      className={`
+                        inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full border
+                        transition-colors duration-200 shadow-sm
+                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-indigo-400
+                        disabled:cursor-not-allowed disabled:opacity-60
+                        ${isToggling ? "cursor-wait" : "cursor-pointer"}
+                        ${wf.isActive
+                          ? "bg-emerald-50 border-emerald-200 hover:border-emerald-300"
+                          : "bg-rose-50/70 border-rose-200/80 hover:border-rose-300"
+                        }
+                      `}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-200 ${wf.isActive ? "bg-emerald-500" : "bg-rose-400"}`} />
+                      <span className={`text-[11px] font-medium tracking-wide transition-colors duration-200 w-12 text-left ${wf.isActive ? "text-emerald-700" : "text-rose-500"}`}>
+                        {isToggling ? "…" : wf.isActive ? "Active" : "Inactive"}
+                      </span>
+                      <span className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full ml-0.5 transition-colors duration-200 ${wf.isActive ? "bg-emerald-500" : "bg-gray-300"}`}>
+                        <span className={`inline-block h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 ease-out ${wf.isActive ? "translate-x-3.5" : "translate-x-0.5"}`} />
+                      </span>
+                    </button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button
@@ -210,7 +238,8 @@ export default function WorkflowsPage() {
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

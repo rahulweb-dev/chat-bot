@@ -77,6 +77,10 @@ export function ContactsTab() {
   const toggleOptIn = useMutation({
     mutationFn: ({ id, optIn }: { id: string; optIn: boolean }) => axios.patch(`/api/whatsapp/contacts/${id}`, { optIn }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["whatsapp-contacts"] }),
+    onError: (err: unknown) => {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error : "Failed to update contact";
+      toast({ title: msg, variant: "destructive" });
+    },
   });
 
   const remove = useMutation({
@@ -213,10 +217,32 @@ export function ContactsTab() {
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5">
-                      <Switch checked={c.optIn} onCheckedChange={(v) => toggleOptIn.mutate({ id: c._id, optIn: v })} />
-                      <span className="text-xs text-muted-foreground">{c.optIn ? "Opted in" : "Opted out"}</span>
-                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={c.optIn}
+                      aria-label={c.optIn ? "Opt out contact" : "Opt in contact"}
+                      disabled={toggleOptIn.isPending && toggleOptIn.variables?.id === c._id}
+                      onClick={() => toggleOptIn.mutate({ id: c._id, optIn: !c.optIn })}
+                      className={`
+                        inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full border
+                        transition-colors duration-200 shadow-sm
+                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-indigo-400
+                        disabled:cursor-not-allowed disabled:opacity-60
+                        ${c.optIn
+                          ? "bg-emerald-50 border-emerald-200 hover:border-emerald-300"
+                          : "bg-rose-50/70 border-rose-200/80 hover:border-rose-300"
+                        }
+                      `}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-200 ${c.optIn ? "bg-emerald-500" : "bg-rose-400"}`} />
+                      <span className={`text-[11px] font-medium tracking-wide transition-colors duration-200 whitespace-nowrap ${c.optIn ? "text-emerald-700" : "text-rose-500"}`}>
+                        {c.optIn ? "Opted in" : "Opted out"}
+                      </span>
+                      <span className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full ml-0.5 transition-colors duration-200 ${c.optIn ? "bg-emerald-500" : "bg-gray-300"}`}>
+                        <span className={`inline-block h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 ease-out ${c.optIn ? "translate-x-3.5" : "translate-x-0.5"}`} />
+                      </span>
+                    </button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button
