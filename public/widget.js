@@ -624,6 +624,18 @@
           var el = document.getElementById("sf-hname");
           if (el) el.textContent = companyName;
         }
+        var logoUrl = (d.data.settings && d.data.settings.logo) || d.data.logo;
+        if (logoUrl) {
+          var hav = document.getElementById("sf-hav");
+          if (hav) {
+            hav.innerHTML = "";
+            var img = document.createElement("img");
+            img.src = logoUrl;
+            img.alt = "";
+            img.style.cssText = "width:100%;height:100%;border-radius:50%;object-fit:cover";
+            hav.appendChild(img);
+          }
+        }
         // Pick up Pusher config from server
         if (d.data.pusherKey) {
           pusherKey     = d.data.pusherKey;

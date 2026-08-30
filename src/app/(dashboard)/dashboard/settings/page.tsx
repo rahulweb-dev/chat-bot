@@ -8,10 +8,72 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/components/ui/use-toast";
-import { Loader2, Save, Bell, Shield, MessageSquare, Globe, Palette } from "lucide-react";
+import { Loader2, Save, Bell, Shield, MessageSquare, Globe, Palette, ImageIcon, Trash2, Building2 } from "lucide-react";
+import { uploadToImageKit } from "@/lib/imagekitUpload";
+
+function LogoUploadField({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [progress, setProgress] = useState<number | null>(null);
+
+  const handleFile = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Please select an image file", variant: "destructive" });
+      return;
+    }
+    setProgress(0);
+    try {
+      const result = await uploadToImageKit(file, "company-logos", setProgress);
+      onChange(result.url);
+    } catch {
+      toast({ title: "Logo upload failed", variant: "destructive" });
+    } finally {
+      setProgress(null);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label>Company Logo</Label>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+      />
+      {value ? (
+        <div className="relative w-20 h-20 rounded-full border overflow-hidden group">
+          <img src={value} alt="Company logo" className="w-full h-full object-cover" />
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            aria-label="Remove logo"
+            className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      ) : progress !== null ? (
+        <div className="w-20 h-20 rounded-full border flex flex-col items-center justify-center gap-1">
+          <Progress value={progress} className="h-1 w-12" />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="w-20 h-20 rounded-full border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-indigo-300 hover:text-indigo-500 transition-colors"
+        >
+          <ImageIcon className="w-5 h-5" />
+        </button>
+      )}
+      <p className="text-xs text-gray-400">Shown in the chat widget header on your website.</p>
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -24,6 +86,14 @@ export default function SettingsPage() {
     queryFn: () => axios.get("/api/settings").then((r) => r.data.data),
   });
 
+  const companyId = data?.companyId as string | undefined;
+
+  const { data: company } = useQuery({
+    queryKey: ["company-profile", companyId],
+    queryFn: () => axios.get(`/api/companies/${companyId}`).then((r) => r.data.data),
+    enabled: !!companyId,
+  });
+
   const mutation = useMutation({
     mutationFn: (body: Record<string, unknown>) => axios.patch("/api/settings", body),
     onSuccess: () => {
@@ -32,6 +102,27 @@ export default function SettingsPage() {
     },
     onError: () => toast({ title: "Failed to save settings", variant: "destructive" }),
   });
+
+  const companyMutation = useMutation({
+    mutationFn: (body: Record<string, unknown>) => axios.patch(`/api/companies/${companyId}`, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["company-profile", companyId] });
+      toast({ title: "Company profile saved" });
+    },
+    onError: (err: unknown) => {
+      const message = axios.isAxiosError(err) ? err.response?.data?.error : undefined;
+      toast({ title: message || "Failed to save company profile", variant: "destructive" });
+    },
+  });
+
+  const [companyName, setCompanyName] = useState("");
+  const [companyLogo, setCompanyLogo] = useState("");
+  const [appliedCompany, setAppliedCompany] = useState<unknown>(undefined);
+  if (company && company !== appliedCompany) {
+    setAppliedCompany(company);
+    setCompanyName(company.name || "");
+    setCompanyLogo(company.logo || "");
+  }
 
   const handleSubmit = (section: string) => async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -62,6 +153,34 @@ export default function SettingsPage() {
         <p className="text-muted-foreground">Manage your platform configuration</p>
       </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Building2 className="h-4 w-4" />Company Profile</CardTitle>
+          <CardDescription>Your company&apos;s name and logo — shown in the chat widget header on your website, and in the dashboard&apos;s Live Preview.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              companyMutation.mutate({ name: companyName, logo: companyLogo });
+            }}
+            className="space-y-4"
+          >
+            <div className="flex items-start gap-6">
+              <LogoUploadField value={companyLogo} onChange={setCompanyLogo} />
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="realCompanyName">Company Name</Label>
+                <Input id="realCompanyName" value={companyName} onChange={(e) => setCompanyName(e.target.value)} minLength={2} maxLength={100} required />
+              </div>
+            </div>
+            <Button type="submit" disabled={companyMutation.isPending || !companyId}>
+              {companyMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+              Save Company Profile
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
       <Tabs defaultValue="general">
         <TabsList className="grid grid-cols-5 w-full max-w-2xl">
           <TabsTrigger value="general"><Globe className="h-4 w-4 mr-1" />General</TabsTrigger>
@@ -75,15 +194,11 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>General Settings</CardTitle>
-              <CardDescription>Company name, timezone, and language</CardDescription>
+              <CardDescription>Support email, timezone, and language</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit("general")} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="companyName">Company Name</Label>
-                    <Input id="companyName" name="companyName" defaultValue={s.general?.companyName || ""} />
-                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="supportEmail">Support Email</Label>
                     <Input id="supportEmail" name="supportEmail" type="email" defaultValue={s.general?.supportEmail || ""} />

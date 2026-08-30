@@ -1269,7 +1269,7 @@ function OverviewTab({ config, refetch }: { config: Config; refetch: () => void 
 // ── Live chatbot preview (hits the same endpoint the real widget uses) ─────────
 type ChatMsg = { from: "bot" | "user"; text: string; time: string };
 
-function ChatbotFlowPreview({ color, theme, companyName }: { color: string; theme: string; companyName: string }) {
+function ChatbotFlowPreview({ color, theme, companyName, logo }: { color: string; theme: string; companyName: string; logo?: string }) {
   const dark  = theme === "DARK";
   const BG    = dark ? "#1f2937" : "#ffffff";
   const BG2   = dark ? "#111827" : "#f9fafb";
@@ -1374,10 +1374,14 @@ function ChatbotFlowPreview({ color, theme, companyName }: { color: string; them
       minHeight: 500,
     }}>
       <div style={{ background: color, padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, flexShrink: 0, position: "relative" }}>
-        <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(255,255,255,.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <svg viewBox="0 0 24 24" style={{ width: 20, height: 20, fill: "white" }}>
-            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
-          </svg>
+        <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(255,255,255,.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+          {logo ? (
+            <img src={logo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : (
+            <svg viewBox="0 0 24 24" style={{ width: 20, height: 20, fill: "white" }}>
+              <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
+            </svg>
+          )}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ color: "white", fontWeight: 700, fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -1544,6 +1548,18 @@ function ChatbotPageInner() {
       const d = await res.json();
       return d.data;
     },
+  });
+
+  // companyData is the Settings document (no name/logo) — fetch the real Company
+  // record for those, keyed off Settings.companyId.
+  const { data: companyProfile } = useQuery({
+    queryKey: ["company-profile", companyData?.companyId],
+    queryFn: async () => {
+      const res = await fetch(`/api/companies/${companyData.companyId}`);
+      const d = await res.json();
+      return d.data as { name?: string; logo?: string };
+    },
+    enabled: !!companyData?.companyId,
   });
 
   // Seed local widget-settings form once company data arrives (derived during
@@ -1817,7 +1833,7 @@ function ChatbotPageInner() {
               <span className="text-[11px] text-gray-400 flex items-center gap-1"><RotateCcw className="w-3 h-3" /> Click Restart to reset</span>
             </div>
 
-            <ChatbotFlowPreview color={settings.primaryColor} theme={settings.theme} companyName={companyData?.name || ""} />
+            <ChatbotFlowPreview color={settings.primaryColor} theme={settings.theme} companyName={companyProfile?.name || ""} logo={companyProfile?.logo} />
 
             <p className="text-center text-xs text-gray-400">This is the real chatbot — same as what visitors see · No DB entries created</p>
           </div>

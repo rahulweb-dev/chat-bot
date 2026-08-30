@@ -10,6 +10,7 @@ import AuditLog from "@/models/AuditLog";
 // Fields a COMPANY_ADMIN may change on their own company
 const companyAdminUpdateSchema = z.object({
   name: z.string().min(2).max(100).optional(),
+  logo: z.string().max(1000).optional(),
   email: z.string().email().optional(),
   settings: z
     .object({
