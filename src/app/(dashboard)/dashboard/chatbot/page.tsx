@@ -893,6 +893,42 @@ function slugifyKey(s: string): string {
   return `${base || "option"}_${Date.now().toString(36)}`;
 }
 
+const VALID_OUTCOMES = ["NONE", "CREATE_LEAD", "CREATE_TICKET", "ASSIGN_AGENT"];
+
+// Parses pasted JSON (one option, or an array of options) into CustomFlowItem[].
+// Throws on invalid JSON; silently defaults/ignores unrecognized or missing fields
+// so a rough hand-written JSON blob still imports something usable.
+function parseFlowJson(text: string): CustomFlowItem[] {
+  const parsed = JSON.parse(text);
+  const arr = Array.isArray(parsed) ? parsed : [parsed];
+  return arr
+    .map((raw: Record<string, unknown>) => {
+      const label = String(raw.label ?? raw.name ?? "New Option").trim();
+      const stepsRaw = Array.isArray(raw.steps) ? raw.steps : [];
+      const steps: CustomFlowStep[] = stepsRaw
+        .map((s: Record<string, unknown>): CustomFlowStep => ({
+          question: String(s.question ?? ""),
+          type: s.type === "text" ? "text" : "choice",
+          options: Array.isArray(s.options) ? s.options.map(String) : [],
+          saveAs: String(s.saveAs ?? ""),
+        }))
+        .filter((s: CustomFlowStep) => s.question.trim().length > 0);
+      const outcome = VALID_OUTCOMES.includes(String(raw.outcome)) ? (raw.outcome as CustomFlowItem["outcome"]) : "NONE";
+      const item: CustomFlowItem = {
+        key: slugifyKey(label),
+        label,
+        steps,
+        outcome,
+        closingMessage: String(raw.closingMessage ?? ""),
+        leadType: raw.leadType ? String(raw.leadType) : "",
+        leadScore: typeof raw.leadScore === "number" ? raw.leadScore : 60,
+        ticketSubject: raw.ticketSubject ? String(raw.ticketSubject) : "",
+      };
+      return item;
+    })
+    .filter((item) => item.label.length > 0);
+}
+
 // Read-only reference for the built-in demo menu — shown when a company hasn't
 // turned on their own custom menu yet, so they can see what visitors get by default.
 function DefaultFlowReference({ expandedFlow, setExpandedFlow }: { expandedFlow: string | null; setExpandedFlow: (v: string | null) => void }) {
@@ -946,6 +982,9 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true }: { config: Co
   const [openIdx, setOpenIdx] = useState<number | null>(null);
   const [expandedFlow, setExpandedFlow] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [mode, setMode] = useState<"builder" | "json">("builder");
+  const [jsonText, setJsonText] = useState("");
+  const [jsonError, setJsonError] = useState("");
 
   async function save(patch: Partial<{ enabled: boolean; menuIntro: string; flows: CustomFlowItem[] }> = {}) {
     const payload = { enabled: patch.enabled ?? enabled, menuIntro: patch.menuIntro ?? menuIntro, flows: patch.flows ?? flows };
@@ -965,6 +1004,22 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true }: { config: Co
     const next = [...flows, item];
     setFlows(next);
     setOpenIdx(next.length - 1);
+  }
+
+  function importJson() {
+    setJsonError("");
+    let imported: CustomFlowItem[];
+    try {
+      imported = parseFlowJson(jsonText);
+    } catch {
+      setJsonError("Invalid JSON — check the format and try again.");
+      return;
+    }
+    if (!imported.length) { setJsonError("No valid menu options found in that JSON."); return; }
+    const next = [...flows, ...imported];
+    setFlows(next);
+    setJsonText("");
+    toast({ title: `Imported ${imported.length} option${imported.length === 1 ? "" : "s"} — click Save Menu to publish` });
   }
 
   function updateFlow(i: number, patch: Partial<CustomFlowItem>) {
@@ -999,7 +1054,7 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true }: { config: Co
     <div className="space-y-4">
       {showStepBanner && (
         <StepBanner n={2} of={7} title="Menu flow">
-          Build your own bot menu to replace the built-in demo below. Each option can ask a series of questions, then create a Lead, a Ticket, or hand off to an agent — this is what runs for every company that turns it on.
+          Build your own bot menu to replace the built-in demo below. Each option can ask a series of questions, then create a Lead, a Ticket, or hand off to an agent. Add options one at a time, or paste JSON to add several at once.
         </StepBanner>
       )}
 
@@ -1024,6 +1079,70 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true }: { config: Co
               <Input value={menuIntro} onChange={(e) => setMenuIntro(e.target.value)} />
             </CardContent>
           </Card>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMode("builder")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${mode === "builder" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+            >
+              <Plus className="w-3.5 h-3.5" /> Manual Add
+            </button>
+            <button
+              onClick={() => setMode("json")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${mode === "json" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+            >
+              <Code className="w-3.5 h-3.5" /> Paste JSON
+            </button>
+          </div>
+
+          {mode === "json" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Paste JSON Menu Options</CardTitle>
+                <p className="text-xs text-gray-500 mt-1">One option, or an array of options — paste either below.</p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="bg-gray-50 border rounded-md p-3">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Format</p>
+                  <pre className="text-[11px] text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">{`[
+  {
+    "label": "🚗 Buy a Car",
+    "steps": [
+      { "question": "Which car model?", "type": "choice", "options": ["Dost+", "Ecomet 912"], "saveAs": "model" },
+      { "question": "What would you like next?", "type": "choice", "options": ["Brochure", "Price", "Test Drive"], "saveAs": "interest" }
+    ],
+    "outcome": "CREATE_LEAD",
+    "leadType": "CAR_INQUIRY",
+    "leadScore": 70,
+    "closingMessage": "Thanks! Noted {{model}} — you asked for {{interest}}."
+  },
+  {
+    "label": "🛠️ Book a Service",
+    "steps": [
+      { "question": "Vehicle registration number?", "type": "text", "saveAs": "vehicleNumber" }
+    ],
+    "outcome": "CREATE_TICKET",
+    "ticketSubject": "Service request — {{vehicleNumber}}",
+    "closingMessage": "✅ Request received for {{vehicleNumber}}."
+  }
+]`}</pre>
+                </div>
+                <p className="text-xs text-gray-400">
+                  <code className="bg-gray-100 px-1 rounded">outcome</code> is one of <code className="bg-gray-100 px-1 rounded">NONE</code>, <code className="bg-gray-100 px-1 rounded">CREATE_LEAD</code>, <code className="bg-gray-100 px-1 rounded">CREATE_TICKET</code>, <code className="bg-gray-100 px-1 rounded">ASSIGN_AGENT</code>. Every field except <code className="bg-gray-100 px-1 rounded">label</code> is optional.
+                </p>
+                <textarea
+                  className="w-full border rounded-md px-3 py-2 text-sm min-h-40 resize-none font-mono"
+                  placeholder="Paste your JSON here…"
+                  value={jsonText}
+                  onChange={(e) => { setJsonText(e.target.value); setJsonError(""); }}
+                />
+                {jsonError && <p className="text-xs text-red-500">{jsonError}</p>}
+                <Button onClick={importJson} disabled={!jsonText.trim()} className="bg-indigo-600 hover:bg-indigo-700">
+                  <Save className="w-4 h-4 mr-2" /> Import Options
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
           <div className="space-y-2">
             {flows.length === 0 && (
@@ -1139,7 +1258,9 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true }: { config: Co
           </div>
 
           <div className="flex items-center justify-between">
-            <Button variant="outline" onClick={addFlow}><Plus className="w-4 h-4 mr-2" />Add Menu Option</Button>
+            {mode === "builder" ? (
+              <Button variant="outline" onClick={addFlow}><Plus className="w-4 h-4 mr-2" />Add Menu Option</Button>
+            ) : <span />}
             <Button onClick={() => save()} disabled={saving} className="bg-indigo-600 hover:bg-indigo-700">
               {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
               Save Menu
