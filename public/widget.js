@@ -505,6 +505,7 @@
   function setAvatarLogo(av) {
     if (!companyLogo) return;
     av.textContent = "";
+    av.style.background = "#ffffff";
     var img = document.createElement("img");
     img.src = companyLogo;
     img.alt = "";

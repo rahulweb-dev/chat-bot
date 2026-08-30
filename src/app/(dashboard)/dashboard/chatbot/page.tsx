@@ -1495,7 +1495,7 @@ function ChatbotFlowPreview({ color, theme, companyName, logo }: { color: string
       minHeight: 500,
     }}>
       <div style={{ background: color, padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, flexShrink: 0, position: "relative" }}>
-        <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(255,255,255,.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+        <div style={{ width: 40, height: 40, borderRadius: "50%", background: logo ? "#ffffff" : "rgba(255,255,255,.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
           {logo ? (
             <img src={logo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           ) : (
@@ -1543,7 +1543,7 @@ function ChatbotFlowPreview({ color, theme, companyName, logo }: { color: string
           {msgs.map((m, i) => (
             <div key={i} style={{ display: "flex", alignItems: "flex-end", gap: 6, justifyContent: m.from === "user" ? "flex-end" : "flex-start" }}>
               {m.from === "bot" && (
-                <div style={{ width: 20, height: 20, borderRadius: "50%", overflow: "hidden", flexShrink: 0, background: color, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ width: 20, height: 20, borderRadius: "50%", overflow: "hidden", flexShrink: 0, background: logo ? "#ffffff" : color, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   {logo ? (
                     <img src={logo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   ) : (
