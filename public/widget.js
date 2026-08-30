@@ -4,6 +4,13 @@
   var cfg = window.SupportFlowConfig || {};
   if (!cfg.apiKey) { console.error("SupportFlow: apiKey required"); return; }
 
+  // Guards against the install snippet being embedded more than once on the same
+  // page (e.g. pasted into both a header and footer template) — without this,
+  // a second boot() builds a second independent widget instance that shares the
+  // same #sf-msgs id as the first, so every bot message gets appended twice.
+  if (window.__sfWidgetBooted) { return; }
+  window.__sfWidgetBooted = true;
+
   var BASE  = (cfg.baseUrl || "").replace(/\/$/, "");
   var KEY   = cfg.apiKey;
   var COLOR = cfg.primaryColor || "#6366f1";
@@ -91,6 +98,8 @@
     s.textContent =
       // Reset
       "#sf-root,#sf-root *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}" +
+      "#sf-root button:focus-visible,#sf-root a:focus-visible{outline:2px solid " + COLOR + ";outline-offset:2px}" +
+      "#sf-root *{scrollbar-width:thin;scrollbar-color:" + BORD + " transparent}" +
 
       // Launcher
       "#sf-launch{position:fixed;" + SIDE + ":24px;bottom:24px;z-index:2147483646}" +
@@ -107,7 +116,7 @@
       "#sf-win.open{opacity:1;pointer-events:all;transform:none}" +
 
       // Header
-      "#sf-head{background:linear-gradient(135deg," + COLOR + " 0%," + COLOR + "e0 100%);padding:18px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0}" +
+      "#sf-head{background:linear-gradient(135deg," + COLOR + " 0%," + COLOR + "e0 100%);padding:18px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0;position:relative;z-index:1;box-shadow:0 2px 10px rgba(0,0,0,.1)}" +
       "#sf-hav{width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center;flex-shrink:0}" +
       "#sf-hav svg{width:24px;height:24px;fill:white}" +
       "#sf-hi{flex:1;min-width:0}" +
@@ -162,9 +171,10 @@
       "#sf-qr{padding:10px 14px 12px;background:" + BG + ";border-top:1px solid " + BORD + ";display:flex;flex-wrap:wrap;gap:7px;flex-shrink:0;max-height:200px;overflow-y:auto}" +
       "#sf-qr::-webkit-scrollbar{width:3px}" +
       "#sf-qr::-webkit-scrollbar-thumb{background:" + BORD + ";border-radius:3px}" +
-      ".sf-qb{padding:8px 16px;border-radius:20px;border:1.5px solid " + COLOR + ";background:transparent;color:" + COLOR + ";font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;line-height:1.3;text-align:left}" +
-      ".sf-qb:hover{background:" + COLOR + ";color:white;transform:translateY(-1px);box-shadow:0 4px 12px " + C60 + "}" +
-      ".sf-qb.back{border-color:" + BORD + ";color:" + MUTED + ";font-size:12px}" +
+      ".sf-qb{padding:8px 16px;border-radius:20px;border:1.5px solid " + COLOR + "55;background:" + C20 + ";color:" + COLOR + ";font-size:13px;font-weight:600;cursor:pointer;transition:transform .15s,box-shadow .15s,background .15s;line-height:1.3;text-align:left}" +
+      ".sf-qb:hover{background:" + COLOR + ";color:white;border-color:" + COLOR + ";transform:translateY(-1px);box-shadow:0 4px 12px " + C60 + "}" +
+      ".sf-qb:active{transform:translateY(0) scale(.98)}" +
+      ".sf-qb.back{border-color:" + BORD + ";background:transparent;color:" + MUTED + ";font-size:12px;font-weight:500}" +
       ".sf-qb.back:hover{background:" + BORD + ";color:" + TXT + ";transform:none;box-shadow:none}" +
       ".sf-qb.full{width:100%;border-radius:12px}" +
 
@@ -196,6 +206,11 @@
       "@media(max-width:440px){" +
         "#sf-win{left:0!important;right:0!important;bottom:0!important;width:100%!important;height:100%!important;max-height:100%!important;border-radius:0!important;border:none}" +
         "#sf-launch{" + SIDE + ":16px;bottom:16px}" +
+      "}" +
+
+      // Respect the visitor's OS-level motion preference
+      "@media(prefers-reduced-motion:reduce){" +
+        "#sf-root *{animation-duration:.001s!important;animation-iteration-count:1!important;transition-duration:.001s!important}" +
       "}";
     document.head.appendChild(s);
   }
