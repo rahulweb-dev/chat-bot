@@ -25,11 +25,21 @@ interface Offer    { _id?: string; title: string; description: string; validUnti
 interface Vehicle  { _id?: string; name: string; category: string; payload: string; priceRange: string; description: string; isActive: boolean }
 interface BizHour  { day: string; open: string; close: string; isClosed: boolean }
 interface Training { _id?: string; trigger: string; keywords: string[]; response: string; isActive: boolean }
-interface CustomFlowStep { question: string; type: "choice" | "text"; options: string[]; saveAs: string }
+interface CustomFlowStep {
+  question: string; type: "choice" | "text"; options: string[]; saveAs: string;
+  validate?: "none" | "phone" | "email" | "number";
+  optionsSource?: "manual" | "vehicles" | "offers";
+}
+interface CustomFlowBranch {
+  whenSaveAs: string; equals: string;
+  outcome: "NONE" | "CREATE_LEAD" | "CREATE_TICKET" | "ASSIGN_AGENT";
+  closingMessage: string; leadType?: string; leadScore?: number; ticketSubject?: string;
+}
 interface CustomFlowItem {
   key: string; label: string; steps: CustomFlowStep[];
   outcome: "NONE" | "CREATE_LEAD" | "CREATE_TICKET" | "ASSIGN_AGENT";
   closingMessage: string; leadType?: string; leadScore?: number; ticketSubject?: string;
+  branches?: CustomFlowBranch[];
 }
 interface CustomFlow { enabled: boolean; menuIntro: string; flows: CustomFlowItem[] }
 interface Config   {
@@ -905,15 +915,31 @@ function parseFlowJson(text: string): CustomFlowItem[] {
     .map((raw: Record<string, unknown>) => {
       const label = String(raw.label ?? raw.name ?? "New Option").trim();
       const stepsRaw = Array.isArray(raw.steps) ? raw.steps : [];
+      const validOptionsSources = ["manual", "vehicles", "offers"];
+      const validValidations = ["none", "phone", "email", "number"];
       const steps: CustomFlowStep[] = stepsRaw
         .map((s: Record<string, unknown>): CustomFlowStep => ({
           question: String(s.question ?? ""),
           type: s.type === "text" ? "text" : "choice",
           options: Array.isArray(s.options) ? s.options.map(String) : [],
           saveAs: String(s.saveAs ?? ""),
+          validate: validValidations.includes(String(s.validate)) ? (s.validate as CustomFlowStep["validate"]) : "none",
+          optionsSource: validOptionsSources.includes(String(s.optionsSource)) ? (s.optionsSource as CustomFlowStep["optionsSource"]) : "manual",
         }))
         .filter((s: CustomFlowStep) => s.question.trim().length > 0);
       const outcome = VALID_OUTCOMES.includes(String(raw.outcome)) ? (raw.outcome as CustomFlowItem["outcome"]) : "NONE";
+      const branchesRaw = Array.isArray(raw.branches) ? raw.branches : [];
+      const branches: CustomFlowBranch[] = branchesRaw
+        .map((b: Record<string, unknown>): CustomFlowBranch => ({
+          whenSaveAs: String(b.whenSaveAs ?? ""),
+          equals: String(b.equals ?? ""),
+          outcome: VALID_OUTCOMES.includes(String(b.outcome)) ? (b.outcome as CustomFlowBranch["outcome"]) : "NONE",
+          closingMessage: String(b.closingMessage ?? ""),
+          leadType: b.leadType ? String(b.leadType) : "",
+          leadScore: typeof b.leadScore === "number" ? b.leadScore : 60,
+          ticketSubject: b.ticketSubject ? String(b.ticketSubject) : "",
+        }))
+        .filter((b: CustomFlowBranch) => b.whenSaveAs.trim().length > 0);
       const item: CustomFlowItem = {
         key: slugifyKey(label),
         label,
@@ -923,10 +949,33 @@ function parseFlowJson(text: string): CustomFlowItem[] {
         leadType: raw.leadType ? String(raw.leadType) : "",
         leadScore: typeof raw.leadScore === "number" ? raw.leadScore : 60,
         ticketSubject: raw.ticketSubject ? String(raw.ticketSubject) : "",
+        branches,
       };
       return item;
     })
     .filter((item) => item.label.length > 0);
+}
+
+function dedupeByLabel(existing: CustomFlowItem[], incoming: CustomFlowItem[]): { kept: CustomFlowItem[]; skipped: string[] } {
+  const seen = new Set(existing.map((f) => f.label.trim().toLowerCase()));
+  const kept: CustomFlowItem[] = [];
+  const skipped: string[] = [];
+  for (const item of incoming) {
+    const key = item.label.trim().toLowerCase();
+    if (seen.has(key)) { skipped.push(item.label); continue; }
+    seen.add(key);
+    kept.push(item);
+  }
+  return { kept, skipped };
+}
+
+function findDuplicateLabels(flows: CustomFlowItem[]): string[] {
+  const counts = new Map<string, number>();
+  for (const f of flows) {
+    const key = f.label.trim().toLowerCase();
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()].filter(([, count]) => count > 1).map(([label]) => label);
 }
 
 // Read-only reference for the built-in demo menu — shown when a company hasn't
@@ -974,7 +1023,7 @@ function DefaultFlowReference({ expandedFlow, setExpandedFlow }: { expandedFlow:
 }
 
 // ── Menu Flow Builder Tab ───────────────────────────────────────────────────────
-function FlowBuilderTab({ config, refetch, showStepBanner = true }: { config: Config; refetch: () => void; showStepBanner?: boolean }) {
+function FlowBuilderTab({ config, refetch, showStepBanner = true, onTestOption }: { config: Config; refetch: () => void; showStepBanner?: boolean; onTestOption?: (label: string) => void }) {
   const seed: CustomFlow = config.customFlow ?? { enabled: false, menuIntro: "How can we help you today? Please select an option:", flows: [] };
   const [enabled, setEnabled] = useState(seed.enabled);
   const [menuIntro, setMenuIntro] = useState(seed.menuIntro);
@@ -986,8 +1035,31 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true }: { config: Co
   const [jsonText, setJsonText] = useState("");
   const [jsonError, setJsonError] = useState("");
 
+  const { data: flowStats } = useQuery({
+    queryKey: ["chatbot-flow-stats"],
+    queryFn: async () => {
+      const r = await fetch("/api/chatbot-config/flow-stats");
+      const d = await r.json();
+      return (d.data ?? {}) as Record<string, number>;
+    },
+    staleTime: 60_000,
+  });
+
+  function flowLeadCount(f: CustomFlowItem): number {
+    if (!flowStats) return 0;
+    const types = new Set<string>([(f.leadType?.trim() || f.key).toUpperCase(), f.key.toUpperCase()]);
+    (f.branches ?? []).forEach((b) => types.add((b.leadType?.trim() || f.key).toUpperCase()));
+    return [...types].reduce((sum, t) => sum + (flowStats[t] || 0), 0);
+  }
+
   async function save(patch: Partial<{ enabled: boolean; menuIntro: string; flows: CustomFlowItem[] }> = {}) {
-    const payload = { enabled: patch.enabled ?? enabled, menuIntro: patch.menuIntro ?? menuIntro, flows: patch.flows ?? flows };
+    const nextFlows = patch.flows ?? flows;
+    const duplicates = findDuplicateLabels(nextFlows);
+    if (duplicates.length) {
+      toast({ title: `Duplicate menu label${duplicates.length > 1 ? "s" : ""}`, description: `Rename so each option is unique: ${duplicates.join(", ")}`, variant: "destructive" });
+      return;
+    }
+    const payload = { enabled: patch.enabled ?? enabled, menuIntro: patch.menuIntro ?? menuIntro, flows: nextFlows };
     setSaving(true);
     const r = await patchConfig({ customFlow: payload });
     setSaving(false);
@@ -1000,10 +1072,24 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true }: { config: Co
   }
 
   function addFlow() {
-    const item: CustomFlowItem = { key: slugifyKey("option"), label: "New Option", steps: [], outcome: "NONE", closingMessage: "", leadType: "", leadScore: 60, ticketSubject: "" };
+    const item: CustomFlowItem = { key: slugifyKey("option"), label: "New Option", steps: [], outcome: "NONE", closingMessage: "", leadType: "", leadScore: 60, ticketSubject: "", branches: [] };
     const next = [...flows, item];
     setFlows(next);
     setOpenIdx(next.length - 1);
+  }
+
+  function duplicateFlow(i: number) {
+    const src = flows[i];
+    const clone: CustomFlowItem = {
+      ...src,
+      key: slugifyKey(src.label + "_copy"),
+      label: `${src.label} (Copy)`,
+      steps: src.steps.map((s) => ({ ...s, options: [...s.options] })),
+      branches: (src.branches ?? []).map((b) => ({ ...b })),
+    };
+    const next = [...flows.slice(0, i + 1), clone, ...flows.slice(i + 1)];
+    setFlows(next);
+    setOpenIdx(i + 1);
   }
 
   function importJson() {
@@ -1016,10 +1102,14 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true }: { config: Co
       return;
     }
     if (!imported.length) { setJsonError("No valid menu options found in that JSON."); return; }
-    const next = [...flows, ...imported];
+    const { kept, skipped } = dedupeByLabel(flows, imported);
+    if (!kept.length) { setJsonError(`All ${imported.length} option(s) were skipped as duplicates of existing labels.`); return; }
+    const next = [...flows, ...kept];
     setFlows(next);
     setJsonText("");
-    toast({ title: `Imported ${imported.length} option${imported.length === 1 ? "" : "s"} — click Save Menu to publish` });
+    toast({
+      title: `Imported ${kept.length} option${kept.length === 1 ? "" : "s"}${skipped.length ? `, skipped ${skipped.length} duplicate${skipped.length === 1 ? "" : "s"}` : ""} — click Save Menu to publish`,
+    });
   }
 
   function updateFlow(i: number, patch: Partial<CustomFlowItem>) {
@@ -1034,7 +1124,7 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true }: { config: Co
   }
 
   function addStep(i: number) {
-    updateFlow(i, { steps: [...flows[i].steps, { question: "", type: "choice", options: [], saveAs: "" }] });
+    updateFlow(i, { steps: [...flows[i].steps, { question: "", type: "choice", options: [], saveAs: "", validate: "none", optionsSource: "manual" }] });
   }
   function updateStep(i: number, si: number, patch: Partial<CustomFlowStep>) {
     updateFlow(i, { steps: flows[i].steps.map((st, idx) => (idx === si ? { ...st, ...patch } : st)) });
@@ -1048,6 +1138,17 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true }: { config: Co
     if (target < 0 || target >= steps.length) return;
     [steps[si], steps[target]] = [steps[target], steps[si]];
     updateFlow(i, { steps });
+  }
+
+  function addBranch(i: number) {
+    const branch: CustomFlowBranch = { whenSaveAs: "", equals: "", outcome: "NONE", closingMessage: "", leadType: "", leadScore: 60, ticketSubject: "" };
+    updateFlow(i, { branches: [...(flows[i].branches ?? []), branch] });
+  }
+  function updateBranch(i: number, bi: number, patch: Partial<CustomFlowBranch>) {
+    updateFlow(i, { branches: (flows[i].branches ?? []).map((b, idx) => (idx === bi ? { ...b, ...patch } : b)) });
+  }
+  function removeBranch(i: number, bi: number) {
+    updateFlow(i, { branches: (flows[i].branches ?? []).filter((_, idx) => idx !== bi) });
   }
 
   return (
@@ -1154,15 +1255,31 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true }: { config: Co
             )}
             {flows.map((f, i) => {
               const isOpen = openIdx === i;
+              const leadCount = flowLeadCount(f);
               return (
                 <Card key={f.key} className="overflow-hidden">
-                  <button onClick={() => setOpenIdx(isOpen ? null : i)} className="w-full flex items-center justify-between p-3.5 text-left bg-gray-50 hover:bg-gray-100 transition-colors">
-                    <span className="text-sm font-semibold flex items-center gap-2">
-                      {f.label || "Untitled option"}
-                      <span className="text-xs font-normal text-gray-400">{f.steps.length} step{f.steps.length === 1 ? "" : "s"}</span>
-                    </span>
-                    {isOpen ? <ChevronDown className="w-4 h-4 shrink-0 text-gray-400" /> : <ChevronRight className="w-4 h-4 shrink-0 text-gray-400" />}
-                  </button>
+                  <div className="w-full flex items-center justify-between p-3.5 bg-gray-50 hover:bg-gray-100 transition-colors">
+                    <button onClick={() => setOpenIdx(isOpen ? null : i)} className="flex-1 text-left flex items-center gap-2 min-w-0">
+                      <span className="text-sm font-semibold truncate">{f.label || "Untitled option"}</span>
+                      <span className="text-xs font-normal text-gray-400 shrink-0">{f.steps.length} step{f.steps.length === 1 ? "" : "s"}</span>
+                      {leadCount > 0 && (
+                        <span className="text-[10px] font-medium text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full shrink-0">🎯 {leadCount}</span>
+                      )}
+                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {onTestOption && (
+                        <button onClick={() => onTestOption(f.label)} aria-label={`Test "${f.label}" in Live Preview`} title="Test in Live Preview" className="p-1.5 text-gray-400 hover:text-indigo-600">
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <button onClick={() => duplicateFlow(i)} aria-label={`Duplicate "${f.label}"`} title="Duplicate" className="p-1.5 text-gray-400 hover:text-gray-700">
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => setOpenIdx(isOpen ? null : i)} aria-label={isOpen ? "Collapse" : "Expand"} className="p-1.5 text-gray-400">
+                        {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
                   {isOpen && (
                     <CardContent className="p-4 space-y-4 border-t">
                       <div>
@@ -1178,15 +1295,34 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true }: { config: Co
                               <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0 mt-1.5">{si + 1}</span>
                               <div className="flex-1 space-y-2">
                                 <Input placeholder="Question text (e.g. Which city are you in?)" value={st.question} onChange={(e) => updateStep(i, si, { question: e.target.value })} />
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <select className="border rounded-md px-2 py-1.5 text-xs bg-white" value={st.type} onChange={(e) => updateStep(i, si, { type: e.target.value as "choice" | "text" })}>
                                     <option value="choice">Multiple choice</option>
                                     <option value="text">Free text</option>
                                   </select>
-                                  <Input className="text-xs flex-1" placeholder="Save answer as… (e.g. city)" value={st.saveAs} onChange={(e) => updateStep(i, si, { saveAs: e.target.value.replace(/\s+/g, "_") })} />
+                                  <Input className="text-xs flex-1 min-w-32" placeholder="Save answer as… (e.g. city)" value={st.saveAs} onChange={(e) => updateStep(i, si, { saveAs: e.target.value.replace(/\s+/g, "_") })} />
+                                  {st.type === "text" && (
+                                    <select className="border rounded-md px-2 py-1.5 text-xs bg-white" value={st.validate ?? "none"} onChange={(e) => updateStep(i, si, { validate: e.target.value as CustomFlowStep["validate"] })} title="Answer format">
+                                      <option value="none">Any answer</option>
+                                      <option value="phone">Phone number</option>
+                                      <option value="email">Email address</option>
+                                      <option value="number">Number</option>
+                                    </select>
+                                  )}
                                 </div>
                                 {st.type === "choice" && (
-                                  <Input className="text-xs" placeholder="Options, comma separated (e.g. Mumbai, Delhi, Chennai)" value={st.options.join(", ")} onChange={(e) => updateStep(i, si, { options: e.target.value.split(",").map((o) => o.trim()).filter(Boolean) })} />
+                                  <>
+                                    <select className="border rounded-md px-2 py-1.5 text-xs bg-white w-full" value={st.optionsSource ?? "manual"} onChange={(e) => updateStep(i, si, { optionsSource: e.target.value as CustomFlowStep["optionsSource"] })}>
+                                      <option value="manual">Manual options (typed below)</option>
+                                      <option value="vehicles">My active Vehicles (Catalog tab)</option>
+                                      <option value="offers">My active Offers (Catalog tab)</option>
+                                    </select>
+                                    {(st.optionsSource ?? "manual") === "manual" ? (
+                                      <Input className="text-xs" placeholder="Options, comma separated (e.g. Mumbai, Delhi, Chennai)" value={st.options.join(", ")} onChange={(e) => updateStep(i, si, { options: e.target.value.split(",").map((o) => o.trim()).filter(Boolean) })} />
+                                    ) : (
+                                      <p className="text-[11px] text-gray-400">Options are pulled live from your {st.optionsSource === "vehicles" ? "active Vehicles" : "active Offers"} — nothing to type here.</p>
+                                    )}
+                                  </>
                                 )}
                               </div>
                               <div className="flex flex-col gap-1 shrink-0">
@@ -1202,7 +1338,7 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true }: { config: Co
 
                       <div className="grid grid-cols-2 gap-3 items-end">
                         <div>
-                          <label className="text-xs font-medium text-gray-600 mb-1 block">When finished</label>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">When finished (default)</label>
                           <select className="w-full border rounded-md px-2 py-2 text-sm bg-white" value={f.outcome} onChange={(e) => updateFlow(i, { outcome: e.target.value as CustomFlowItem["outcome"] })}>
                             <option value="NONE">Just show the closing message</option>
                             <option value="CREATE_LEAD">Create a Lead</option>
@@ -1222,11 +1358,48 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true }: { config: Co
                       </div>
 
                       <div>
-                        <label className="text-xs font-medium text-gray-600 mb-1 block">Closing message</label>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Closing message (default)</label>
                         <p className="text-xs text-gray-400 mb-1">
                           Use <code className="bg-gray-100 px-1 rounded">{"{{fieldName}}"}</code> to insert an answer — e.g. <code className="bg-gray-100 px-1 rounded">{"{{city}}"}</code> inserts whatever was saved under &quot;city&quot; above.
                         </p>
                         <textarea className="w-full border rounded-md px-3 py-2 text-sm min-h-20 resize-none" placeholder="Thanks! We'll be in touch shortly." value={f.closingMessage} onChange={(e) => updateFlow(i, { closingMessage: e.target.value })} />
+                      </div>
+
+                      <div className="space-y-2 border-t pt-3">
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 block">Branches (optional)</label>
+                          <p className="text-xs text-gray-400">Give a different outcome depending on one earlier answer — e.g. if &quot;interest&quot; equals &quot;Test Drive&quot;, create a lead instead of just showing the closing message. First matching branch wins; otherwise the defaults above apply.</p>
+                        </div>
+                        {(f.branches ?? []).map((b, bi) => (
+                          <div key={bi} className="border rounded-lg p-3 bg-amber-50/40 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-500 shrink-0">When</span>
+                              <Input className="text-xs" placeholder="saveAs field (e.g. interest)" value={b.whenSaveAs} onChange={(e) => updateBranch(i, bi, { whenSaveAs: e.target.value.replace(/\s+/g, "_") })} />
+                              <span className="text-xs text-gray-500 shrink-0">equals</span>
+                              <Input className="text-xs" placeholder="value (e.g. Test Drive)" value={b.equals} onChange={(e) => updateBranch(i, bi, { equals: e.target.value })} />
+                              <button onClick={() => removeBranch(i, bi)} aria-label="Remove branch" className="p-1 text-gray-400 hover:text-red-500 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <select className="border rounded-md px-2 py-1.5 text-xs bg-white" value={b.outcome} onChange={(e) => updateBranch(i, bi, { outcome: e.target.value as CustomFlowBranch["outcome"] })}>
+                                <option value="NONE">Just show the message</option>
+                                <option value="CREATE_LEAD">Create a Lead</option>
+                                <option value="CREATE_TICKET">Create a Ticket</option>
+                                <option value="ASSIGN_AGENT">Hand off to an agent</option>
+                              </select>
+                              {b.outcome === "CREATE_LEAD" && (
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  <Input className="text-xs" placeholder="Lead type" value={b.leadType ?? ""} onChange={(e) => updateBranch(i, bi, { leadType: e.target.value })} />
+                                  <Input className="text-xs" type="number" min={0} max={100} placeholder="Score" value={b.leadScore ?? 60} onChange={(e) => updateBranch(i, bi, { leadScore: Number(e.target.value) || 0 })} />
+                                </div>
+                              )}
+                              {b.outcome === "CREATE_TICKET" && (
+                                <Input className="text-xs" placeholder="Ticket subject" value={b.ticketSubject ?? ""} onChange={(e) => updateBranch(i, bi, { ticketSubject: e.target.value })} />
+                              )}
+                            </div>
+                            <textarea className="w-full border rounded-md px-3 py-2 text-xs min-h-16 resize-none" placeholder="Closing message for this branch…" value={b.closingMessage} onChange={(e) => updateBranch(i, bi, { closingMessage: e.target.value })} />
+                          </div>
+                        ))}
+                        <Button size="sm" variant="outline" onClick={() => addBranch(i)}><Plus className="w-3.5 h-3.5 mr-1.5" />Add Branch</Button>
                       </div>
 
                       <div className="flex items-center justify-between pt-2 border-t">
@@ -1390,7 +1563,7 @@ function OverviewTab({ config, refetch }: { config: Config; refetch: () => void 
 // ── Live chatbot preview (hits the same endpoint the real widget uses) ─────────
 type ChatMsg = { from: "bot" | "user"; text: string; time: string };
 
-function ChatbotFlowPreview({ color, theme, companyName, logo }: { color: string; theme: string; companyName: string; logo?: string }) {
+function ChatbotFlowPreview({ color, theme, companyName, logo, triggerMessage }: { color: string; theme: string; companyName: string; logo?: string; triggerMessage?: { text: string; nonce: number } | null }) {
   const dark  = theme === "DARK";
   const BG    = dark ? "#1f2937" : "#ffffff";
   const BG2   = dark ? "#111827" : "#f9fafb";
@@ -1484,6 +1657,16 @@ function ChatbotFlowPreview({ color, theme, companyName, logo }: { color: string
     setTyping(false);
     setTimeout(() => inputRef.current?.focus(), 60);
   };
+
+  // "Test this" shortcut from the Menu Flow builder: send that option's label
+  // as if the visitor tapped it, jumping straight into that flow.
+  useEffect(() => {
+    if (!triggerMessage) return;
+    // Deferred so setState calls inside send() happen in a callback, not
+    // synchronously within the effect body.
+    queueMicrotask(() => send(triggerMessage.text));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [triggerMessage?.nonce]);
 
   return (
     <div style={{
@@ -1653,6 +1836,7 @@ function ChatbotPageInner() {
   const [tab, setTab] = useState(initialTab);
   const [copied, setCopied] = useState(false);
   const [selectedKeyId, setSelectedKeyId] = useState<string>("");
+  const [testTrigger, setTestTrigger] = useState<{ text: string; nonce: number } | null>(null);
   const [settings, setSettings] = useState({
     theme: "LIGHT" as "LIGHT" | "DARK",
     primaryColor: "#6366f1",
@@ -1824,11 +2008,11 @@ function ChatbotPageInner() {
               </Button>
             </TabsContent>
 
-            {/* FAQs */}
+            {/* Menu Flow */}
             <TabsContent value="flow" className="mt-4">
               {configLoading || !config ? (
                 <div className="h-48 bg-gray-100 rounded-xl animate-pulse" />
-              ) : <FlowBuilderTab config={config} refetch={refetchConfig} />}
+              ) : <FlowBuilderTab config={config} refetch={refetchConfig} onTestOption={(text) => setTestTrigger({ text, nonce: Date.now() })} />}
             </TabsContent>
 
             <TabsContent value="faqs" className="mt-4">
@@ -1977,7 +2161,7 @@ function ChatbotPageInner() {
               <span className="text-[11px] text-gray-400 flex items-center gap-1"><RotateCcw className="w-3 h-3" /> Click Restart to reset</span>
             </div>
 
-            <ChatbotFlowPreview color={settings.primaryColor} theme={settings.theme} companyName={companyProfile?.name || ""} logo={companyProfile?.logo} />
+            <ChatbotFlowPreview color={settings.primaryColor} theme={settings.theme} companyName={companyProfile?.name || ""} logo={companyProfile?.logo} triggerMessage={testTrigger} />
 
             {companyProfileError && (
               <p className="text-center text-xs text-red-500">
