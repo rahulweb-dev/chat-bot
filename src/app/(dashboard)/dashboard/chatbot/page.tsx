@@ -1217,7 +1217,11 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true, onTestOption }
       key: slugifyKey(src.label + "_copy"),
       label: `${src.label} (Copy)`,
       steps: src.steps.map((s) => ({ ...s, options: [...s.options] })),
-      branches: (src.branches ?? []).map((b) => ({ ...b })),
+      // Cleared, not copied: a shared leadType would make analytics/lead-tagging
+      // merge this clone with the original instead of tracking it separately.
+      // Falls back to the clone's own (unique) key once saved.
+      leadType: "",
+      branches: (src.branches ?? []).map((b) => ({ ...b, leadType: "" })),
     };
     const next = [...flows.slice(0, i + 1), clone, ...flows.slice(i + 1)];
     setFlows(next);
