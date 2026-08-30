@@ -30,6 +30,7 @@
   var pollTimer     = null;
   var isBusy        = false;
   var companyName   = "Support";
+  var companyLogo   = null;
   var chatStarted   = false;
   var unreadCount   = 0;
   var lastQR        = [];
@@ -500,6 +501,17 @@
   }
 
   // ── UI helpers ────────────────────────────────────────────────────────────────
+  // Replaces an avatar circle's text-initial with the company logo image, if one is set.
+  function setAvatarLogo(av) {
+    if (!companyLogo) return;
+    av.textContent = "";
+    var img = document.createElement("img");
+    img.src = companyLogo;
+    img.alt = "";
+    img.style.cssText = "width:100%;height:100%;border-radius:50%;object-fit:cover";
+    av.appendChild(img);
+  }
+
   function addBubble(text, side, ts, senderLabel) {
     var msgs = document.getElementById("sf-msgs");
     var isBot = side === "bot";
@@ -511,6 +523,7 @@
     var av = document.createElement("div");
     av.className = "sf-av";
     av.textContent = isBot ? (senderLabel ? senderLabel[0].toUpperCase() : "A") : "Me";
+    if (isBot && !senderLabel) setAvatarLogo(av);
     row.appendChild(av);
 
     // Bubble wrapper
@@ -576,6 +589,7 @@
     var av = document.createElement("div");
     av.className = "sf-av";
     av.textContent = "A";
+    setAvatarLogo(av);
     wrap.appendChild(av);
     var t = document.createElement("div");
     t.className = "sf-typing";
@@ -626,14 +640,18 @@
         }
         var logoUrl = (d.data.settings && d.data.settings.logo) || d.data.logo;
         if (logoUrl) {
+          companyLogo = logoUrl;
           var hav = document.getElementById("sf-hav");
-          if (hav) {
-            hav.innerHTML = "";
-            var img = document.createElement("img");
-            img.src = logoUrl;
-            img.alt = "";
-            img.style.cssText = "width:100%;height:100%;border-radius:50%;object-fit:cover";
-            hav.appendChild(img);
+          if (hav) setAvatarLogo(hav);
+          // Any bot message bubbles already rendered (e.g. the __INIT__ greeting,
+          // which can arrive before this config fetch resolves) still show the
+          // text-initial avatar — swap those in too, but only genuine bot messages,
+          // not live-agent replies (which reuse the "bot" row style with a name label).
+          var rows = document.querySelectorAll(".sf-row.bot");
+          for (var i = 0; i < rows.length; i++) {
+            if (rows[i].querySelector(".sf-lbl")) continue;
+            var avEl = rows[i].querySelector(".sf-av");
+            if (avEl) setAvatarLogo(avEl);
           }
         }
         // Pick up Pusher config from server

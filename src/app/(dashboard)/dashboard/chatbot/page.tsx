@@ -1541,25 +1541,47 @@ function ChatbotFlowPreview({ color, theme, companyName, logo }: { color: string
           background: BG2, minHeight: 240, maxHeight: 340,
         }}>
           {msgs.map((m, i) => (
-            <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.from === "user" ? "flex-end" : "flex-start" }}>
-              <div style={{
-                maxWidth: "84%", padding: "9px 13px",
-                borderRadius: m.from === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-                fontSize: 13, lineHeight: 1.55, wordBreak: "break-word", whiteSpace: "pre-wrap",
-                background: m.from === "user" ? color : BG,
-                color: m.from === "user" ? "white" : TXT,
-                border: m.from === "user" ? "none" : `1px solid ${BORD}`,
-                boxShadow: "0 1px 4px rgba(0,0,0,.06)",
-              }}>
-                {m.text}
-              </div>
-              <div style={{ fontSize: 10, color: MUTED, marginTop: 3, paddingLeft: m.from === "bot" ? 3 : 0, paddingRight: m.from === "user" ? 3 : 0 }}>
-                {m.time}
+            <div key={i} style={{ display: "flex", alignItems: "flex-end", gap: 6, justifyContent: m.from === "user" ? "flex-end" : "flex-start" }}>
+              {m.from === "bot" && (
+                <div style={{ width: 20, height: 20, borderRadius: "50%", overflow: "hidden", flexShrink: 0, background: color, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {logo ? (
+                    <img src={logo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <svg viewBox="0 0 24 24" style={{ width: 11, height: 11, fill: "white" }}>
+                      <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
+                    </svg>
+                  )}
+                </div>
+              )}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: m.from === "user" ? "flex-end" : "flex-start", maxWidth: "78%" }}>
+                <div style={{
+                  padding: "9px 13px",
+                  borderRadius: m.from === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                  fontSize: 13, lineHeight: 1.55, wordBreak: "break-word", whiteSpace: "pre-wrap",
+                  background: m.from === "user" ? color : BG,
+                  color: m.from === "user" ? "white" : TXT,
+                  border: m.from === "user" ? "none" : `1px solid ${BORD}`,
+                  boxShadow: "0 1px 4px rgba(0,0,0,.06)",
+                }}>
+                  {m.text}
+                </div>
+                <div style={{ fontSize: 10, color: MUTED, marginTop: 3, paddingLeft: m.from === "bot" ? 3 : 0, paddingRight: m.from === "user" ? 3 : 0 }}>
+                  {m.time}
+                </div>
               </div>
             </div>
           ))}
           {typing && (
-            <div style={{ display: "flex" }}>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
+              <div style={{ width: 20, height: 20, borderRadius: "50%", overflow: "hidden", flexShrink: 0, background: color, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {logo ? (
+                  <img src={logo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <svg viewBox="0 0 24 24" style={{ width: 11, height: 11, fill: "white" }}>
+                    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
+                  </svg>
+                )}
+              </div>
               <div style={{ padding: "10px 14px", borderRadius: "18px 18px 18px 4px", background: BG, border: `1px solid ${BORD}`, display: "flex", gap: 4, alignItems: "center" }}>
                 {[0, 1, 2].map((d) => (
                   <span key={d} style={{ width: 6, height: 6, borderRadius: "50%", background: MUTED, display: "inline-block", animation: `sfb 1.2s ${d * 0.2}s infinite ease-in-out` }} />
