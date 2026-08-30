@@ -26,8 +26,8 @@ export async function POST(request: NextRequest) {
   // rules and FAQs take priority, then their custom menu flow if they've built one,
   // then the built-in demo flow — this is the exact same call the live widget makes,
   // so the preview always reflects whatever an admin configures.
-  const settings = await Settings.findOne({ companyId: ctx.companyId }).select("widget.welcomeMessage").lean() as { widget?: { welcomeMessage?: string } } | null;
-  const result = await getBotReply(message, session, ctx.companyId, settings?.widget?.welcomeMessage);
+  const settings = await Settings.findOne({ companyId: ctx.companyId }).select("widget.welcomeMessage general.timezone").lean() as { widget?: { welcomeMessage?: string }; general?: { timezone?: string } } | null;
+  const result = await getBotReply(message, session, ctx.companyId, settings?.widget?.welcomeMessage, settings?.general?.timezone);
 
   return NextResponse.json({
     success: true,

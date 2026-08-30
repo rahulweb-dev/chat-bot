@@ -22,8 +22,8 @@ export async function POST(request: NextRequest) {
   // built-in demo flow — same single source of truth as /api/widget/chat and
   // /api/widget/preview, so this test panel reflects what's configured elsewhere.
   await connectDB();
-  const settings = await Settings.findOne({ companyId: ctx.companyId }).select("widget.welcomeMessage").lean() as { widget?: { welcomeMessage?: string } } | null;
-  const result = await getBotReply(message, session, ctx.companyId, settings?.widget?.welcomeMessage);
+  const settings = await Settings.findOne({ companyId: ctx.companyId }).select("widget.welcomeMessage general.timezone").lean() as { widget?: { welcomeMessage?: string }; general?: { timezone?: string } } | null;
+  const result = await getBotReply(message, session, ctx.companyId, settings?.widget?.welcomeMessage, settings?.general?.timezone);
 
   return apiSuccess({
     messages: result.messages,

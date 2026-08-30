@@ -12,6 +12,18 @@ export interface ICustomFlowStep {
   type: "choice" | "text";
   options: string[];
   saveAs: string;
+  validate?: "none" | "phone" | "email" | "number";
+  optionsSource?: "manual" | "vehicles" | "offers";
+}
+
+export interface ICustomFlowBranch {
+  whenSaveAs: string;
+  equals: string;
+  outcome: "NONE" | "CREATE_LEAD" | "CREATE_TICKET" | "ASSIGN_AGENT";
+  closingMessage: string;
+  leadType: string;
+  leadScore: number;
+  ticketSubject: string;
 }
 
 export interface ICustomFlowItem {
@@ -23,6 +35,7 @@ export interface ICustomFlowItem {
   leadType: string;
   leadScore: number;
   ticketSubject: string;
+  branches?: ICustomFlowBranch[];
 }
 
 export interface ICustomFlow {
@@ -87,16 +100,27 @@ const ChatbotConfigSchema = new Schema<IChatbotConfig>(
         key:   { type: String, required: true },
         label: { type: String, required: true },
         steps: [{
-          question: { type: String, required: true },
-          type:     { type: String, enum: ["choice", "text"], default: "choice" },
-          options:  [{ type: String }],
-          saveAs:   { type: String, default: "" },
+          question:      { type: String, required: true },
+          type:          { type: String, enum: ["choice", "text"], default: "choice" },
+          options:       [{ type: String }],
+          saveAs:        { type: String, default: "" },
+          validate:      { type: String, enum: ["none", "phone", "email", "number"], default: "none" },
+          optionsSource: { type: String, enum: ["manual", "vehicles", "offers"], default: "manual" },
         }],
         outcome:        { type: String, enum: ["NONE", "CREATE_LEAD", "CREATE_TICKET", "ASSIGN_AGENT"], default: "NONE" },
         closingMessage: { type: String, default: "" },
         leadType:       { type: String, default: "" },
         leadScore:      { type: Number, default: 60 },
         ticketSubject:  { type: String, default: "" },
+        branches: [{
+          whenSaveAs:     { type: String, default: "" },
+          equals:         { type: String, default: "" },
+          outcome:        { type: String, enum: ["NONE", "CREATE_LEAD", "CREATE_TICKET", "ASSIGN_AGENT"], default: "NONE" },
+          closingMessage: { type: String, default: "" },
+          leadType:       { type: String, default: "" },
+          leadScore:      { type: Number, default: 60 },
+          ticketSubject:  { type: String, default: "" },
+        }],
       }],
     },
     agentOnlineMessage:  { type: String, default: "💬 Connecting you to a live agent..." },

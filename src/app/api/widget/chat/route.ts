@@ -92,8 +92,8 @@ export async function POST(request: NextRequest) {
   const session: SessionData = sessionData?.flow ? sessionData : { flow: "INITIAL", step: "", collected: {} };
 
   // Training/FAQs → this company's own custom menu flow (if enabled) → the built-in demo flow
-  const companySettings = await Settings.findOne({ companyId }).select("widget.welcomeMessage").lean() as { widget?: { welcomeMessage?: string } } | null;
-  const result = await getBotReply(message, session, companyId, companySettings?.widget?.welcomeMessage);
+  const companySettings = await Settings.findOne({ companyId }).select("widget.welcomeMessage general.timezone").lean() as { widget?: { welcomeMessage?: string }; general?: { timezone?: string } } | null;
+  const result = await getBotReply(message, session, companyId, companySettings?.widget?.welcomeMessage, companySettings?.general?.timezone);
 
   if (conversationId) {
     if (message !== "__INIT__") {
@@ -195,7 +195,10 @@ export async function POST(request: NextRequest) {
         subject: td.subject, description: td.description,
         status: "OPEN", priority: "NORMAL", category: "SERVICE", tags: ["WIDGET"],
         requester: { name: ld?.name || "Visitor", email: ld?.email || "visitor@widget.com", phone: ld?.phone || "" },
-        customFields: { vehicleNumber: td.vehicleNumber, serviceType: td.serviceType },
+        // Preserve every collected field, not just vehicleNumber/serviceType — those
+        // were specific to the hardcoded SERVICE flow; custom flows collect arbitrary
+        // fields (and a "type" marker) that would otherwise be silently dropped here.
+        customFields: (() => { const { subject: _s, description: _d, ...rest } = td; return rest; })(),
       });
       if (ld?.phone) {
         await Lead.create({ companyId, conversationId, name: ld.name || "Visitor", phone: ld.phone, source: "CHAT_WIDGET", stage: "NEW", score: 50, currency: "INR", tags: ["SERVICE", "AUTO_DEALERSHIP"] }).catch(() => {});

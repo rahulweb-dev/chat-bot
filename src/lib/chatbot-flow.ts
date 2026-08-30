@@ -21,6 +21,18 @@ export interface CustomFlowStep {
   type: "choice" | "text";
   options: string[];
   saveAs: string;
+  validate?: "none" | "phone" | "email" | "number";
+  optionsSource?: "manual" | "vehicles" | "offers";
+}
+
+export interface CustomFlowBranch {
+  whenSaveAs: string;
+  equals: string;
+  outcome: "NONE" | "CREATE_LEAD" | "CREATE_TICKET" | "ASSIGN_AGENT";
+  closingMessage: string;
+  leadType?: string;
+  leadScore?: number;
+  ticketSubject?: string;
 }
 
 export interface CustomFlowItem {
@@ -32,12 +44,29 @@ export interface CustomFlowItem {
   leadType?: string;
   leadScore?: number;
   ticketSubject?: string;
+  branches?: CustomFlowBranch[];
 }
 
 export interface CustomFlow {
   enabled: boolean;
   menuIntro: string;
   flows: CustomFlowItem[];
+}
+
+export interface BizHour { day: string; open: string; close: string; isClosed: boolean }
+
+// Cross-cutting context passed through the engine: business hours gate whether
+// agent-handoff moments (escalate / ASSIGN_AGENT) show the online or offline
+// message, and greetings get a heads-up when a new conversation starts outside
+// business hours. Catalog data lets a custom flow's "choice" steps pull live
+// options from the company's own Vehicles/Offers instead of a hand-typed list.
+export interface BotContext {
+  businessHours?: BizHour[];
+  agentOnlineMessage?: string;
+  agentOfflineMessage?: string;
+  timezone?: string;
+  vehicles?: string[];
+  offers?: string[];
 }
 
 export const MAIN_MENU = [
@@ -104,6 +133,47 @@ function isPhone(s: string): boolean {
   return /^[\+]?[\d\s\-]{9,14}$/.test(s.replace(/[\s\-]/g, ""));
 }
 
+function isEmail(s: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+}
+
+// No businessHours configured (empty array) means "always open" — don't gate
+// behavior for companies that haven't set hours at all.
+function isWithinBusinessHours(hours: BizHour[] | undefined, timezone?: string): boolean {
+  if (!hours || !hours.length) return true;
+  const tz = timezone || "UTC";
+  const now = new Date();
+  let dayName: string;
+  let timeStr: string;
+  try {
+    dayName = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(now);
+    timeStr = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
+  } catch {
+    dayName = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(now);
+    timeStr = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
+  }
+  const today = hours.find(h => h.day === dayName);
+  if (!today || today.isClosed) return false;
+  return timeStr >= today.open && timeStr <= today.close;
+}
+
+// A short extra line appended to a fresh greeting when the company is currently
+// outside business hours — only shown once, at the start of a conversation.
+function offlineNoticeLines(ctx?: BotContext): string[] {
+  if (!ctx || isWithinBusinessHours(ctx.businessHours, ctx.timezone)) return [];
+  const msg = ctx.agentOfflineMessage?.trim();
+  return msg ? [`⏰ ${msg}`] : [];
+}
+
+function validateStepInput(step: CustomFlowStep, inp: string): string | null {
+  if (step.type !== "text" || !step.validate || step.validate === "none") return null;
+  const trimmed = inp.trim();
+  if (step.validate === "phone" && !isPhone(trimmed)) return "⚠️ That doesn't look like a valid phone number. Please enter a valid mobile number:";
+  if (step.validate === "email" && !isEmail(trimmed)) return "⚠️ That doesn't look like a valid email address. Please enter a valid email:";
+  if (step.validate === "number" && (trimmed === "" || Number.isNaN(Number(trimmed)))) return "⚠️ Please enter a valid number:";
+  return null;
+}
+
 function ask(flow: string, step: string, col: Record<string, string>, msg: string, opts: string[]): BotResponse {
   return {
     messages: [msg],
@@ -126,11 +196,16 @@ function mainMenu(col: Record<string, string> = {}, greeting: string = "👋 Hi!
   };
 }
 
-function escalate(col: Record<string, string>, reason?: string): BotResponse {
+function escalate(col: Record<string, string>, reason?: string, ctx?: BotContext): BotResponse {
+  const within = isWithinBusinessHours(ctx?.businessHours, ctx?.timezone);
+  const custom = (within ? ctx?.agentOnlineMessage : ctx?.agentOfflineMessage)?.trim();
+  const message = custom
+    ? custom
+    : within
+      ? `💬 Connecting you to a Live Agent...\n\n${reason ? `📋 Query: ${reason}\n\n` : ""}We'll be with you shortly. ✅`
+      : `${reason ? `📋 Query: ${reason}\n\n` : ""}⏰ We're currently outside business hours. We've noted your request and will get back to you as soon as we're back online.`;
   return {
-    messages: [
-      `💬 Connecting you to a Live Agent...\n\n${reason ? `📋 Query: ${reason}\n\n` : ""}🕘 Operating Hours: 9 AM – 6 PM (Mon–Sat)\n\nIf no agent is available right now, we'll arrange a callback shortly. ✅`,
-    ],
+    messages: [message],
     quickReplies: ["🔙 Main Menu"],
     sessionData: reset(col),
     action: "ASSIGN_AGENT",
@@ -243,7 +318,8 @@ export async function matchTraining(message: string, companyId: string, collecte
 // so the caller continues with its own menu-selection logic.
 function identifyThenMenu(
   inp: string, s: SessionData, greeting: string,
-  showMenu: (col: Record<string, string>) => BotResponse
+  showMenu: (col: Record<string, string>) => BotResponse,
+  ctx?: BotContext
 ): BotResponse | null {
   const col = { ...s.collected };
 
@@ -261,7 +337,7 @@ function identifyThenMenu(
       }
       col.phone = inp;
       const menuResp = showMenu(col);
-      return { ...menuResp, messages: [`Thank you, ${col.name}! ✅`, `${greeting}\n\nHow can I help you today?`] };
+      return { ...menuResp, messages: [`Thank you, ${col.name}! ✅`, `${greeting}\n\nHow can I help you today?`, ...offlineNoticeLines(ctx)] };
     }
   }
 
@@ -279,7 +355,7 @@ function identifyThenMenu(
     // the dashboard preview always hits, since it pre-fills a name to skip straight
     // past the identify flow), personalised with a welcome-back line.
     const menuResp = showMenu(col);
-    return { ...menuResp, messages: [`${greeting}\n\nWelcome back, ${col.name}! How can I help you today?`] };
+    return { ...menuResp, messages: [`${greeting}\n\nWelcome back, ${col.name}! How can I help you today?`, ...offlineNoticeLines(ctx)] };
   }
 
   return null;
@@ -300,37 +376,72 @@ function interpolate(text: string, col: Record<string, string>): string {
   return (text || "").replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k: string) => col[k] ?? "");
 }
 
-function askCustomStep(target: CustomFlowItem, index: number, col: Record<string, string>): BotResponse {
+function stepOptions(step: CustomFlowStep, ctx?: BotContext): string[] {
+  if (step.optionsSource === "vehicles") return ctx?.vehicles ?? [];
+  if (step.optionsSource === "offers") return ctx?.offers ?? [];
+  return step.options;
+}
+
+function askCustomStep(target: CustomFlowItem, index: number, col: Record<string, string>, ctx?: BotContext): BotResponse {
   const step = target.steps[index];
+  const options = stepOptions(step, ctx);
   return {
     messages: [step.question],
-    quickReplies: step.type === "choice" && step.options.length ? [...step.options, "🔙 Main Menu"] : ["🔙 Main Menu"],
+    quickReplies: step.type === "choice" && options.length ? [...options, "🔙 Main Menu"] : ["🔙 Main Menu"],
     sessionData: { flow: `CUSTOM::${target.key}`, step: String(index), collected: col },
     action: "NONE",
   };
 }
 
-function finalizeCustomFlow(target: CustomFlowItem, col: Record<string, string>): BotResponse {
-  const message = interpolate(target.closingMessage, col) || "✅ Thank you! We'll get back to you shortly.";
-  const sessionData: SessionData = { flow: "INITIAL", step: "", collected: col };
-
-  if (target.outcome === "CREATE_LEAD") {
+// Resolves the effective outcome/message/lead-ticket fields for a finished flow:
+// the first branch whose `whenSaveAs` field matches `equals` (case-insensitive)
+// wins; otherwise falls back to the flow's own top-level outcome.
+function resolveOutcome(target: CustomFlowItem, col: Record<string, string>) {
+  const branch = (target.branches ?? []).find(
+    (b) => b.whenSaveAs && (col[b.whenSaveAs] ?? "").trim().toLowerCase() === (b.equals ?? "").trim().toLowerCase()
+  );
+  if (branch) {
     return {
-      messages: [message], quickReplies: ["🔙 Main Menu"], sessionData, action: "CREATE_LEAD",
-      leadData: { ...col, type: target.leadType?.trim() || target.key.toUpperCase(), score: String(target.leadScore ?? 60) },
+      outcome: branch.outcome,
+      closingMessage: branch.closingMessage,
+      leadType: branch.leadType,
+      leadScore: branch.leadScore,
+      ticketSubject: branch.ticketSubject,
     };
   }
-  if (target.outcome === "CREATE_TICKET") {
+  return {
+    outcome: target.outcome,
+    closingMessage: target.closingMessage,
+    leadType: target.leadType,
+    leadScore: target.leadScore,
+    ticketSubject: target.ticketSubject,
+  };
+}
+
+function finalizeCustomFlow(target: CustomFlowItem, col: Record<string, string>, ctx?: BotContext): BotResponse {
+  const effective = resolveOutcome(target, col);
+  const message = interpolate(effective.closingMessage, col) || "✅ Thank you! We'll get back to you shortly.";
+  const sessionData: SessionData = { flow: "INITIAL", step: "", collected: col };
+
+  if (effective.outcome === "CREATE_LEAD") {
+    return {
+      messages: [message], quickReplies: ["🔙 Main Menu"], sessionData, action: "CREATE_LEAD",
+      leadData: { ...col, type: effective.leadType?.trim() || target.key.toUpperCase(), score: String(effective.leadScore ?? 60) },
+    };
+  }
+  if (effective.outcome === "CREATE_TICKET") {
     return {
       messages: [message], quickReplies: ["🔙 Main Menu"], sessionData, action: "CREATE_TICKET",
-      ticketData: { subject: interpolate(target.ticketSubject ?? "", col) || target.label, description: message, ...col },
+      ticketData: { subject: interpolate(effective.ticketSubject ?? "", col) || target.label, description: message, type: target.key.toUpperCase(), ...col },
       leadData: col.phone ? { ...col, type: target.key.toUpperCase(), score: "50" } : undefined,
     };
   }
-  if (target.outcome === "ASSIGN_AGENT") {
+  if (effective.outcome === "ASSIGN_AGENT") {
+    const within = isWithinBusinessHours(ctx?.businessHours, ctx?.timezone);
+    const noticeMsg = (within ? ctx?.agentOnlineMessage : ctx?.agentOfflineMessage)?.trim();
     return {
-      messages: [message], quickReplies: ["🔙 Main Menu"], sessionData, action: "ASSIGN_AGENT",
-      leadData: { ...col, type: target.key.toUpperCase(), score: String(target.leadScore ?? 70) },
+      messages: [noticeMsg || message], quickReplies: ["🔙 Main Menu"], sessionData, action: "ASSIGN_AGENT",
+      leadData: { ...col, type: target.key.toUpperCase(), score: String(effective.leadScore ?? 70) },
     };
   }
   return { messages: [message], quickReplies: ["🔙 Main Menu"], sessionData, action: "NONE" };
@@ -338,13 +449,13 @@ function finalizeCustomFlow(target: CustomFlowItem, col: Record<string, string>)
 
 // Runs a company's own menu flow instead of the hardcoded Ashok Leyland one below.
 // Returns null when there's nothing usable to run — caller falls back to processFlow.
-function runCustomFlow(input: string, session: SessionData, cf: CustomFlow, greeting: string): BotResponse | null {
+function runCustomFlow(input: string, session: SessionData, cf: CustomFlow, greeting: string, ctx?: BotContext): BotResponse | null {
   if (!cf?.enabled || !cf.flows?.length) return null;
   const inp = input.trim();
   const s = session;
   const showMenu = (c: Record<string, string>) => customMenu(cf, c, greeting);
 
-  const identified = identifyThenMenu(inp, s, greeting, showMenu);
+  const identified = identifyThenMenu(inp, s, greeting, showMenu, ctx);
   if (identified) return identified;
 
   const col = { ...s.collected };
@@ -354,8 +465,8 @@ function runCustomFlow(input: string, session: SessionData, cf: CustomFlow, gree
   if (!s.flow || s.flow === "INITIAL" || !s.step) {
     const target = cf.flows.find(f => inp.toLowerCase().includes(f.label.toLowerCase()) || f.label.toLowerCase().includes(inp.toLowerCase()));
     if (!target) return showMenu(col);
-    if (!target.steps.length) return finalizeCustomFlow(target, col);
-    return askCustomStep(target, 0, col);
+    if (!target.steps.length) return finalizeCustomFlow(target, col, ctx);
+    return askCustomStep(target, 0, col, ctx);
   }
 
   if (s.flow.startsWith("CUSTOM::")) {
@@ -365,27 +476,33 @@ function runCustomFlow(input: string, session: SessionData, cf: CustomFlow, gree
     const stepIndex = parseInt(s.step, 10) || 0;
     const currentStep = target.steps[stepIndex];
     if (!currentStep) return showMenu(col);
+
+    const validationError = validateStepInput(currentStep, inp);
+    if (validationError) {
+      const options = stepOptions(currentStep, ctx);
+      return {
+        messages: [validationError],
+        quickReplies: currentStep.type === "choice" && options.length ? [...options, "🔙 Main Menu"] : ["🔙 Main Menu"],
+        sessionData: { flow: s.flow, step: s.step, collected: col },
+        action: "NONE",
+      };
+    }
+
     col[currentStep.saveAs || `field_${stepIndex}`] = inp;
     const nextIndex = stepIndex + 1;
-    if (nextIndex < target.steps.length) return askCustomStep(target, nextIndex, col);
-    return finalizeCustomFlow(target, col);
+    if (nextIndex < target.steps.length) return askCustomStep(target, nextIndex, col, ctx);
+    return finalizeCustomFlow(target, col, ctx);
   }
 
   return showMenu(col);
 }
 
-// Fetches a company's enabled custom flow, if any. Returns null when the company
-// hasn't set one up (or disabled it), so the caller falls back to processFlow.
-export async function getCustomFlow(companyId: string): Promise<CustomFlow | null> {
-  const config = await ChatbotConfig.findOne({ companyId }).select("customFlow").lean() as { customFlow?: CustomFlow } | null;
-  const cf = config?.customFlow;
-  return cf?.enabled && cf.flows?.length ? cf : null;
-}
-
 // Single entry point for all three bot surfaces (live widget, dashboard preview,
 // test panel): checks Training/FAQs first, then the company's custom flow if one
-// is enabled, then falls back to the built-in Ashok Leyland demo flow.
-export async function getBotReply(message: string, session: SessionData, companyId: string, welcomeMessage?: string): Promise<BotResponse> {
+// is enabled, then falls back to the built-in Ashok Leyland demo flow. Also fetches
+// business hours and catalog data in the same query so custom flows can gate
+// agent handoffs on hours and pull live options from Vehicles/Offers.
+export async function getBotReply(message: string, session: SessionData, companyId: string, welcomeMessage?: string, timezone?: string): Promise<BotResponse> {
   const greeting = welcomeMessage?.trim() || "👋 Hi! Welcome!";
 
   if (session.flow === "INITIAL" && message !== "__INIT__") {
@@ -393,16 +510,36 @@ export async function getBotReply(message: string, session: SessionData, company
     if (trained) return trained;
   }
 
-  const cf = await getCustomFlow(companyId);
-  if (cf) {
-    const custom = runCustomFlow(message, session, cf, greeting);
+  const config = await ChatbotConfig.findOne({ companyId })
+    .select("customFlow businessHours agentOnlineMessage agentOfflineMessage vehicles offers")
+    .lean() as {
+      customFlow?: CustomFlow;
+      businessHours?: BizHour[];
+      agentOnlineMessage?: string;
+      agentOfflineMessage?: string;
+      vehicles?: { name: string; isActive: boolean }[];
+      offers?: { title: string; isActive: boolean }[];
+    } | null;
+
+  const ctx: BotContext = {
+    businessHours: config?.businessHours ?? [],
+    agentOnlineMessage: config?.agentOnlineMessage,
+    agentOfflineMessage: config?.agentOfflineMessage,
+    timezone,
+    vehicles: (config?.vehicles ?? []).filter(v => v.isActive).map(v => v.name),
+    offers: (config?.offers ?? []).filter(o => o.isActive).map(o => o.title),
+  };
+
+  const cf = config?.customFlow;
+  if (cf?.enabled && cf.flows?.length) {
+    const custom = runCustomFlow(message, session, cf, greeting, ctx);
     if (custom) return custom;
   }
 
-  return processFlow(message, session, welcomeMessage);
+  return processFlow(message, session, welcomeMessage, ctx);
 }
 
-export function processFlow(input: string, session: SessionData, welcomeMessage?: string): BotResponse {
+export function processFlow(input: string, session: SessionData, welcomeMessage?: string, ctx?: BotContext): BotResponse {
   const inp = input.trim();
   const s   = session;
   const col = { ...s.collected };
@@ -412,7 +549,7 @@ export function processFlow(input: string, session: SessionData, welcomeMessage?
 
   if (match(inp, "Main Menu") || match(inp, "Start Over") || match(inp, "Go Back")) return mainMenu(col, greeting);
 
-  const identified = identifyThenMenu(inp, s, greeting, (c) => mainMenu(c, greeting));
+  const identified = identifyThenMenu(inp, s, greeting, (c) => mainMenu(c, greeting), ctx);
   if (identified) return identified;
 
   // ── INITIAL ────────────────────────────────────────────────────────────────
@@ -480,7 +617,7 @@ export function processFlow(input: string, session: SessionData, welcomeMessage?
       if (match(inp, "Get Quote"))         return ask("ON_ROAD_PRICE", "ask_variant", col, "Which variant? (Base / Standard / Plus / Premium)", ["Base", "Standard", "Plus", "Premium"]);
       if (match(inp, "Book Test Drive"))   return ask("TEST_DRIVE", "ask_dealer", col, "Select your preferred dealer city:", CITIES);
       if (match(inp, "Finance"))           return ask("FINANCE_EMI", "ask_price", col, "What is the vehicle price? (in Lakhs, e.g. 9 for ₹9L)", []);
-      if (match(inp, "Chat with Agent"))   return escalate(col, `Vehicle inquiry: ${col.vehicleType}`);
+      if (match(inp, "Chat with Agent"))   return escalate(col, `Vehicle inquiry: ${col.vehicleType}`, ctx);
     }
   }
 
@@ -500,7 +637,7 @@ export function processFlow(input: string, session: SessionData, welcomeMessage?
     if (s.step === "after_price") {
       if (match(inp, "Download Brochure")) return ask("BROCHURE", col.name ? (col.phone ? "ask_email" : "ask_phone") : "ask_name", col, col.name ? (col.phone ? "Your email:" : "Your mobile number:") : "Please share your name:", []);
       if (match(inp, "Book Test Drive"))   return ask("TEST_DRIVE", "ask_dealer", col, "Select preferred dealer city:", CITIES);
-      if (match(inp, "Chat with Agent"))   return escalate(col, `Pricing: ${col.vehicle}`);
+      if (match(inp, "Chat with Agent"))   return escalate(col, `Pricing: ${col.vehicle}`, ctx);
     }
   }
 
@@ -676,7 +813,7 @@ export function processFlow(input: string, session: SessionData, welcomeMessage?
     }
     if (s.step === "after_emi") {
       if (match(inp, "Callback"))      return ask("CALLBACK",    "ask_name",    col, "Your name for callback:", []);
-      if (match(inp, "Finance Expert") || match(inp, "Talk to")) return escalate(col, "Finance enquiry");
+      if (match(inp, "Finance Expert") || match(inp, "Talk to")) return escalate(col, "Finance enquiry", ctx);
       if (match(inp, "Book Test Drive")) return ask("TEST_DRIVE", "ask_vehicle", col, "Which vehicle?", AL_VEHICLES);
     }
   }
@@ -736,7 +873,7 @@ export function processFlow(input: string, session: SessionData, welcomeMessage?
       col.phone = inp;
       return ask("CHAT_AGENT", "ask_city", col, "Your city:", CITIES);
     }
-    if (s.step === "ask_city") { col.city = inp; return escalate(col, col.category); }
+    if (s.step === "ask_city") { col.city = inp; return escalate(col, col.category, ctx); }
   }
 
   return mainMenu(col, greeting);
