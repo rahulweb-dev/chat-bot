@@ -88,7 +88,7 @@ export default function SettingsPage() {
 
   const companyId = data?.companyId as string | undefined;
 
-  const { data: company } = useQuery({
+  const { data: company, error: companyError } = useQuery({
     queryKey: ["company-profile", companyId],
     queryFn: () => axios.get(`/api/companies/${companyId}`).then((r) => r.data.data),
     enabled: !!companyId,
@@ -159,6 +159,11 @@ export default function SettingsPage() {
           <CardDescription>Your company&apos;s name and logo — shown in the chat widget header on your website, and in the dashboard&apos;s Live Preview.</CardDescription>
         </CardHeader>
         <CardContent>
+          {companyError ? (
+            <p className="text-sm text-red-500 mb-3">
+              Couldn&apos;t load your company profile: {axios.isAxiosError(companyError) ? companyError.response?.data?.error || companyError.message : "unknown error"}
+            </p>
+          ) : null}
           <form
             onSubmit={(e) => {
               e.preventDefault();

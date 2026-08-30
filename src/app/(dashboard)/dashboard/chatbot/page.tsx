@@ -1673,11 +1673,12 @@ function ChatbotPageInner() {
 
   // companyData is the Settings document (no name/logo) — fetch the real Company
   // record for those, keyed off Settings.companyId.
-  const { data: companyProfile } = useQuery({
+  const { data: companyProfile, error: companyProfileError } = useQuery({
     queryKey: ["company-profile", companyData?.companyId],
     queryFn: async () => {
       const res = await fetch(`/api/companies/${companyData.companyId}`);
-      const d = await res.json();
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || d?.success === false) throw new Error(d?.error || "Failed to load company profile");
       return d.data as { name?: string; logo?: string };
     },
     enabled: !!companyData?.companyId,
@@ -1956,6 +1957,11 @@ function ChatbotPageInner() {
 
             <ChatbotFlowPreview color={settings.primaryColor} theme={settings.theme} companyName={companyProfile?.name || ""} logo={companyProfile?.logo} />
 
+            {companyProfileError && (
+              <p className="text-center text-xs text-red-500">
+                Couldn&apos;t load your company name/logo ({companyProfileError instanceof Error ? companyProfileError.message : "error"}) — showing defaults instead.
+              </p>
+            )}
             <p className="text-center text-xs text-gray-400">This is the real chatbot — same as what visitors see · No DB entries created</p>
           </div>
         </div>
