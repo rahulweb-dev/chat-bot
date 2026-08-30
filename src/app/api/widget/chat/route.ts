@@ -95,6 +95,11 @@ export async function POST(request: NextRequest) {
   const companySettings = await Settings.findOne({ companyId }).select("widget.welcomeMessage general.timezone").lean() as { widget?: { welcomeMessage?: string }; general?: { timezone?: string } } | null;
   const result = await getBotReply(message, session, companyId, companySettings?.widget?.welcomeMessage, companySettings?.general?.timezone);
 
+  // Real IDs of the bot messages just saved below — sent back so the widget can mark
+  // them as already-rendered before its Pusher subscription echoes the same messages
+  // back (triggerChat broadcasts every one), which otherwise renders each one twice.
+  const botMessageIds: string[] = [];
+
   if (conversationId) {
     if (message !== "__INIT__") {
       const visitorMsg = await Message.create({ companyId, conversationId, senderType: "VISITOR", type: "TEXT", content: message, isDelivered: true }).catch(() => null);
@@ -111,6 +116,7 @@ export async function POST(request: NextRequest) {
     for (const msg of result.messages) {
       const saved = await Message.create({ companyId, conversationId, senderType: "BOT", type: "TEXT", content: msg, isDelivered: true }).catch(() => null);
       if (saved) {
+        botMessageIds.push(saved._id.toString());
         triggerChat(conversationId, {
           id: saved._id.toString(),
           content: msg,
@@ -252,6 +258,6 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    data: { messages: result.messages, quickReplies: result.quickReplies, action: result.action, sideEffect, sessionData: result.sessionData },
+    data: { messages: result.messages, messageIds: botMessageIds, quickReplies: result.quickReplies, action: result.action, sideEffect, sessionData: result.sessionData },
   }, { headers: CORS });
 }

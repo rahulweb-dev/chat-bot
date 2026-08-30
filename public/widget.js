@@ -325,10 +325,14 @@
   var msgCount = 0;
   function renderBotResponse(data) {
     var msgs = data.messages || [];
+    var ids  = data.messageIds || [];
     var delay = 0;
     msgs.forEach(function(msg, i) {
       setTimeout(function() {
         addBubble(msg, "bot");
+        // Mark as already-rendered so the Pusher echo of this same saved message
+        // (the server broadcasts every bot message it saves) doesn't render it again.
+        if (ids[i]) renderedIds.add(ids[i]);
         msgCount++;
         if (!isOpen) { unreadCount++; showDot(); }
         else playBeep();
@@ -629,31 +633,54 @@
   }
 
   // ── Fetch company info ────────────────────────────────────────────────────────
+  // Applies a company name/logo to the header and any bot bubbles already on
+  // screen. Shared by the instant localStorage-cache apply (on boot, before the
+  // network round trip completes) and the fresh /api/widget response.
+  function applyCompanyInfo(name, logoUrl) {
+    if (name) {
+      companyName = name;
+      var el = document.getElementById("sf-hname");
+      if (el) el.textContent = companyName;
+    }
+    if (logoUrl) {
+      companyLogo = logoUrl;
+      var hav = document.getElementById("sf-hav");
+      if (hav) setAvatarLogo(hav);
+      // Any bot message bubbles already rendered (e.g. the __INIT__ greeting,
+      // which can arrive before this config fetch resolves) still show the
+      // text-initial avatar — swap those in too, but only genuine bot messages,
+      // not live-agent replies (which reuse the "bot" row style with a name label).
+      var rows = document.querySelectorAll(".sf-row.bot");
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i].querySelector(".sf-lbl")) continue;
+        var avEl = rows[i].querySelector(".sf-av");
+        if (avEl) setAvatarLogo(avEl);
+      }
+    }
+  }
+
+  // Shows the last-known name/logo instantly from localStorage (set by a previous
+  // page load on this site) so the header doesn't sit on the generic placeholder
+  // for the full network round trip on every page view — fetchCompany() below
+  // still runs and overwrites it with fresh data a moment later.
+  function applyCachedCompanyInfo() {
+    try {
+      var raw = localStorage.getItem("sf_company");
+      if (!raw) return;
+      var cached = JSON.parse(raw);
+      if (cached && cached.key === KEY) applyCompanyInfo(cached.name, cached.logo);
+    } catch (_) {}
+  }
+
   function fetchCompany() {
     fetch(BASE + "/api/widget?key=" + encodeURIComponent(KEY))
       .then(function(r) { return r.json(); })
       .then(function(d) {
         if (!d.success || !d.data) return;
-        if (d.data.name) {
-          companyName = d.data.name;
-          var el = document.getElementById("sf-hname");
-          if (el) el.textContent = companyName;
-        }
         var logoUrl = (d.data.settings && d.data.settings.logo) || d.data.logo;
-        if (logoUrl) {
-          companyLogo = logoUrl;
-          var hav = document.getElementById("sf-hav");
-          if (hav) setAvatarLogo(hav);
-          // Any bot message bubbles already rendered (e.g. the __INIT__ greeting,
-          // which can arrive before this config fetch resolves) still show the
-          // text-initial avatar — swap those in too, but only genuine bot messages,
-          // not live-agent replies (which reuse the "bot" row style with a name label).
-          var rows = document.querySelectorAll(".sf-row.bot");
-          for (var i = 0; i < rows.length; i++) {
-            if (rows[i].querySelector(".sf-lbl")) continue;
-            var avEl = rows[i].querySelector(".sf-av");
-            if (avEl) setAvatarLogo(avEl);
-          }
+        applyCompanyInfo(d.data.name, logoUrl);
+        if (d.data.name || logoUrl) {
+          try { localStorage.setItem("sf_company", JSON.stringify({ key: KEY, name: d.data.name || "", logo: logoUrl || "" })); } catch (_) {}
         }
         // Pick up Pusher config from server
         if (d.data.pusherKey) {
@@ -847,7 +874,7 @@
   }
 
   // ── Boot ──────────────────────────────────────────────────────────────────────
-  function boot() { injectCSS(); buildWidget(); fetchCompany(); }
+  function boot() { injectCSS(); buildWidget(); applyCachedCompanyInfo(); fetchCompany(); }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);
   } else {
