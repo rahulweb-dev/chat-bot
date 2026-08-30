@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -72,6 +73,137 @@ function StepBanner({ n, of, title, children }: { n: number; of: number; title: 
         <p className="font-semibold text-indigo-900">Step {n} of {of} — {title}</p>
         <p className="mt-0.5">{children}</p>
       </div>
+    </div>
+  );
+}
+
+// ── Loading skeletons ────────────────────────────────────────────────────────
+// Content-shaped placeholders per tab, shown while chatbot-config is loading —
+// each roughly mirrors the real layout so the page doesn't "jump" once data arrives.
+function ListCardSkeleton({ lines = 2 }: { lines?: number }) {
+  return (
+    <div className="rounded-xl border p-4 flex items-start gap-3">
+      <div className="flex-1 space-y-2">
+        <Skeleton className="h-4 w-2/3" />
+        {Array.from({ length: lines - 1 }).map((_, i) => <Skeleton key={i} className="h-3 w-full" />)}
+      </div>
+      <Skeleton className="h-5 w-9 rounded-full shrink-0" />
+    </div>
+  );
+}
+
+function StatCardsSkeleton() {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="rounded-xl border p-4 flex items-center gap-3">
+          <Skeleton className="w-10 h-10 rounded-lg shrink-0" />
+          <div className="space-y-1.5 flex-1">
+            <Skeleton className="h-5 w-8" />
+            <Skeleton className="h-3 w-12" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function OverviewSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="rounded-xl border p-5 flex items-start gap-4">
+        <Skeleton className="w-10 h-10 rounded-xl shrink-0" />
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-4 w-56" />
+          <Skeleton className="h-3 w-full max-w-md" />
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
+            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-3 w-full" />)}
+          </div>
+        </div>
+      </div>
+      <StatCardsSkeleton />
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-56" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-11 w-full rounded-2xl" />)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FlowBuilderSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border p-4 flex items-center justify-between gap-4">
+        <div className="space-y-2 flex-1">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-3 w-full max-w-sm" />
+        </div>
+        <Skeleton className="h-5 w-9 rounded-full shrink-0" />
+      </div>
+      <Skeleton className="h-16 w-full rounded-xl" />
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="rounded-xl border p-3.5 flex items-center justify-between">
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-4 w-4 rounded" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ListTabSkeleton() {
+  return (
+    <div className="space-y-4">
+      <Skeleton className="h-40 w-full rounded-xl" />
+      <div className="space-y-2">
+        {Array.from({ length: 3 }).map((_, i) => <ListCardSkeleton key={i} />)}
+      </div>
+    </div>
+  );
+}
+
+function CatalogSkeleton() {
+  return (
+    <div className="space-y-8">
+      <div className="space-y-3">
+        <Skeleton className="h-4 w-24" />
+        <div className="grid gap-3 sm:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => <ListCardSkeleton key={i} lines={2} />)}
+        </div>
+      </div>
+      <div className="space-y-3">
+        <Skeleton className="h-4 w-24" />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="rounded-xl border p-4 space-y-2">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/2" />
+              <Skeleton className="h-3 w-1/3" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HoursSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="rounded-xl border p-4 space-y-3">
+        <Skeleton className="h-4 w-32" />
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-5 w-9 rounded-full" />
+            <Skeleton className="h-8 w-24 rounded-md" />
+            <Skeleton className="h-8 w-24 rounded-md" />
+          </div>
+        ))}
+      </div>
+      <Skeleton className="h-32 w-full rounded-xl" />
     </div>
   );
 }
@@ -672,7 +804,7 @@ function CannedTab() {
       </Card>
 
       <div className="space-y-2">
-        {isLoading && <div className="h-32 bg-gray-100 rounded-xl animate-pulse" />}
+        {isLoading && Array.from({ length: 3 }).map((_, i) => <ListCardSkeleton key={i} lines={2} />)}
         {!isLoading && items.length === 0 && (
           <div className="text-center py-10 text-gray-400">
             <Reply className="w-8 h-8 mx-auto mb-2 opacity-30" />
@@ -1978,9 +2110,7 @@ function ChatbotPageInner() {
 
             {/* Overview */}
             <TabsContent value="overview" className="mt-4">
-              {configLoading || !config ? (
-                <div className="space-y-4"><div className="h-8 w-64 bg-gray-200 rounded animate-pulse" /><div className="h-48 bg-gray-100 rounded-xl animate-pulse" /></div>
-              ) : <OverviewTab config={config} refetch={refetchConfig} />}
+              {configLoading || !config ? <OverviewSkeleton /> : <OverviewTab config={config} refetch={refetchConfig} />}
             </TabsContent>
 
             {/* Welcome Message */}
@@ -2010,29 +2140,21 @@ function ChatbotPageInner() {
 
             {/* Menu Flow */}
             <TabsContent value="flow" className="mt-4">
-              {configLoading || !config ? (
-                <div className="h-48 bg-gray-100 rounded-xl animate-pulse" />
-              ) : <FlowBuilderTab config={config} refetch={refetchConfig} onTestOption={(text) => setTestTrigger({ text, nonce: Date.now() })} />}
+              {configLoading || !config ? <FlowBuilderSkeleton /> : <FlowBuilderTab config={config} refetch={refetchConfig} onTestOption={(text) => setTestTrigger({ text, nonce: Date.now() })} />}
             </TabsContent>
 
             <TabsContent value="faqs" className="mt-4">
-              {configLoading || !config ? (
-                <div className="h-48 bg-gray-100 rounded-xl animate-pulse" />
-              ) : <FAQTab config={config} refetch={refetchConfig} />}
+              {configLoading || !config ? <ListTabSkeleton /> : <FAQTab config={config} refetch={refetchConfig} />}
             </TabsContent>
 
             {/* Training */}
             <TabsContent value="training" className="mt-4">
-              {configLoading || !config ? (
-                <div className="h-48 bg-gray-100 rounded-xl animate-pulse" />
-              ) : <TrainingTab config={config} refetch={refetchConfig} />}
+              {configLoading || !config ? <ListTabSkeleton /> : <TrainingTab config={config} refetch={refetchConfig} />}
             </TabsContent>
 
             {/* Catalog */}
             <TabsContent value="catalog" className="mt-4">
-              {configLoading || !config ? (
-                <div className="h-48 bg-gray-100 rounded-xl animate-pulse" />
-              ) : <CatalogTab config={config} refetch={refetchConfig} />}
+              {configLoading || !config ? <CatalogSkeleton /> : <CatalogTab config={config} refetch={refetchConfig} />}
             </TabsContent>
 
             {/* Appearance */}
@@ -2136,9 +2258,7 @@ function ChatbotPageInner() {
 
             {/* Hours */}
             <TabsContent value="hours" className="mt-4">
-              {configLoading || !config ? (
-                <div className="h-48 bg-gray-100 rounded-xl animate-pulse" />
-              ) : <HoursTab config={config} refetch={refetchConfig} />}
+              {configLoading || !config ? <HoursSkeleton /> : <HoursTab config={config} refetch={refetchConfig} />}
             </TabsContent>
 
             {/* Canned */}
@@ -2176,9 +2296,35 @@ function ChatbotPageInner() {
   );
 }
 
+function ChatbotPageSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <Skeleton className="w-10 h-10 rounded-xl" />
+        <div className="space-y-2">
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-3 w-72" />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+        <div className="xl:col-span-3 space-y-4">
+          <div className="flex flex-wrap gap-1">
+            {Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="h-8 w-24 rounded-md" />)}
+          </div>
+          <OverviewSkeleton />
+        </div>
+        <div className="xl:col-span-2 space-y-3">
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="w-full rounded-2xl" style={{ minHeight: 500 }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ChatbotPage() {
   return (
-    <Suspense fallback={<div className="space-y-4 p-6"><div className="h-8 w-64 bg-gray-200 rounded animate-pulse" /><div className="h-48 bg-gray-100 rounded-xl animate-pulse" /></div>}>
+    <Suspense fallback={<ChatbotPageSkeleton />}>
       <ChatbotPageInner />
     </Suspense>
   );
