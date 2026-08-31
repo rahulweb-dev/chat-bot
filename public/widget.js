@@ -286,6 +286,17 @@
     win.classList.toggle("open", isOpen);
     btn.classList.toggle("open", isOpen);
 
+    // On mobile the window is a bottom sheet that only covers ~80% of the
+    // screen height, not the full viewport — the floating launcher button
+    // (still fixed at bottom-right) ends up sitting right on top of the
+    // sheet's own Send button instead of below it. The sheet's header already
+    // has its own close (X), so just hide the separate launcher while open.
+    var launch = document.getElementById("sf-launch");
+    if (launch) {
+      var isMobile = window.matchMedia && window.matchMedia("(max-width: 440px)").matches;
+      launch.style.display = (isOpen && isMobile) ? "none" : "";
+    }
+
     if (isOpen) {
       hideDot();
       unreadCount = 0;
