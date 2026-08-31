@@ -52,6 +52,9 @@ const EmailCampaignSchema = new Schema<IEmailCampaign>(
 
 EmailCampaignSchema.index({ companyId: 1, status: 1 });
 EmailCampaignSchema.index({ status: 1, scheduledAt: 1 });
+// See WhatsAppCampaign's identical index for why — supports the admin
+// cross-channel campaign list's $unionWith + sort-by-createdAt.
+EmailCampaignSchema.index({ companyId: 1, createdAt: -1 });
 
 const EmailCampaign: Model<IEmailCampaign> =
   mongoose.models.EmailCampaign || mongoose.model<IEmailCampaign>("EmailCampaign", EmailCampaignSchema);

@@ -46,6 +46,9 @@ const RCSCampaignSchema = new Schema<IRCSCampaign>(
 
 RCSCampaignSchema.index({ companyId: 1, status: 1 });
 RCSCampaignSchema.index({ status: 1, scheduledAt: 1 });
+// See WhatsAppCampaign's identical index for why — supports the admin
+// cross-channel campaign list's $unionWith + sort-by-createdAt.
+RCSCampaignSchema.index({ companyId: 1, createdAt: -1 });
 
 const RCSCampaign: Model<IRCSCampaign> =
   mongoose.models.RCSCampaign || mongoose.model<IRCSCampaign>("RCSCampaign", RCSCampaignSchema);

@@ -33,6 +33,11 @@ const WhatsAppCampaignRecipientSchema = new Schema<IWhatsAppCampaignRecipient>(
 
 WhatsAppCampaignRecipientSchema.index({ campaignId: 1, status: 1 });
 WhatsAppCampaignRecipientSchema.index({ whatsappMessageId: 1 }, { sparse: true });
+// Supports the admin company-wide recipient list ($unionWith across all three
+// recipient collections, sorted by createdAt desc) and the per-campaign
+// recipients tab (sorted by createdAt within one campaign).
+WhatsAppCampaignRecipientSchema.index({ companyId: 1, createdAt: -1 });
+WhatsAppCampaignRecipientSchema.index({ campaignId: 1, createdAt: -1 });
 
 const WhatsAppCampaignRecipient: Model<IWhatsAppCampaignRecipient> =
   mongoose.models.WhatsAppCampaignRecipient ||

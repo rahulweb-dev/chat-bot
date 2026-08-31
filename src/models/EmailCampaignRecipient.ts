@@ -41,6 +41,9 @@ const EmailCampaignRecipientSchema = new Schema<IEmailCampaignRecipient>(
 
 EmailCampaignRecipientSchema.index({ campaignId: 1, status: 1 });
 EmailCampaignRecipientSchema.index({ resendMessageId: 1 }, { sparse: true });
+// See WhatsAppCampaignRecipient's identical indexes for why.
+EmailCampaignRecipientSchema.index({ companyId: 1, createdAt: -1 });
+EmailCampaignRecipientSchema.index({ campaignId: 1, createdAt: -1 });
 
 const EmailCampaignRecipient: Model<IEmailCampaignRecipient> =
   mongoose.models.EmailCampaignRecipient ||

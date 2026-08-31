@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { getRequestContext } from "@/lib/api-helpers";
+import AuditLog from "@/models/AuditLog";
 
 export interface AdminCompanyContext {
   userId: string;
@@ -25,4 +26,23 @@ export async function requireSuperAdminForCompany(
 
 export function isAdminContextError(x: AdminCompanyContext | { error: string; status: number }): x is { error: string; status: number } {
   return "error" in x;
+}
+
+// Fire-and-forget audit logging for a mutation that has *already succeeded* —
+// deliberately swallows its own failure so a transient AuditLog write error
+// never turns an already-completed delete/duplicate into a 500 the caller
+// reads as "nothing happened" (and potentially retries, duplicating the action).
+export async function logAdminAudit(entry: {
+  companyId: string;
+  userId: string;
+  action: string;
+  resource: string;
+  resourceId: string;
+  details?: Record<string, unknown>;
+}): Promise<void> {
+  try {
+    await AuditLog.create({ ...entry, status: "SUCCESS" });
+  } catch (err) {
+    console.error(`[admin-audit] failed to log ${entry.action} for ${entry.resource}:${entry.resourceId}`, err);
+  }
 }

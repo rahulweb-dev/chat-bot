@@ -2,14 +2,13 @@ import { NextRequest } from "next/server";
 import { Model as MongooseModel } from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import { apiError, apiSuccess } from "@/lib/api-helpers";
-import { requireSuperAdminForCompany, isAdminContextError } from "@/lib/admin-helpers";
+import { requireSuperAdminForCompany, isAdminContextError, logAdminAudit } from "@/lib/admin-helpers";
 import WhatsAppCampaign from "@/models/WhatsAppCampaign";
 import RCSCampaign from "@/models/RCSCampaign";
 import EmailCampaign from "@/models/EmailCampaign";
 import WhatsAppCampaignRecipient from "@/models/WhatsAppCampaignRecipient";
 import RCSCampaignRecipient from "@/models/RCSCampaignRecipient";
 import EmailCampaignRecipient from "@/models/EmailCampaignRecipient";
-import AuditLog from "@/models/AuditLog";
 import { invalidateCachedJson } from "@/lib/admin-cache";
 
 // Cast to a loose Model<any> map — see the sibling recipients route for why.
@@ -97,14 +96,15 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     RecipientModel.deleteMany({ campaignId, companyId: id }),
   ]);
 
-  await AuditLog.create({
+  // Both of these are best-effort follow-ups to a mutation that has already
+  // committed — neither should turn a successful delete into an error response.
+  await logAdminAudit({
     companyId: id,
     userId: ctx.userId,
     action: "ADMIN_DELETE_CAMPAIGN",
     resource: `${channel.toLowerCase()}_campaign`,
     resourceId: campaignId,
     details: { name: campaign.name, channel, status: campaign.status },
-    status: "SUCCESS",
   });
   await invalidateCachedJson(`campaign-stats:${id}`);
 

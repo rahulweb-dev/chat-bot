@@ -2,11 +2,10 @@ import { NextRequest } from "next/server";
 import { Model as MongooseModel } from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import { apiError, apiSuccess } from "@/lib/api-helpers";
-import { requireSuperAdminForCompany, isAdminContextError } from "@/lib/admin-helpers";
+import { requireSuperAdminForCompany, isAdminContextError, logAdminAudit } from "@/lib/admin-helpers";
 import WhatsAppCampaign from "@/models/WhatsAppCampaign";
 import RCSCampaign from "@/models/RCSCampaign";
 import EmailCampaign from "@/models/EmailCampaign";
-import AuditLog from "@/models/AuditLog";
 import { invalidateCachedJson } from "@/lib/admin-cache";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -50,14 +49,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const clone = await Model.create(payload);
 
-  await AuditLog.create({
+  // Both best-effort follow-ups to a mutation that has already committed — neither
+  // should turn a successful duplicate into an error response the caller might
+  // retry (and duplicate a second time).
+  await logAdminAudit({
     companyId: id,
     userId: ctx.userId,
     action: "ADMIN_DUPLICATE_CAMPAIGN",
     resource: `${channel.toLowerCase()}_campaign`,
     resourceId: String(clone._id),
     details: { sourceCampaignId: campaignId, name: clone.name, channel },
-    status: "SUCCESS",
   });
   await invalidateCachedJson(`campaign-stats:${id}`);
 

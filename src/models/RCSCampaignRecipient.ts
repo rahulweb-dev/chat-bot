@@ -33,6 +33,9 @@ const RCSCampaignRecipientSchema = new Schema<IRCSCampaignRecipient>(
 
 RCSCampaignRecipientSchema.index({ campaignId: 1, status: 1 });
 RCSCampaignRecipientSchema.index({ twilioMessageSid: 1 }, { sparse: true });
+// See WhatsAppCampaignRecipient's identical indexes for why.
+RCSCampaignRecipientSchema.index({ companyId: 1, createdAt: -1 });
+RCSCampaignRecipientSchema.index({ campaignId: 1, createdAt: -1 });
 
 const RCSCampaignRecipient: Model<IRCSCampaignRecipient> =
   mongoose.models.RCSCampaignRecipient ||

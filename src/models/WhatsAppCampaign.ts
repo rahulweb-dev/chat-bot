@@ -65,6 +65,10 @@ const WhatsAppCampaignSchema = new Schema<IWhatsAppCampaign>(
 
 WhatsAppCampaignSchema.index({ companyId: 1, status: 1 });
 WhatsAppCampaignSchema.index({ status: 1, scheduledAt: 1 });
+// Supports the admin cross-channel campaign list (sorts by createdAt desc after
+// a $unionWith merge across all three campaign collections) — without this the
+// per-collection $match still resolves fast, but the sort has nothing to use.
+WhatsAppCampaignSchema.index({ companyId: 1, createdAt: -1 });
 
 const WhatsAppCampaign: Model<IWhatsAppCampaign> =
   mongoose.models.WhatsAppCampaign || mongoose.model<IWhatsAppCampaign>("WhatsAppCampaign", WhatsAppCampaignSchema);
