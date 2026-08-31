@@ -79,7 +79,7 @@ export default function ApiKeysPage() {
           <DialogTrigger asChild>
             <Button><Plus className="h-4 w-4 mr-2" />Create API Key</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="bg-white">
             <DialogHeader>
               <DialogTitle>{createdKey ? "API Key Created" : "Create API Key"}</DialogTitle>
             </DialogHeader>

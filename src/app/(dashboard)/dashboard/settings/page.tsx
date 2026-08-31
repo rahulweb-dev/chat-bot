@@ -272,7 +272,7 @@ export default function SettingsPage() {
                   <Label htmlFor="assignmentStrategy">Assignment Strategy</Label>
                   <Select name="assignmentStrategy" defaultValue={s.chat?.assignmentStrategy || "ROUND_ROBIN"}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-white">
                       <SelectItem value="ROUND_ROBIN">Round Robin</SelectItem>
                       <SelectItem value="LEAST_BUSY">Least Busy</SelectItem>
                       <SelectItem value="MANUAL">Manual Only</SelectItem>
@@ -394,7 +394,7 @@ export default function SettingsPage() {
                     <Label htmlFor="position">Widget Position</Label>
                     <Select name="position" defaultValue={s.widget?.position || "bottom-right"}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-white">
                         <SelectItem value="bottom-right">Bottom Right</SelectItem>
                         <SelectItem value="bottom-left">Bottom Left</SelectItem>
                       </SelectContent>

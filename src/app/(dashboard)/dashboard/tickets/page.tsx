@@ -171,7 +171,7 @@ export default function TicketsPage() {
         </Select>
         <Select value={priorityFilter} onValueChange={(v) => { setPriorityFilter(v); setPage(1); }}>
           <SelectTrigger className="w-36"><SelectValue placeholder="Priority" /></SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-white">
             <SelectItem value="all">All Priority</SelectItem>
             {["LOW", "NORMAL", "HIGH", "URGENT"].map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
           </SelectContent>
@@ -282,7 +282,7 @@ export default function TicketsPage() {
       )}
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg bg-white">
           <DialogHeader>
             <DialogTitle>Create New Ticket</DialogTitle>
           </DialogHeader>

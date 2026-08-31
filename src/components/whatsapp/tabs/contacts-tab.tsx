@@ -155,7 +155,7 @@ export function ContactsTab() {
 
       {/* Excel / CSV import dialog */}
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg bg-white">
           <DialogHeader><DialogTitle>Import Contacts from Excel / CSV</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="rounded-lg border border-dashed p-6 text-center space-y-2">

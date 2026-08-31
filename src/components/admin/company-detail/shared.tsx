@@ -218,7 +218,7 @@ export function DateRangeFilter({ value, onChange }: { value: DateRangeValue; on
     <div className="flex items-center gap-2 flex-wrap">
       <Select value={value.preset} onValueChange={handlePreset}>
         <SelectTrigger className="h-9 w-[150px]"><SelectValue placeholder="Date range" /></SelectTrigger>
-        <SelectContent>
+        <SelectContent className="bg-white">
           {Object.entries(PRESET_LABELS).map(([k, label]) => (
             <SelectItem key={k} value={k}>{label}</SelectItem>
           ))}

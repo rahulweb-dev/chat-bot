@@ -395,7 +395,7 @@ export default function AgentsPage() {
 
       {/* Invite Agent Dialog */}
       <Dialog open={showInvite} onOpenChange={v => { setShowInvite(v); if (!v) { setInviteDone(false); setInviteForm({ name: "", email: "", role: "AGENT" }); } }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md bg-white">
           <DialogHeader>
             <DialogTitle>Invite Agent by Email</DialogTitle>
           </DialogHeader>
@@ -440,7 +440,7 @@ export default function AgentsPage() {
 
       {/* Create Agent Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md bg-white">
           <DialogHeader>
             <DialogTitle>Add New Agent</DialogTitle>
           </DialogHeader>

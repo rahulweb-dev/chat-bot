@@ -137,7 +137,7 @@ export default function ConversationsPage() {
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-white">
               <SelectItem value="ALL">All Status</SelectItem>
               <SelectItem value="OPEN">Open</SelectItem>
               <SelectItem value="PENDING">Pending</SelectItem>

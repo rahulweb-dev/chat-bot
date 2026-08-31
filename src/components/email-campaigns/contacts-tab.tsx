@@ -153,7 +153,7 @@ export function EmailContactsTab() {
             <DialogTrigger asChild>
               <Button><Plus className="h-4 w-4 mr-2" />Add Contact</Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="bg-white">
               <DialogHeader><DialogTitle>Add Contact</DialogTitle></DialogHeader>
               <form onSubmit={(e) => { e.preventDefault(); create.mutate(); }} className="space-y-4">
                 <div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
@@ -173,7 +173,7 @@ export function EmailContactsTab() {
       </div>
 
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg bg-white">
           <DialogHeader><DialogTitle>Import Contacts from Excel / CSV</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="rounded-lg border border-dashed p-6 text-center space-y-2">

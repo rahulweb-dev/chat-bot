@@ -2210,7 +2210,7 @@ function ChatbotPageInner() {
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium">Widget Position</label>
+                    <label className="text-sm font-medium bg-white">Widget Position</label>
                     <div className="flex gap-3 mt-2">
                       {(["BOTTOM_RIGHT", "BOTTOM_LEFT"] as const).map((pos) => (
                         <button key={pos} onClick={() => setSettings({ ...settings, position: pos })}

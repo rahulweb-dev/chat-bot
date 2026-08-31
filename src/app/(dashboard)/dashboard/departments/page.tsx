@@ -67,7 +67,7 @@ export default function DepartmentsPage() {
           <DialogTrigger asChild>
             <Button><Plus className="h-4 w-4 mr-2" />New Department</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="bg-white">
             <DialogHeader>
               <DialogTitle>Create Department</DialogTitle>
             </DialogHeader>
