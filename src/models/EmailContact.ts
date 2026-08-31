@@ -7,6 +7,7 @@ export interface IEmailContact extends Document {
   name?: string;
   email: string;
   tags: string[];
+  assignedTo?: mongoose.Types.ObjectId;
   optIn: boolean;
   optInAt?: Date;
   optOutAt?: Date;
@@ -24,6 +25,7 @@ const EmailContactSchema = new Schema<IEmailContact>(
     name: { type: String },
     email: { type: String, required: true, lowercase: true, trim: true },
     tags: [{ type: String }],
+    assignedTo: { type: Schema.Types.ObjectId, ref: "User" },
     optIn: { type: Boolean, default: true },
     optInAt: { type: Date, default: Date.now },
     optOutAt: { type: Date },
@@ -35,6 +37,7 @@ const EmailContactSchema = new Schema<IEmailContact>(
 
 EmailContactSchema.index({ companyId: 1, email: 1 }, { unique: true });
 EmailContactSchema.index({ companyId: 1, tags: 1 });
+EmailContactSchema.index({ companyId: 1, assignedTo: 1 });
 
 const EmailContact: Model<IEmailContact> =
   mongoose.models.EmailContact || mongoose.model<IEmailContact>("EmailContact", EmailContactSchema);

@@ -2,6 +2,15 @@ import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess } from "@/lib/api-helpers";
 import WhatsAppContact from "@/models/WhatsAppContact";
+import WhatsAppConversation from "@/models/WhatsAppConversation";
+
+// Same reasoning as the list route: contacts have no assignment field of their
+// own, so an agent's access to one is derived from being assigned to at least
+// one conversation with that contact.
+async function isAssignedToAgent(companyId: string, contactId: string, userId: string): Promise<boolean> {
+  const conv = await WhatsAppConversation.findOne({ companyId, contactId, assignedAgentId: userId }).select("_id").lean();
+  return !!conv;
+}
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -9,6 +18,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!ctx || !ctx.companyId) return apiError("Unauthorized", 401);
 
   await connectDB();
+  if (ctx.userRole === "AGENT" && !(await isAssignedToAgent(ctx.companyId, id, ctx.userId))) {
+    return apiError("Not found", 404);
+  }
+
   const body = await request.json();
   const { name, email, tags, optIn } = body;
 
@@ -37,6 +50,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (!ctx || !ctx.companyId) return apiError("Unauthorized", 401);
 
   await connectDB();
+  if (ctx.userRole === "AGENT") return apiError("Forbidden", 403);
+
   const contact = await WhatsAppContact.findOneAndDelete({ _id: id, companyId: ctx.companyId });
   if (!contact) return apiError("Not found", 404);
 

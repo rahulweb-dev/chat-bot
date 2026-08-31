@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess } from "@/lib/api-helpers";
 import EmailCampaign from "@/models/EmailCampaign";
 import EmailCampaignRecipient from "@/models/EmailCampaignRecipient";
+import EmailContact from "@/models/EmailContact";
 import AuditLog from "@/models/AuditLog";
 import { startEmailCampaign } from "@/lib/queue/emailCampaignScheduler";
 import { resendConfigured } from "@/lib/resend";
@@ -16,7 +17,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const campaign = await EmailCampaign.findOne({ _id: id, companyId: ctx.companyId });
   if (!campaign) return apiError("Not found", 404);
 
-  const recipients = await EmailCampaignRecipient.find({ campaignId: id }).limit(500);
+  const recipientQuery: Record<string, unknown> = { campaignId: id };
+  if (ctx.userRole === "AGENT") {
+    // Recipients aren't assigned directly — an agent only sees the recipients
+    // who are also their own assigned contacts.
+    const myContactIds = await EmailContact.find({ companyId: ctx.companyId, assignedTo: ctx.userId }).distinct("_id");
+    recipientQuery.contactId = { $in: myContactIds };
+  }
+  const recipients = await EmailCampaignRecipient.find(recipientQuery).limit(500);
 
   return apiSuccess({ campaign, recipients });
 }

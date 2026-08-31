@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, paginatedResponse, paginate, apiSuccess } from "@/lib/api-helpers";
 import WhatsAppContact from "@/models/WhatsAppContact";
 import WhatsAppCampaign from "@/models/WhatsAppCampaign";
+import WhatsAppConversation from "@/models/WhatsAppConversation";
 
 export async function GET(request: NextRequest) {
   const ctx = await getRequestContext(request);
@@ -27,10 +28,27 @@ export async function GET(request: NextRequest) {
       { email: { $regex: search, $options: "i" } },
     ];
   }
+  // Two independent sources can narrow the contact list down to a specific set of
+  // IDs — a campaign's audience, and (for agents) which contacts they're actually
+  // assigned to. Intersect rather than overwrite so both apply when both are present.
+  let idFilter: string[] | null = null;
+
   if (campaignId) {
     const campaign = await WhatsAppCampaign.findOne({ _id: campaignId, companyId: ctx.companyId }).select("audienceContactIds");
-    query._id = { $in: campaign?.audienceContactIds || [] };
+    idFilter = (campaign?.audienceContactIds || []).map(String);
   }
+
+  if (ctx.userRole === "AGENT") {
+    // Contacts have no assignment field of their own — an agent can see a contact
+    // if they're assigned to at least one conversation with that contact, reusing
+    // the assignment that's already set from the Inbox tab rather than needing a
+    // separate "assign this contact" workflow.
+    const assignedContactIds = await WhatsAppConversation.find({ companyId: ctx.companyId, assignedAgentId: ctx.userId }).distinct("contactId");
+    const assignedIds = assignedContactIds.map(String);
+    idFilter = idFilter ? idFilter.filter((id) => assignedIds.includes(id)) : assignedIds;
+  }
+
+  if (idFilter) query._id = { $in: idFilter };
 
   const { skip } = paginate(page, limit);
   const [contacts, total] = await Promise.all([

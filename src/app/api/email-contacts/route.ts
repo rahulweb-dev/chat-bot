@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, paginatedResponse, paginate, apiSuccess } from "@/lib/api-helpers";
 import EmailContact from "@/models/EmailContact";
 import EmailCampaign from "@/models/EmailCampaign";
+import EmailCampaignRecipient from "@/models/EmailCampaignRecipient";
 
 export async function GET(request: NextRequest) {
   const ctx = await getRequestContext(request);
@@ -30,14 +31,24 @@ export async function GET(request: NextRequest) {
     const campaign = await EmailCampaign.findOne({ _id: campaignId, companyId: ctx.companyId }).select("audienceContactIds");
     query._id = { $in: campaign?.audienceContactIds || [] };
   }
+  if (ctx.userRole === "AGENT") query.assignedTo = ctx.userId;
 
   const { skip } = paginate(page, limit);
   const [contacts, total] = await Promise.all([
-    EmailContact.find(query).skip(skip).limit(limit).sort({ createdAt: -1 }),
+    EmailContact.find(query).populate("assignedTo", "name").skip(skip).limit(limit).sort({ createdAt: -1 }),
     EmailContact.countDocuments(query),
   ]);
 
-  return paginatedResponse(contacts, total, page, limit);
+  // "Engaged" = has opened or clicked at least one campaign email — the
+  // engagement signal standing in for true reply tracking, which this app
+  // doesn't have inbound-email infrastructure for yet.
+  const contactIds = contacts.map((c) => c._id);
+  const engagedIds = new Set(
+    (await EmailCampaignRecipient.find({ contactId: { $in: contactIds }, status: { $in: ["OPENED", "CLICKED"] } }).distinct("contactId")).map(String)
+  );
+  const withEngagement = contacts.map((c) => ({ ...c.toObject(), engaged: engagedIds.has(String(c._id)) }));
+
+  return paginatedResponse(withEngagement, total, page, limit);
 }
 
 export async function POST(request: NextRequest) {

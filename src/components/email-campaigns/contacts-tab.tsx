@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import axios from "axios";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,12 +11,13 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/components/ui/use-toast";
-import { Plus, Search, Trash2, Loader2, Users, Upload, CheckCircle, XCircle, Download } from "lucide-react";
+import { Plus, Search, Trash2, Loader2, Users, Upload, CheckCircle, XCircle, Download, Sparkles } from "lucide-react";
 import { EmptyState, PageLoading } from "@/components/whatsapp/empty-state";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
@@ -26,6 +28,8 @@ interface Contact {
   tags: string[];
   optIn: boolean;
   bounced: boolean;
+  assignedTo?: { _id: string; name: string };
+  engaged?: boolean;
 }
 
 interface ImportResult {
@@ -38,6 +42,9 @@ interface ImportResult {
 
 export function EmailContactsTab() {
   const qc = useQueryClient();
+  const { data: session } = useSession();
+  const role = session?.user?.role;
+  const canAssign = role && !["AGENT", "VIEWER"].includes(role);
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -90,6 +97,21 @@ export function EmailContactsTab() {
     },
     onError: (err: unknown) => {
       const msg = axios.isAxiosError(err) ? err.response?.data?.error : "Failed to delete contact";
+      toast({ title: msg, variant: "destructive" });
+    },
+  });
+
+  const { data: agents } = useQuery({
+    queryKey: ["agents", "all"],
+    queryFn: () => axios.get("/api/agents?limit=50").then((r) => r.data.data as { _id: string; name: string }[]),
+    enabled: !!canAssign,
+  });
+
+  const assign = useMutation({
+    mutationFn: ({ id, assignedTo }: { id: string; assignedTo: string | null }) => axios.patch(`/api/email-contacts/${id}`, { assignedTo }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["email-contacts"] }),
+    onError: (err: unknown) => {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error : "Failed to assign contact";
       toast({ title: msg, variant: "destructive" });
     },
   });
@@ -209,16 +231,37 @@ export function EmailContactsTab() {
               {contacts?.map((c) => (
                 <div key={c._id} className="flex items-center justify-between p-4 group">
                   <div>
-                    <p className="text-sm font-medium">{c.name || "Unnamed"}</p>
+                    <p className="text-sm font-medium flex items-center gap-1.5">
+                      {c.name || "Unnamed"}
+                      {c.engaged && (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full">
+                          <Sparkles className="h-2.5 w-2.5" />Engaged
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {c.email}
                       {c.bounced && <span className="text-red-500 ml-1.5">· bounced</span>}
                     </p>
-                    {c.tags.length > 0 && (
-                      <div className="flex gap-1 mt-1">
-                        {c.tags.map((t) => <Badge key={t} variant="outline" className="text-[10px] px-1.5 py-0">{t}</Badge>)}
-                      </div>
-                    )}
+                    <div className="flex items-center gap-1 mt-1 flex-wrap">
+                      {c.tags.map((t) => <Badge key={t} variant="outline" className="text-[10px] px-1.5 py-0">{t}</Badge>)}
+                      {canAssign ? (
+                        <Select
+                          value={c.assignedTo?._id || "unassigned"}
+                          onValueChange={(v) => assign.mutate({ id: c._id, assignedTo: v === "unassigned" ? null : v })}
+                        >
+                          <SelectTrigger className="h-6 text-[11px] w-auto gap-1 border-dashed px-2 py-0">
+                            <SelectValue placeholder="Unassigned" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unassigned">Unassigned</SelectItem>
+                            {agents?.map((a) => <SelectItem key={a._id} value={a._id}>{a.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ) : c.assignedTo ? (
+                        <span className="text-[10px] text-muted-foreground">Assigned to {c.assignedTo.name}</span>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <button
