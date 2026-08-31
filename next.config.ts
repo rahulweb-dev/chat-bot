@@ -17,7 +17,11 @@ const nextConfig: NextConfig = {
         source: "/widget.js",
         headers: [
           { key: "Access-Control-Allow-Origin", value: "*" },
-          { key: "Cache-Control", value: "public, max-age=3600" },
+          // Short + must-revalidate: a fix here should reach visitors within a
+          // minute of deploying, not sit cached for up to an hour (the previous
+          // max-age=3600). Still cheap to serve — it's a ~40KB static file and
+          // revalidation just returns a 304 when nothing's changed.
+          { key: "Cache-Control", value: "public, max-age=60, must-revalidate" },
         ],
       },
     ];
