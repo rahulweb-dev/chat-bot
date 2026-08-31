@@ -204,7 +204,9 @@
 
       // Mobile
       "@media(max-width:440px){" +
-        "#sf-win{left:0!important;right:0!important;bottom:0!important;width:100%!important;height:100%!important;max-height:100%!important;border-radius:0!important;border:none}" +
+        // A bottom sheet, not a full-screen takeover — leaves the page visible
+        // above it so it still reads as an overlay on top of their site.
+        "#sf-win{left:0!important;right:0!important;bottom:0!important;width:100%!important;height:80vh!important;height:80dvh!important;max-height:600px!important;border-radius:20px 20px 0 0!important;border:none}" +
         "#sf-launch{" + SIDE + ":16px;bottom:16px}" +
       "}" +
 
