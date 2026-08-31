@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { MessageSquare, Users, Megaphone, BarChart3, Settings, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageLoading } from "@/components/whatsapp/empty-state";
@@ -12,10 +13,15 @@ import { AnalyticsTab } from "@/components/whatsapp/tabs/analytics-tab";
 import { SettingsTab } from "@/components/whatsapp/tabs/settings-tab";
 import { TemplatesTab } from "@/components/whatsapp/tabs/templates-tab";
 
+// Campaigns is a manager+ action (POST /api/whatsapp/campaigns already rejects
+// anyone else) — the tab is hidden for other roles instead of showing a button
+// that just 403s.
+const CAMPAIGN_ROLES = ["SUPER_ADMIN", "COMPANY_ADMIN", "MANAGER"];
+
 const TABS = [
   { id: "inbox", label: "Inbox", icon: MessageSquare },
   { id: "contacts", label: "Contacts", icon: Users },
-  { id: "campaigns", label: "Campaigns", icon: Megaphone },
+  { id: "campaigns", label: "Campaigns", icon: Megaphone, roles: CAMPAIGN_ROLES },
   { id: "templates", label: "Templates", icon: FileText },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "settings", label: "Settings", icon: Settings },
@@ -26,8 +32,12 @@ const TAB_IDS = TABS.map((t) => t.id) as TabId[];
 function WhatsAppPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session } = useSession();
+  const role = session?.user?.role;
+  const tabs = TABS.filter((t) => !("roles" in t) || !role || (t.roles as readonly string[]).includes(role));
   const tabParam = searchParams.get("tab");
-  const initialTab: TabId = TAB_IDS.includes(tabParam as TabId) ? (tabParam as TabId) : "inbox";
+  const requestedTab = TAB_IDS.includes(tabParam as TabId) ? (tabParam as TabId) : "inbox";
+  const initialTab: TabId = tabs.some((t) => t.id === requestedTab) ? requestedTab : "inbox";
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   // Only tabs the user has actually opened get mounted — keeps them alive afterward
   // (no refetch on switch-back) without firing every tab's queries on first load.
@@ -42,7 +52,7 @@ function WhatsAppPageInner() {
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">
       <div className="flex items-center gap-1 border-b bg-white px-6 shrink-0 h-12">
-        {TABS.map((t) => {
+        {tabs.map((t) => {
           const Icon = t.icon;
           const isActive = activeTab === t.id;
           return (
