@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Search, MessageCircle } from "lucide-react";
 import { EmptyState } from "@/components/whatsapp/empty-state";
 import { ChannelBadge, formatDateTime, Pagination, UnavailableNotice, ErrorState } from "./shared";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 const CONV_STATUS_COLORS: Record<string, string> = {
   OPEN: "bg-green-100 text-green-700",
@@ -28,13 +29,14 @@ interface Conversation {
 
 export function RepliesTab({ companyId }: { companyId: string }) {
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
   const [page, setPage] = useState(1);
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["admin-company-replies", companyId, search, page],
+    queryKey: ["admin-company-replies", companyId, debouncedSearch, page],
     queryFn: () =>
       axios
-        .get(`/api/admin/companies/${companyId}/campaigns/replies`, { params: { search: search || undefined, page, limit: 50 } })
+        .get(`/api/admin/companies/${companyId}/campaigns/replies`, { params: { search: debouncedSearch || undefined, page, limit: 50 } })
         .then((r) => r.data),
   });
 

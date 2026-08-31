@@ -10,6 +10,7 @@ import { Loader2, Search, Users } from "lucide-react";
 import { EmptyState } from "@/components/whatsapp/empty-state";
 import { ChannelBadge, StatusBadge, RECIPIENT_STATUS_COLORS, formatDateTime, Pagination, ErrorState, DateRangeFilter, DateRangeValue } from "./shared";
 import { ContactDetailDialog } from "./contact-detail-dialog";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 interface Recipient {
   _id: string;
@@ -30,18 +31,19 @@ interface Recipient {
 export function RecipientsTab({ companyId }: { companyId: string }) {
   const [channel, setChannel] = useState("all");
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
   const [page, setPage] = useState(1);
   const [dateRange, setDateRange] = useState<DateRangeValue>({ preset: "all" });
   const [selectedContact, setSelectedContact] = useState<{ id: string; channel: "WHATSAPP" | "RCS" | "EMAIL" } | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["admin-company-recipients", companyId, channel, search, page, dateRange.dateFrom, dateRange.dateTo],
+    queryKey: ["admin-company-recipients", companyId, channel, debouncedSearch, page, dateRange.dateFrom, dateRange.dateTo],
     queryFn: () =>
       axios
         .get(`/api/admin/companies/${companyId}/campaigns/recipients`, {
           params: {
             channel: channel === "all" ? undefined : channel,
-            search: search || undefined,
+            search: debouncedSearch || undefined,
             dateFrom: dateRange.dateFrom,
             dateTo: dateRange.dateTo,
             page,

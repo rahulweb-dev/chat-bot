@@ -23,6 +23,7 @@ import {
   ErrorState,
 } from "@/components/admin/company-detail/shared";
 import { ContactDetailDialog } from "@/components/admin/company-detail/contact-detail-dialog";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 type Channel = "WHATSAPP" | "RCS" | "EMAIL";
 
@@ -232,6 +233,7 @@ function AnalyticsSection({
 function RecipientsSection({ companyId, campaignId, channel }: { companyId: string; campaignId: string; channel: Channel }) {
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
   const [page, setPage] = useState(1);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
 
@@ -243,11 +245,11 @@ function RecipientsSection({ companyId, campaignId, channel }: { companyId: stri
       : ["PENDING", "QUEUED", "SENT", "DELIVERED", "READ", "FAILED"];
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["admin-campaign-recipients", companyId, campaignId, channel, status, search, page],
+    queryKey: ["admin-campaign-recipients", companyId, campaignId, channel, status, debouncedSearch, page],
     queryFn: () =>
       axios
         .get(`/api/admin/companies/${companyId}/campaigns/${campaignId}/recipients`, {
-          params: { channel, status: status === "all" ? undefined : status, search: search || undefined, page, limit: 50 },
+          params: { channel, status: status === "all" ? undefined : status, search: debouncedSearch || undefined, page, limit: 50 },
         })
         .then((r) => r.data),
   });

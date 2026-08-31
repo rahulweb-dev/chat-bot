@@ -17,6 +17,7 @@ import { Loader2, Search, Eye, Users, Copy, Trash2 } from "lucide-react";
 import { EmptyState } from "@/components/whatsapp/empty-state";
 import { Megaphone } from "lucide-react";
 import { ChannelBadge, StatusBadge, CAMPAIGN_STATUS_COLORS, formatDate, Pagination, ErrorState, DateRangeFilter, DateRangeValue } from "./shared";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 interface NormalizedCampaign {
   _id: string;
@@ -40,10 +41,11 @@ export function CampaignsTab({ companyId }: { companyId: string }) {
   const [channel, setChannel] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
   const [page, setPage] = useState(1);
   const [dateRange, setDateRange] = useState<DateRangeValue>({ preset: "all" });
 
-  const queryKey = ["admin-company-campaigns", companyId, channel, status, search, page, dateRange.dateFrom, dateRange.dateTo];
+  const queryKey = ["admin-company-campaigns", companyId, channel, status, debouncedSearch, page, dateRange.dateFrom, dateRange.dateTo];
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey,
@@ -53,7 +55,7 @@ export function CampaignsTab({ companyId }: { companyId: string }) {
           params: {
             channel: channel === "all" ? undefined : channel,
             status: status === "all" ? undefined : status,
-            search: search || undefined,
+            search: debouncedSearch || undefined,
             dateFrom: dateRange.dateFrom,
             dateTo: dateRange.dateTo,
             page,
