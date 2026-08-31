@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "@/components/ui/use-toast";
-import { MessageCircle, FileText, X, Plus, Loader2, ImageIcon, Trash2 } from "lucide-react";
+import { MessageCircle, FileText, X, Plus, Loader2, ImageIcon, Trash2, AlertTriangle } from "lucide-react";
 import { uploadToImageKit } from "@/lib/imagekitUpload";
 import { CampaignDraft, WATemplate } from "./types";
 
@@ -92,11 +92,13 @@ function TemplatePickerDialog({
   onOpenChange: (v: boolean) => void;
   onSelect: (template: WATemplate) => void;
 }) {
-  const { data: templates, isLoading } = useQuery<WATemplate[]>({
+  const { data: templates, isLoading, isError, error, refetch } = useQuery<WATemplate[]>({
     queryKey: ["whatsapp-templates"],
     queryFn: () => axios.get("/api/whatsapp/templates").then((r) => r.data.data),
     enabled: open,
   });
+
+  const errorMessage = axios.isAxiosError(error) ? error.response?.data?.error : undefined;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -104,7 +106,16 @@ function TemplatePickerDialog({
         <DialogHeader><DialogTitle>Select Approved Template</DialogTitle></DialogHeader>
         {isLoading ? (
           <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-        ) : templates?.length === 0 ? (
+        ) : isError ? (
+          <div className="flex flex-col items-center text-center py-8 px-4 gap-2">
+            <AlertTriangle className="h-6 w-6 text-red-500" />
+            <p className="text-sm font-medium text-gray-700">Couldn&apos;t load templates</p>
+            <p className="text-xs text-muted-foreground max-w-xs">
+              {errorMessage || "Something went wrong talking to WhatsApp. Check your integration in Settings and try again."}
+            </p>
+            <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => refetch()}>Retry</Button>
+          </div>
+        ) : !templates?.length ? (
           <p className="text-sm text-muted-foreground py-4">
             No approved templates found. Create and get a template approved in your Meta Business account first.
           </p>
