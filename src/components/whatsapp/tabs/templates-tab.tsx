@@ -285,8 +285,8 @@ export function TemplatesTab() {
 
       {/* Create dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="bg-white">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto bg-white">
+          <DialogHeader >
             <DialogTitle >Create Message Template</DialogTitle>
           </DialogHeader>
 
