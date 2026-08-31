@@ -20,7 +20,9 @@ import {
   formatDateTime,
   Pagination,
   UnavailableNotice,
+  ErrorState,
 } from "@/components/admin/company-detail/shared";
+import { ContactDetailDialog } from "@/components/admin/company-detail/contact-detail-dialog";
 
 type Channel = "WHATSAPP" | "RCS" | "EMAIL";
 
@@ -47,7 +49,7 @@ function CampaignDetailInner() {
     router.replace(`/admin/companies/${companyId}/campaigns/${campaignId}?channel=${channel}&tab=${id}`, { scroll: false });
   };
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin-campaign-detail", companyId, campaignId, channel],
     queryFn: () =>
       axios
@@ -57,6 +59,9 @@ function CampaignDetailInner() {
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
+  }
+  if (isError) {
+    return <div className="p-6"><ErrorState message="Couldn't load this campaign." onRetry={() => refetch()} /></div>;
   }
   if (!data) {
     return <div className="p-6"><p className="text-sm text-muted-foreground">Campaign not found.</p></div>;
@@ -228,6 +233,7 @@ function RecipientsSection({ companyId, campaignId, channel }: { companyId: stri
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
 
   const statusOptions =
     channel === "EMAIL"
@@ -236,7 +242,7 @@ function RecipientsSection({ companyId, campaignId, channel }: { companyId: stri
       ? ["PENDING", "QUEUED", "SENT", "DELIVERED", "READ", "FAILED", "UNDELIVERED"]
       : ["PENDING", "QUEUED", "SENT", "DELIVERED", "READ", "FAILED"];
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin-campaign-recipients", companyId, campaignId, channel, status, search, page],
     queryFn: () =>
       axios
@@ -246,18 +252,18 @@ function RecipientsSection({ companyId, campaignId, channel }: { companyId: stri
         .then((r) => r.data),
   });
 
-  const items: Array<Record<string, unknown> & { _id: string; status: string; contactId?: { name?: string } | null; phone?: string; email?: string; sentAt?: string; deliveredAt?: string; readAt?: string; openedAt?: string; clickedAt?: string }> = data?.data || [];
+  const items: Array<Record<string, unknown> & { _id: string; status: string; contactId?: { _id: string; name?: string } | null; phone?: string; email?: string; sentAt?: string; deliveredAt?: string; readAt?: string; openedAt?: string; clickedAt?: string }> = data?.data || [];
   const meta = data?.pagination;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[180px]">
+        <div className="relative flex-1 min-w-45">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search phone or email..." className="pl-8 h-9" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
         </div>
         <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1); }}>
-          <SelectTrigger className="h-9 w-[150px]"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectTrigger className="h-9 w-37.5"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Statuses</SelectItem>
             {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -269,11 +275,14 @@ function RecipientsSection({ companyId, campaignId, channel }: { companyId: stri
         <CardContent className="p-0">
           {isLoading ? (
             <div className="flex items-center justify-center h-40"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : isError ? (
+            <ErrorState message="Couldn't load recipients." onRetry={() => refetch()} />
           ) : items.length === 0 ? (
             <EmptyState icon={Send} title="No recipients" description="No recipients match the current filters." />
           ) : (
             <>
-              <div className="overflow-x-auto">
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm whitespace-nowrap">
                   <thead>
                     <tr className="border-b text-left text-muted-foreground">
@@ -289,7 +298,13 @@ function RecipientsSection({ companyId, campaignId, channel }: { companyId: stri
                   <tbody>
                     {items.map((r) => (
                       <tr key={r._id} className="border-b last:border-0 hover:bg-gray-50">
-                        <td className="px-4 py-2.5 font-medium">{r.contactId?.name || "—"}</td>
+                        <td className="px-4 py-2.5 font-medium">
+                          {r.contactId?._id ? (
+                            <button className="hover:text-indigo-600 hover:underline" onClick={() => setSelectedContactId(r.contactId!._id)}>
+                              {r.contactId.name || "—"}
+                            </button>
+                          ) : "—"}
+                        </td>
                         <td className="px-4 py-2.5 text-muted-foreground">{r.email || r.phone || "—"}</td>
                         <td className="px-4 py-2.5"><StatusBadge status={r.status} map={RECIPIENT_STATUS_COLORS} /></td>
                         <td className="px-4 py-2.5 text-muted-foreground">{formatDateTime(r.sentAt)}</td>
@@ -301,25 +316,53 @@ function RecipientsSection({ companyId, campaignId, channel }: { companyId: stri
                   </tbody>
                 </table>
               </div>
+
+              {/* Mobile cards */}
+              <div className="md:hidden divide-y">
+                {items.map((r) => (
+                  <button
+                    key={r._id}
+                    className="w-full text-left p-3 space-y-1.5"
+                    onClick={() => r.contactId?._id && setSelectedContactId(r.contactId._id)}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-sm truncate">{r.contactId?.name || r.email || r.phone || "—"}</span>
+                      <StatusBadge status={r.status} map={RECIPIENT_STATUS_COLORS} />
+                    </div>
+                    <p className="text-xs text-muted-foreground">{r.email || r.phone}</p>
+                    <p className="text-xs text-muted-foreground">Sent {formatDateTime(r.sentAt)}</p>
+                  </button>
+                ))}
+              </div>
+
               <div className="px-4"><Pagination page={meta?.page || 1} totalPages={meta?.pages || 1} onChange={setPage} /></div>
             </>
           )}
         </CardContent>
       </Card>
+
+      <ContactDetailDialog
+        companyId={companyId}
+        channel={channel}
+        contactId={selectedContactId}
+        open={!!selectedContactId}
+        onOpenChange={(open) => !open && setSelectedContactId(null)}
+      />
     </div>
   );
 }
 
 function RepliesSection({ companyId, campaignId, channel }: { companyId: string; campaignId: string; channel: Channel }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin-campaign-replies", companyId, campaignId, channel],
     queryFn: () =>
       axios
         .get(`/api/admin/companies/${companyId}/campaigns/${campaignId}/replies`, { params: { channel } })
-        .then((r) => r.data.data as { available: boolean; reason?: string; replies: Array<Record<string, unknown> & { contactId: string; name?: string; phone: string; conversationStatus: string; firstReplyAt: string; lastReplyAt: string; replyCount: number; latestReplyText?: string }> }),
+        .then((r) => r.data.data as { available: boolean; reason?: string; truncated?: boolean; recipientsScanned?: number; totalRecipients?: number; replies: Array<Record<string, unknown> & { contactId: string; name?: string; phone: string; conversationStatus: string; firstReplyAt: string; lastReplyAt: string; replyCount: number; latestReplyText?: string }> }),
   });
 
   if (isLoading) return <div className="flex items-center justify-center h-40"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  if (isError) return <ErrorState message="Couldn't load replies." onRetry={() => refetch()} />;
   if (!data) return null;
 
   if (!data.available) {
@@ -334,38 +377,60 @@ function RepliesSection({ companyId, campaignId, channel }: { companyId: string;
   return (
     <Card>
       <CardHeader className="flex flex-row items-center gap-2 space-y-0"><ChannelBadge channel={channel} /><CardTitle className="text-base">Conversation Replies</CardTitle></CardHeader>
+      {data.truncated && (
+        <p className="text-xs text-amber-700 bg-amber-50 border-t border-b px-4 py-2">
+          This campaign has {data.totalRecipients} recipients — reply detection only scanned the first {data.recipientsScanned}. Some replies may not be reflected here.
+        </p>
+      )}
       <CardContent className="p-0">
         {data.replies.length === 0 ? (
           <EmptyState icon={MessageCircle} title="No replies yet" description="No recipients have replied to this campaign." />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm whitespace-nowrap">
-              <thead>
-                <tr className="border-b text-left text-muted-foreground">
-                  <th className="px-4 py-2 font-medium">Contact</th>
-                  <th className="px-4 py-2 font-medium">Phone</th>
-                  <th className="px-4 py-2 font-medium">Latest Reply</th>
-                  <th className="px-4 py-2 font-medium">Reply Count</th>
-                  <th className="px-4 py-2 font-medium">Conversation Status</th>
-                  <th className="px-4 py-2 font-medium">First Reply</th>
-                  <th className="px-4 py-2 font-medium">Last Reply</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.replies.map((r) => (
-                  <tr key={r.contactId} className="border-b last:border-0 hover:bg-gray-50">
-                    <td className="px-4 py-2.5 font-medium">{r.name || "—"}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{r.phone}</td>
-                    <td className="px-4 py-2.5 max-w-[240px] truncate text-muted-foreground">{r.latestReplyText || "—"}</td>
-                    <td className="px-4 py-2.5">{r.replyCount}</td>
-                    <td className="px-4 py-2.5">{r.conversationStatus}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{formatDateTime(r.firstReplyAt)}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{formatDateTime(r.lastReplyAt)}</td>
+          <>
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm whitespace-nowrap">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="px-4 py-2 font-medium">Contact</th>
+                    <th className="px-4 py-2 font-medium">Phone</th>
+                    <th className="px-4 py-2 font-medium">Latest Reply</th>
+                    <th className="px-4 py-2 font-medium">Reply Count</th>
+                    <th className="px-4 py-2 font-medium">Conversation Status</th>
+                    <th className="px-4 py-2 font-medium">First Reply</th>
+                    <th className="px-4 py-2 font-medium">Last Reply</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {data.replies.map((r) => (
+                    <tr key={r.contactId} className="border-b last:border-0 hover:bg-gray-50">
+                      <td className="px-4 py-2.5 font-medium">{r.name || "—"}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground">{r.phone}</td>
+                      <td className="px-4 py-2.5 max-w-60 truncate text-muted-foreground">{r.latestReplyText || "—"}</td>
+                      <td className="px-4 py-2.5">{r.replyCount}</td>
+                      <td className="px-4 py-2.5">{r.conversationStatus}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground">{formatDateTime(r.firstReplyAt)}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground">{formatDateTime(r.lastReplyAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="md:hidden divide-y">
+              {data.replies.map((r) => (
+                <div key={r.contactId} className="p-3 space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-sm truncate">{r.name || r.phone}</span>
+                    <span className="text-xs text-muted-foreground">{r.replyCount} {r.replyCount === 1 ? "reply" : "replies"}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">{r.latestReplyText || "—"}</p>
+                  <p className="text-xs text-muted-foreground">Last reply {formatDateTime(r.lastReplyAt)}</p>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </CardContent>
     </Card>

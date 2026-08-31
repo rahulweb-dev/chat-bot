@@ -3,39 +3,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { Megaphone, Users, Send, CheckCheck, XCircle, Eye, MousePointerClick, Clock } from "lucide-react";
-import { ChannelBadge } from "./shared";
+import { ChannelBadge, CompanyCampaignStats, ChannelCampaignStats } from "./shared";
 
-interface ChannelStats {
-  campaigns: number;
-  total: number;
-  sent: number;
-  delivered: number;
-  failed: number;
-  readOrOpened: number;
-  clicked: number;
-  pending: number;
-  bounced?: number;
-  conversationsWithReplies?: number;
-  unsubscribed?: number;
-}
-
-interface Stats {
-  totalCampaigns: number;
-  whatsappCampaigns: number;
-  rcsCampaigns: number;
-  emailCampaigns: number;
-  totalRecipients: number;
-  totalSent: number;
-  delivered: number;
-  failed: number;
-  pending: number;
-  readOrOpened: number;
-  clicked: number;
-  unsubscribed: number;
-  byChannel: { whatsapp: ChannelStats; rcs: ChannelStats; email: ChannelStats };
-}
-
-export function OverviewTab({ stats, onNavigate }: { companyId: string; stats?: Stats; onNavigate: (tab: "campaigns" | "recipients" | "analytics" | "replies") => void }) {
+export function OverviewTab({ stats, onNavigate }: { companyId: string; stats?: CompanyCampaignStats; onNavigate: (tab: "campaigns" | "recipients" | "analytics" | "replies") => void }) {
   if (!stats) return null;
 
   const cards = [
@@ -55,7 +25,7 @@ export function OverviewTab({ stats, onNavigate }: { companyId: string; stats?: 
     { channel: "Email", Sent: stats.byChannel.email.sent, Delivered: stats.byChannel.email.delivered, Failed: stats.byChannel.email.failed },
   ];
 
-  const channelRows: { key: "WHATSAPP" | "RCS" | "EMAIL"; s: ChannelStats }[] = [
+  const channelRows: { key: "WHATSAPP" | "RCS" | "EMAIL"; s: ChannelCampaignStats }[] = [
     { key: "WHATSAPP", s: stats.byChannel.whatsapp },
     { key: "RCS", s: stats.byChannel.rcs },
     { key: "EMAIL", s: stats.byChannel.email },

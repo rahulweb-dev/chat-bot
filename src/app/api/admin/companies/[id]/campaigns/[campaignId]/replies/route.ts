@@ -31,15 +31,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   // Cap to a sane number of recipients for this heuristic join — a company running
   // WhatsApp campaigns at a scale beyond this would need a real aggregation
-  // pipeline, not a per-recipient reply lookup.
-  const recipients = await WhatsAppCampaignRecipient.find({ campaignId, companyId: id })
-    .populate("contactId", "name phone")
-    .select("contactId phone sentAt status")
-    .limit(500)
-    .lean();
+  // pipeline, not a per-recipient reply lookup. `truncated` tells the frontend to
+  // say so explicitly instead of silently under-reporting the reply count.
+  const RECIPIENT_SCAN_LIMIT = 500;
+  const [recipientCount, recipients] = await Promise.all([
+    WhatsAppCampaignRecipient.countDocuments({ campaignId, companyId: id }),
+    WhatsAppCampaignRecipient.find({ campaignId, companyId: id })
+      .populate("contactId", "name phone")
+      .select("contactId phone sentAt status")
+      .limit(RECIPIENT_SCAN_LIMIT)
+      .lean(),
+  ]);
+  const truncated = recipientCount > RECIPIENT_SCAN_LIMIT;
 
   const contactIds = recipients.map((r) => r.contactId?._id).filter(Boolean);
-  if (!contactIds.length) return apiSuccess({ available: true, replies: [] });
+  if (!contactIds.length) return apiSuccess({ available: true, replies: [], truncated, recipientsScanned: recipients.length, totalRecipients: recipientCount });
 
   const conversations = await WhatsAppConversation.find({ companyId: id, contactId: { $in: contactIds } }).lean();
   const convByContact = new Map(conversations.map((c) => [String(c.contactId), c]));
@@ -81,5 +87,5 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .filter((r): r is NonNullable<typeof r> => r !== null)
     .sort((a, b) => new Date(b.lastReplyAt).getTime() - new Date(a.lastReplyAt).getTime());
 
-  return apiSuccess({ available: true, replies });
+  return apiSuccess({ available: true, replies, truncated, recipientsScanned: recipients.length, totalRecipients: recipientCount });
 }

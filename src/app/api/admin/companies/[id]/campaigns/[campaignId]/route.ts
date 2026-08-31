@@ -6,10 +6,17 @@ import { requireSuperAdminForCompany, isAdminContextError } from "@/lib/admin-he
 import WhatsAppCampaign from "@/models/WhatsAppCampaign";
 import RCSCampaign from "@/models/RCSCampaign";
 import EmailCampaign from "@/models/EmailCampaign";
+import WhatsAppCampaignRecipient from "@/models/WhatsAppCampaignRecipient";
+import RCSCampaignRecipient from "@/models/RCSCampaignRecipient";
+import EmailCampaignRecipient from "@/models/EmailCampaignRecipient";
+import AuditLog from "@/models/AuditLog";
+import { invalidateCachedJson } from "@/lib/admin-cache";
 
 // Cast to a loose Model<any> map — see the sibling recipients route for why.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const MODELS: Record<string, MongooseModel<any>> = { WHATSAPP: WhatsAppCampaign, RCS: RCSCampaign, EMAIL: EmailCampaign };
+const RECIPIENT_MODELS: Record<string, MongooseModel<any>> = { WHATSAPP: WhatsAppCampaignRecipient, RCS: RCSCampaignRecipient, EMAIL: EmailCampaignRecipient };
+/* eslint-enable @typescript-eslint/no-explicit-any */
 type Channel = "WHATSAPP" | "RCS" | "EMAIL";
 
 function pct(num: number, denom: number): number {
@@ -61,4 +68,45 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     performance: { total, sent, delivered, failed, pending, readOrOpened, clicked, bounced },
     rates,
   });
+}
+
+// Deleting a campaign that's actively sending would leave the running job pointed
+// at recipients/state that no longer exist, so this only allows it for campaigns
+// that aren't RUNNING. Company-side campaign cancellation is a separate, already
+// safe flow (PATCH .../campaigns/[id] with action:"cancel"); this is purely an
+// admin cleanup action, and it's logged to AuditLog like every other destructive
+// admin action in this app.
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string; campaignId: string }> }) {
+  const { id, campaignId } = await params;
+  const ctx = await requireSuperAdminForCompany(request, id);
+  if (isAdminContextError(ctx)) return apiError(ctx.error, ctx.status);
+
+  const { searchParams } = new URL(request.url);
+  const channel = (searchParams.get("channel") || "").toUpperCase() as Channel;
+  const Model = MODELS[channel];
+  const RecipientModel = RECIPIENT_MODELS[channel];
+  if (!Model || !RecipientModel) return apiError("channel must be WHATSAPP, RCS, or EMAIL", 400);
+
+  await connectDB();
+  const campaign = await Model.findOne({ _id: campaignId, companyId: id });
+  if (!campaign) return apiError("Not found", 404);
+  if (campaign.status === "RUNNING") return apiError("Cannot delete a campaign that is currently running — cancel it first.", 400);
+
+  await Promise.all([
+    Model.deleteOne({ _id: campaignId, companyId: id }),
+    RecipientModel.deleteMany({ campaignId, companyId: id }),
+  ]);
+
+  await AuditLog.create({
+    companyId: id,
+    userId: ctx.userId,
+    action: "ADMIN_DELETE_CAMPAIGN",
+    resource: `${channel.toLowerCase()}_campaign`,
+    resourceId: campaignId,
+    details: { name: campaign.name, channel, status: campaign.status },
+    status: "SUCCESS",
+  });
+  await invalidateCachedJson(`campaign-stats:${id}`);
+
+  return apiSuccess({ deleted: true });
 }

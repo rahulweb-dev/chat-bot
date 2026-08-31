@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Loader2, Search, MessageCircle } from "lucide-react";
 import { EmptyState } from "@/components/whatsapp/empty-state";
-import { ChannelBadge, formatDateTime, Pagination, UnavailableNotice } from "./shared";
+import { ChannelBadge, formatDateTime, Pagination, UnavailableNotice, ErrorState } from "./shared";
 
 const CONV_STATUS_COLORS: Record<string, string> = {
   OPEN: "bg-green-100 text-green-700",
@@ -30,7 +30,7 @@ export function RepliesTab({ companyId }: { companyId: string }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin-company-replies", companyId, search, page],
     queryFn: () =>
       axios
@@ -57,11 +57,14 @@ export function RepliesTab({ companyId }: { companyId: string }) {
           </div>
           {isLoading ? (
             <div className="flex items-center justify-center h-40"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : isError ? (
+            <ErrorState message="Couldn't load conversations." onRetry={() => refetch()} />
           ) : items.length === 0 ? (
             <EmptyState icon={MessageCircle} title="No conversations" description="No WhatsApp conversations found." />
           ) : (
             <>
-              <div className="overflow-x-auto">
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm whitespace-nowrap">
                   <thead>
                     <tr className="border-b text-left text-muted-foreground">
@@ -77,7 +80,7 @@ export function RepliesTab({ companyId }: { companyId: string }) {
                       <tr key={c._id} className="border-b last:border-0 hover:bg-gray-50">
                         <td className="px-4 py-2.5 font-medium">{c.customerName || "—"}</td>
                         <td className="px-4 py-2.5 text-muted-foreground">{c.customerPhone}</td>
-                        <td className="px-4 py-2.5 max-w-[260px] truncate text-muted-foreground">{c.lastMessage || "—"}</td>
+                        <td className="px-4 py-2.5 max-w-65 truncate text-muted-foreground">{c.lastMessage || "—"}</td>
                         <td className="px-4 py-2.5">
                           <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-normal ${CONV_STATUS_COLORS[c.status] || "bg-gray-100 text-gray-600"}`}>{c.status}</span>
                         </td>
@@ -87,6 +90,21 @@ export function RepliesTab({ companyId }: { companyId: string }) {
                   </tbody>
                 </table>
               </div>
+
+              {/* Mobile cards */}
+              <div className="md:hidden divide-y">
+                {items.map((c) => (
+                  <div key={c._id} className="p-3 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-sm truncate">{c.customerName || c.customerPhone}</span>
+                      <span className={`shrink-0 inline-flex px-2 py-0.5 rounded-full text-xs font-normal ${CONV_STATUS_COLORS[c.status] || "bg-gray-100 text-gray-600"}`}>{c.status}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">{c.lastMessage || "—"}</p>
+                    <p className="text-xs text-muted-foreground">{formatDateTime(c.lastMessageAt)}</p>
+                  </div>
+                ))}
+              </div>
+
               <div className="px-4">
                 <Pagination page={meta?.page || 1} totalPages={meta?.pages || 1} onChange={setPage} />
               </div>

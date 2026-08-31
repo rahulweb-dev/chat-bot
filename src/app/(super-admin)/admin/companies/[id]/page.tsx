@@ -7,6 +7,7 @@ import axios from "axios";
 import Link from "next/link";
 import { ArrowLeft, LayoutGrid, Megaphone, Users, BarChart3, MessageCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ErrorState, CompanyCampaignStats } from "@/components/admin/company-detail/shared";
 import { OverviewTab } from "@/components/admin/company-detail/overview-tab";
 import { CampaignsTab } from "@/components/admin/company-detail/campaigns-tab";
 import { RecipientsTab } from "@/components/admin/company-detail/recipients-tab";
@@ -44,9 +45,12 @@ function CompanyDetailInner() {
     queryFn: () => axios.get(`/api/companies/${companyId}`).then((r) => r.data.data),
   });
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: stats, isLoading: statsLoading, isError: statsError, refetch: refetchStats } = useQuery({
     queryKey: ["admin-company-campaign-stats", companyId],
-    queryFn: () => axios.get(`/api/admin/companies/${companyId}/campaigns/stats`).then((r) => r.data.data),
+    queryFn: () => axios.get(`/api/admin/companies/${companyId}/campaigns/stats`).then((r) => r.data.data as CompanyCampaignStats),
+    // Only keep polling while something's actually in flight — a company whose
+    // campaigns are all DRAFT/COMPLETED/CANCELED/FAILED doesn't need live refresh.
+    refetchInterval: (query) => ((query.state.data as CompanyCampaignStats | undefined)?.activeCampaigns ? 15000 : false),
   });
 
   return (
@@ -87,6 +91,8 @@ function CompanyDetailInner() {
 
       {statsLoading ? (
         <div className="flex items-center justify-center h-40"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+      ) : statsError ? (
+        <ErrorState message="Couldn't load this company's campaign stats." onRetry={() => refetchStats()} />
       ) : (
         <>
           {visitedTabs.has("overview") && <div className={cn(activeTab !== "overview" && "hidden")}><OverviewTab companyId={companyId} stats={stats} onNavigate={handleTabChange} /></div>}

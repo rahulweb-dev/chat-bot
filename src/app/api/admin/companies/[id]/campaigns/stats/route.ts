@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { apiError, apiSuccess } from "@/lib/api-helpers";
 import { requireSuperAdminForCompany, isAdminContextError } from "@/lib/admin-helpers";
+import { cachedJson } from "@/lib/admin-cache";
 import WhatsAppCampaign from "@/models/WhatsAppCampaign";
 import RCSCampaign from "@/models/RCSCampaign";
 import EmailCampaign from "@/models/EmailCampaign";
@@ -47,44 +48,61 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   await connectDB();
 
-  const [waCampaigns, rcsCampaigns, emailCampaigns] = await Promise.all([
-    WhatsAppCampaign.find({ companyId: id }).select("stats").lean(),
-    RCSCampaign.find({ companyId: id }).select("stats").lean(),
-    EmailCampaign.find({ companyId: id }).select("stats").lean(),
-  ]);
+  // Fans out into 7 queries every call — cached for a short window behind Redis
+  // (when reachable; falls straight through to a live compute otherwise) so
+  // rapid tab-switching/polling on the company detail page doesn't hammer Mongo.
+  // Data can lag up to `ttlSecs` behind a webhook update, which is an acceptable
+  // trade for an admin rollup view.
+  const data = await cachedJson(`campaign-stats:${id}`, 20, async () => {
+    const [waCampaigns, rcsCampaigns, emailCampaigns] = await Promise.all([
+      WhatsAppCampaign.find({ companyId: id }).select("stats").lean(),
+      RCSCampaign.find({ companyId: id }).select("stats").lean(),
+      EmailCampaign.find({ companyId: id }).select("stats").lean(),
+    ]);
 
-  const wa = sumStats(waCampaigns);
-  const rcs = sumStats(rcsCampaigns);
-  const email = sumStats(emailCampaigns);
+    const wa = sumStats(waCampaigns);
+    const rcs = sumStats(rcsCampaigns);
+    const email = sumStats(emailCampaigns);
 
-  const [waUnsub, rcsUnsub, emailUnsub, waConversationsWithReplies] = await Promise.all([
-    WhatsAppContact.countDocuments({ companyId: id, optIn: false }),
-    RCSContact.countDocuments({ companyId: id, optIn: false }),
-    EmailContact.countDocuments({ companyId: id, optIn: false }),
-    // "Replied" for WhatsApp: conversations that have at least one inbound message
-    // ever (lastMessage/unreadCount alone don't tell us direction, so this counts
-    // conversations that exist at all as a proxy for "the contact engaged back" —
-    // see the /replies route for the real per-conversation reply list).
-    WhatsAppConversation.countDocuments({ companyId: id }),
-  ]);
+    const [waUnsub, rcsUnsub, emailUnsub, waConversationsWithReplies, activeCampaigns] = await Promise.all([
+      WhatsAppContact.countDocuments({ companyId: id, optIn: false }),
+      RCSContact.countDocuments({ companyId: id, optIn: false }),
+      EmailContact.countDocuments({ companyId: id, optIn: false }),
+      // "Replied" for WhatsApp: conversations that have at least one inbound message
+      // ever (lastMessage/unreadCount alone don't tell us direction, so this counts
+      // conversations that exist at all as a proxy for "the contact engaged back" —
+      // see the /replies route for the real per-conversation reply list).
+      WhatsAppConversation.countDocuments({ companyId: id }),
+      // Lets the frontend decide whether to keep polling — no point live-refreshing
+      // a company whose campaigns are all DRAFT/COMPLETED/CANCELED/FAILED.
+      Promise.all([
+        WhatsAppCampaign.countDocuments({ companyId: id, status: { $in: ["RUNNING", "SCHEDULED"] } }),
+        RCSCampaign.countDocuments({ companyId: id, status: { $in: ["RUNNING", "SCHEDULED"] } }),
+        EmailCampaign.countDocuments({ companyId: id, status: { $in: ["RUNNING", "SCHEDULED"] } }),
+      ]).then(([a, b, c]) => a + b + c),
+    ]);
 
-  return apiSuccess({
-    totalCampaigns: waCampaigns.length + rcsCampaigns.length + emailCampaigns.length,
-    whatsappCampaigns: waCampaigns.length,
-    rcsCampaigns: rcsCampaigns.length,
-    emailCampaigns: emailCampaigns.length,
-    totalRecipients: wa.total + rcs.total + email.total,
-    totalSent: wa.sent + rcs.sent + email.sent,
-    delivered: wa.delivered + rcs.delivered + email.delivered,
-    failed: wa.failed + rcs.failed + email.failed,
-    pending: wa.pending + rcs.pending + email.pending,
-    readOrOpened: wa.readOrOpened + rcs.readOrOpened + email.readOrOpened,
-    clicked: rcs.clicked + email.clicked,
-    unsubscribed: waUnsub + rcsUnsub + emailUnsub,
-    byChannel: {
-      whatsapp: { campaigns: waCampaigns.length, ...wa, conversationsWithReplies: waConversationsWithReplies, unsubscribed: waUnsub },
-      rcs: { campaigns: rcsCampaigns.length, ...rcs, unsubscribed: rcsUnsub },
-      email: { campaigns: emailCampaigns.length, ...email, unsubscribed: emailUnsub },
-    },
+    return {
+      totalCampaigns: waCampaigns.length + rcsCampaigns.length + emailCampaigns.length,
+      whatsappCampaigns: waCampaigns.length,
+      rcsCampaigns: rcsCampaigns.length,
+      emailCampaigns: emailCampaigns.length,
+      totalRecipients: wa.total + rcs.total + email.total,
+      totalSent: wa.sent + rcs.sent + email.sent,
+      delivered: wa.delivered + rcs.delivered + email.delivered,
+      failed: wa.failed + rcs.failed + email.failed,
+      pending: wa.pending + rcs.pending + email.pending,
+      readOrOpened: wa.readOrOpened + rcs.readOrOpened + email.readOrOpened,
+      clicked: rcs.clicked + email.clicked,
+      unsubscribed: waUnsub + rcsUnsub + emailUnsub,
+      activeCampaigns,
+      byChannel: {
+        whatsapp: { campaigns: waCampaigns.length, ...wa, conversationsWithReplies: waConversationsWithReplies, unsubscribed: waUnsub },
+        rcs: { campaigns: rcsCampaigns.length, ...rcs, unsubscribed: rcsUnsub },
+        email: { campaigns: emailCampaigns.length, ...email, unsubscribed: emailUnsub },
+      },
+    };
   });
+
+  return apiSuccess(data);
 }

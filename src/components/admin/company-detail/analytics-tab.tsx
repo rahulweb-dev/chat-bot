@@ -6,22 +6,7 @@ import axios from "axios";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { Loader2, MessageCircle } from "lucide-react";
-
-interface ChannelStats {
-  campaigns: number;
-  total: number;
-  sent: number;
-  delivered: number;
-  failed: number;
-  readOrOpened: number;
-  clicked: number;
-  pending: number;
-  conversationsWithReplies?: number;
-}
-
-interface Stats {
-  byChannel: { whatsapp: ChannelStats; rcs: ChannelStats; email: ChannelStats };
-}
+import { ErrorState, CompanyCampaignStats } from "./shared";
 
 interface NormalizedCampaign {
   channel: "WHATSAPP" | "RCS" | "EMAIL";
@@ -36,8 +21,8 @@ function pct(num: number, denom: number) {
   return Math.round((num / denom) * 1000) / 10;
 }
 
-export function AnalyticsTab({ companyId, stats }: { companyId: string; stats?: Stats }) {
-  const { data, isLoading } = useQuery({
+export function AnalyticsTab({ companyId, stats }: { companyId: string; stats?: CompanyCampaignStats }) {
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin-company-campaigns-trend", companyId],
     queryFn: () =>
       axios
@@ -76,6 +61,8 @@ export function AnalyticsTab({ companyId, stats }: { companyId: string; stats?: 
         <CardContent>
           {isLoading ? (
             <div className="flex items-center justify-center h-52"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : isError ? (
+            <ErrorState message="Couldn't load campaign trend data." onRetry={() => refetch()} />
           ) : trend.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-16">No campaign data yet.</p>
           ) : (
