@@ -12,13 +12,14 @@ import {
   Send, Paperclip, MoreVertical,
   StickyNote, Info, CheckCheck, Check,
   Smile, X, Zap, Download, Tag, Search,
-  ArrowLeft, UserRoundCog, Reply,
+  ArrowLeft, UserRoundCog, Reply, Loader2,
 } from "lucide-react";
 import { cn, timeAgo, getInitials } from "@/lib/utils";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
+import { uploadToImageKit } from "@/lib/imagekitUpload";
 
 interface Message {
   _id: string;
@@ -96,6 +97,7 @@ export function ChatWindow({ conversationId, onSend, onTyping, onToggleDetails, 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const { messages: storeMessages, typingUsers } = useChatStore();
 
   const [input, setInput] = useState("");
@@ -322,14 +324,14 @@ export function ChatWindow({ conversationId, onSend, onTyping, onToggleDetails, 
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) { toast({ title: "File too large (max 10 MB)", variant: "destructive" }); return; }
-    const fd = new FormData();
-    fd.append("file", file);
-    const res = await fetch("/api/upload", { method: "POST", body: fd });
-    const data = await res.json();
-    if (data.success && data.data?.url) {
-      onSend(file.name, "FILE", false, [{ name: file.name, url: data.data.url, type: file.type, size: file.size }]);
-    } else {
-      toast({ title: "Upload failed", description: data.error || "File could not be uploaded.", variant: "destructive" });
+    setUploadingFile(true);
+    try {
+      const result = await uploadToImageKit(file, "chat-attachments");
+      onSend(file.name, "FILE", false, [{ name: file.name, url: result.url, type: file.type, size: file.size }]);
+    } catch {
+      toast({ title: "Upload failed", description: "File could not be uploaded. Try again.", variant: "destructive" });
+    } finally {
+      setUploadingFile(false);
     }
     e.target.value = "";
   };
@@ -701,9 +703,9 @@ export function ChatWindow({ conversationId, onSend, onTyping, onToggleDetails, 
                 <Zap className="w-4 h-4" />
               </Button>
               {/* File attach */}
-              <Button variant="ghost" size="icon" className="h-9 w-9" title="Attach file"
+              <Button variant="ghost" size="icon" className="h-9 w-9" title="Attach file" disabled={uploadingFile}
                 onClick={() => fileInputRef.current?.click()}>
-                <Paperclip className="w-4 h-4" />
+                {uploadingFile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
               </Button>
               <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange}
                 accept="image/*,.pdf,.doc,.docx,.txt,.csv" />
