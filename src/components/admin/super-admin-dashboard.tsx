@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,7 @@ import { z } from "zod";
 import {
   Building2, IndianRupee, TrendingUp,
   Plus, Search, Ban, CheckCircle, Trash2, Globe, Wallet, Loader2,
-  MessageSquare, ChevronDown, ChevronUp, Pencil, Star, Layers,
+  MessageSquare, ChevronDown, ChevronUp, Pencil, Star, Layers, Megaphone,
 } from "lucide-react";
 import axios from "axios";
 import { timeAgo, formatNumber } from "@/lib/utils";
@@ -503,6 +504,12 @@ export function SuperAdminDashboard() {
                             />
                           </span>
                         </button>
+
+                        <Link href={`/admin/companies/${company._id}`}>
+                          <Button variant="outline" size="sm" className="h-7 text-xs text-indigo-600 border-indigo-200 hover:bg-indigo-50">
+                            <Megaphone className="w-3 h-3 mr-1" /> Campaigns
+                          </Button>
+                        </Link>
 
                         <Button variant="outline" size="sm" className="h-7 text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
                           onClick={() => setCreditsModal({ id: company._id, name: company.name })}>
