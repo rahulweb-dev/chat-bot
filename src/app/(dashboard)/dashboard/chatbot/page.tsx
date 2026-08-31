@@ -662,6 +662,17 @@ function HoursTab({ config, refetch }: { config: Config; refetch: () => void }) 
   const [messages, setMessages] = useState({ online: config.agentOnlineMessage, offline: config.agentOfflineMessage });
   const [saving, setSaving] = useState(false);
 
+  const { data: tzSettings } = useQuery({
+    queryKey: ["settings-timezone"],
+    queryFn: async () => {
+      const r = await fetch("/api/settings");
+      const d = await r.json();
+      return d.data as { general?: { timezone?: string } };
+    },
+    staleTime: 60_000,
+  });
+  const timezone = tzSettings?.general?.timezone || "UTC";
+
   async function saveHours() {
     setSaving(true);
     const r = await patchConfig({ businessHours: hours, agentOnlineMessage: messages.online, agentOfflineMessage: messages.offline });
@@ -678,6 +689,10 @@ function HoursTab({ config, refetch }: { config: Config; refetch: () => void }) 
 
   return (
     <div className="space-y-6">
+      <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2.5 text-xs text-indigo-800">
+        These hours are checked against your account&apos;s timezone — currently <strong>{timezone}</strong>. If that&apos;s not where your business actually is, the bot will show as offline (or online) at the wrong times. Change it in{" "}
+        <a href="/dashboard/settings" className="font-medium underline underline-offset-2">Settings → General → Timezone</a>.
+      </div>
       <Card>
         <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Clock className="w-4 h-4" />Business Hours</CardTitle></CardHeader>
         <CardContent>
@@ -704,8 +719,8 @@ function HoursTab({ config, refetch }: { config: Config; refetch: () => void }) 
       <Card>
         <CardHeader><CardTitle className="text-sm flex items-center gap-2"><MessageSquare className="w-4 h-4" />Agent Handoff Messages</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-lg border border-amber-100 bg-amber-50/60 px-3 py-2.5 text-xs text-amber-800">
-            Not yet used by the live bot — saved here for a future handoff-messaging feature. The message visitors actually see first is set in the <strong>Welcome Message</strong> tab.
+          <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2.5 text-xs text-indigo-800">
+            Shown when a visitor is handed off to a live agent — the <strong>Online</strong> message during business hours, the <strong>Offline</strong> one outside them. Leave either blank to use the default wording instead.
           </div>
           <div>
             <label className="text-xs font-medium text-gray-600 mb-1 block">Agent Online Message</label>
