@@ -1,0 +1,64 @@
+import { NextRequest } from "next/server";
+import { Model as MongooseModel } from "mongoose";
+import { connectDB } from "@/lib/mongodb";
+import { apiError, apiSuccess } from "@/lib/api-helpers";
+import { requireSuperAdminForCompany, isAdminContextError } from "@/lib/admin-helpers";
+import WhatsAppCampaign from "@/models/WhatsAppCampaign";
+import RCSCampaign from "@/models/RCSCampaign";
+import EmailCampaign from "@/models/EmailCampaign";
+
+// Cast to a loose Model<any> map — see the sibling recipients route for why.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const MODELS: Record<string, MongooseModel<any>> = { WHATSAPP: WhatsAppCampaign, RCS: RCSCampaign, EMAIL: EmailCampaign };
+type Channel = "WHATSAPP" | "RCS" | "EMAIL";
+
+function pct(num: number, denom: number): number {
+  if (!denom) return 0;
+  return Math.round((num / denom) * 1000) / 10;
+}
+
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; campaignId: string }> }) {
+  const { id, campaignId } = await params;
+  const ctx = await requireSuperAdminForCompany(request, id);
+  if (isAdminContextError(ctx)) return apiError(ctx.error, ctx.status);
+
+  const { searchParams } = new URL(request.url);
+  const channel = (searchParams.get("channel") || "").toUpperCase() as Channel;
+  const Model = MODELS[channel];
+  if (!Model) return apiError("channel must be WHATSAPP, RCS, or EMAIL", 400);
+
+  await connectDB();
+  const campaign = await Model.findOne({ _id: campaignId, companyId: id }).lean();
+  if (!campaign) return apiError("Not found", 404);
+
+  const s = (campaign as { stats?: Record<string, number> }).stats || {};
+  const total = s.total || 0;
+  const sent = s.sent || 0;
+  const delivered = s.delivered || 0;
+  const failed = s.failed || 0;
+  const pending = Math.max(0, total - sent - failed);
+  const readOrOpened = s.read ?? s.opened ?? 0;
+  const clicked = s.clicked || 0;
+  const bounced = s.bounced || 0; // email only
+
+  const rates: Record<string, number> = {
+    deliveryRate: pct(delivered, total),
+    failureRate: pct(failed, total),
+  };
+  if (channel === "EMAIL") {
+    rates.bounceRate = pct(bounced, total);
+    rates.openRate = pct(readOrOpened, delivered);
+    rates.clickRate = pct(clicked, delivered);
+  } else {
+    // WHATSAPP / RCS
+    rates.readRate = pct(readOrOpened, delivered);
+    if (channel === "RCS") rates.clickRate = pct(clicked, delivered);
+  }
+
+  return apiSuccess({
+    campaign,
+    channel,
+    performance: { total, sent, delivered, failed, pending, readOrOpened, clicked, bounced },
+    rates,
+  });
+}
