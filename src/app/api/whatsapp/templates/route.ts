@@ -15,17 +15,26 @@ export async function GET(request: NextRequest) {
   const ctx = await getRequestContext(request);
   if (!ctx || !ctx.companyId) return apiError("Unauthorized", 401);
 
-  const integration = await getIntegration(String(ctx.companyId));
-  if (!integration) return apiError("WhatsApp is not connected", 404);
+  try {
+    const integration = await getIntegration(String(ctx.companyId));
+    if (!integration) return apiError("WhatsApp is not connected", 404);
 
-  const accessToken = decrypt(integration.encryptedAccessToken);
-  const { searchParams } = new URL(request.url);
-  // Default to approved-only (for campaign wizard); templates tab passes ?approvedOnly=false
-  const approvedOnly = searchParams.get("approvedOnly") !== "false";
-  const result = await listTemplates(integration.businessAccountId, accessToken, approvedOnly);
-  if (!result.ok) return apiError(result.error || "Failed to load templates");
+    const accessToken = decrypt(integration.encryptedAccessToken);
+    const { searchParams } = new URL(request.url);
+    // Default to approved-only (for campaign wizard); templates tab passes ?approvedOnly=false
+    const approvedOnly = searchParams.get("approvedOnly") !== "false";
+    const result = await listTemplates(integration.businessAccountId, accessToken, approvedOnly);
+    if (!result.ok) return apiError(result.error || "Failed to load templates");
 
-  return apiSuccess(result.templates);
+    return apiSuccess(result.templates);
+  } catch (err) {
+    // decrypt() throws on a malformed/undecryptable stored token instead of
+    // returning a result — without this catch that exception escaped the route
+    // entirely and Next returned its default 500 (an HTML error page in dev),
+    // which the client can't parse into a real error message at all.
+    console.error("[whatsapp/templates] GET failed:", err);
+    return apiError(err instanceof Error ? err.message : "Failed to load templates", 500);
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -33,29 +42,34 @@ export async function POST(request: NextRequest) {
   if (!ctx || !ctx.companyId) return apiError("Unauthorized", 401);
   if (!["COMPANY_ADMIN", "MANAGER"].includes(ctx.userRole)) return apiError("Forbidden", 403);
 
-  const integration = await getIntegration(String(ctx.companyId));
-  if (!integration) return apiError("WhatsApp is not connected", 404);
+  try {
+    const integration = await getIntegration(String(ctx.companyId));
+    if (!integration) return apiError("WhatsApp is not connected", 404);
 
-  const body = await request.json();
-  const { name, category, language, components } = body;
-  if (!name || !category || !language || !components?.length) {
-    return apiError("name, category, language and components are required");
+    const body = await request.json();
+    const { name, category, language, components } = body;
+    if (!name || !category || !language || !components?.length) {
+      return apiError("name, category, language and components are required");
+    }
+
+    const accessToken = decrypt(integration.encryptedAccessToken);
+    const result = await createTemplate(integration.businessAccountId, accessToken, { name, category, language, components });
+    if (!result.ok) return apiError(result.error || "Failed to create template");
+
+    await AuditLog.create({
+      companyId: ctx.companyId,
+      userId: ctx.userId,
+      action: "CREATE_WHATSAPP_TEMPLATE",
+      resource: "whatsapp_template",
+      details: { name, category, language },
+      status: "SUCCESS",
+    });
+
+    return apiSuccess({ id: result.id, name, status: result.status || "PENDING" }, "Template submitted for approval", 201);
+  } catch (err) {
+    console.error("[whatsapp/templates] POST failed:", err);
+    return apiError(err instanceof Error ? err.message : "Failed to create template", 500);
   }
-
-  const accessToken = decrypt(integration.encryptedAccessToken);
-  const result = await createTemplate(integration.businessAccountId, accessToken, { name, category, language, components });
-  if (!result.ok) return apiError(result.error || "Failed to create template");
-
-  await AuditLog.create({
-    companyId: ctx.companyId,
-    userId: ctx.userId,
-    action: "CREATE_WHATSAPP_TEMPLATE",
-    resource: "whatsapp_template",
-    details: { name, category, language },
-    status: "SUCCESS",
-  });
-
-  return apiSuccess({ id: result.id, name, status: result.status || "PENDING" }, "Template submitted for approval", 201);
 }
 
 export async function DELETE(request: NextRequest) {
@@ -66,21 +80,26 @@ export async function DELETE(request: NextRequest) {
   const { name } = await request.json();
   if (!name) return apiError("Template name is required");
 
-  const integration = await getIntegration(String(ctx.companyId));
-  if (!integration) return apiError("WhatsApp is not connected", 404);
+  try {
+    const integration = await getIntegration(String(ctx.companyId));
+    if (!integration) return apiError("WhatsApp is not connected", 404);
 
-  const accessToken = decrypt(integration.encryptedAccessToken);
-  const result = await deleteTemplate(integration.businessAccountId, accessToken, name);
-  if (!result.ok) return apiError(result.error || "Failed to delete template");
+    const accessToken = decrypt(integration.encryptedAccessToken);
+    const result = await deleteTemplate(integration.businessAccountId, accessToken, name);
+    if (!result.ok) return apiError(result.error || "Failed to delete template");
 
-  await AuditLog.create({
-    companyId: ctx.companyId,
-    userId: ctx.userId,
-    action: "DELETE_WHATSAPP_TEMPLATE",
-    resource: "whatsapp_template",
-    details: { name },
-    status: "SUCCESS",
-  });
+    await AuditLog.create({
+      companyId: ctx.companyId,
+      userId: ctx.userId,
+      action: "DELETE_WHATSAPP_TEMPLATE",
+      resource: "whatsapp_template",
+      details: { name },
+      status: "SUCCESS",
+    });
 
-  return apiSuccess(null, "Template deleted");
+    return apiSuccess(null, "Template deleted");
+  } catch (err) {
+    console.error("[whatsapp/templates] DELETE failed:", err);
+    return apiError(err instanceof Error ? err.message : "Failed to delete template", 500);
+  }
 }
