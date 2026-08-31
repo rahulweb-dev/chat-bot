@@ -48,9 +48,9 @@ function LinkGeneratorDialog() {
           <Link2 className="h-3.5 w-3.5 mr-1.5" />Link Generator
         </Button>
       </DialogTrigger>
-      <DialogContent>
-        <DialogHeader><DialogTitle>WhatsApp Click-to-Chat Link</DialogTitle></DialogHeader>
-        <div className="space-y-4">
+      <DialogContent className="bg-white">
+        <DialogHeader><DialogTitle >WhatsApp Click-to-Chat Link</DialogTitle></DialogHeader>
+        <div className="space-y-4 ">
           {!phone ? (
             <p className="text-sm text-muted-foreground">Connect WhatsApp in Settings first to generate a link.</p>
           ) : (
