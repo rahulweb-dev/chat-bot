@@ -229,7 +229,7 @@
       '</div>' +
       '<div id="sf-win" role="dialog" aria-label="Chat">' +
         '<div id="sf-head">' +
-          '<div id="sf-hav"><svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg></div>' +
+          '<div id="sf-hav"></div>' +
           '<div id="sf-hi">' +
             '<div id="sf-hname">Support</div>' +
             '<div id="sf-hsub"><span id="sf-online"></span>Online &bull; Replies instantly</div>' +
@@ -299,6 +299,18 @@
         if (inp && inp.style.display !== "none") inp.focus();
       }, 300);
     } else {
+      // Ask for a rating on their way out, not mid-conversation — the old
+      // msgCount>=6 trigger fired while they were actively chatting, interrupting
+      // whatever flow they were in the middle of. Cancel this one close and show
+      // the prompt instead; showCSAT() flips csatShown so the *next* close click
+      // goes through normally, rated or not.
+      if (chatStarted && msgCount >= 4 && !csatShown) {
+        isOpen = true;
+        win.classList.add("open");
+        btn.classList.add("open");
+        showCSAT();
+        return;
+      }
       stopPoll();
     }
   }
@@ -355,8 +367,6 @@
           var qr = data.quickReplies || [];
           setOptions(qr, qr.length > 0);
           if (qr.length) saveQR(qr);
-          // Show CSAT after 6+ message exchanges
-          if (msgCount >= 6 && !csatShown) setTimeout(showCSAT, 800);
         }
       }, delay);
       delay += 420;
@@ -648,18 +658,26 @@
   }
 
   // ── Fetch company info ────────────────────────────────────────────────────────
+  // The header avatar (#sf-hav) starts empty — no icon at all — rather than
+  // showing a generic chat-bubble placeholder that then gets swapped for the
+  // real logo, which reads as "the wrong icon flashing before the right one".
+  // It only ever shows something once we have a definitive answer: the real
+  // logo, or — once we're sure there isn't one — this fallback glyph.
+  var HAV_FALLBACK = '<svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>';
+
   // Applies a company name/logo to the header and any bot bubbles already on
-  // screen. Shared by the instant localStorage-cache apply (on boot, before the
-  // network round trip completes) and the fresh /api/widget response.
-  function applyCompanyInfo(name, logoUrl) {
+  // screen. `confirmed` means the caller actually knows whether a logo exists
+  // (from cache or a completed fetch) — only then do we fall back to the
+  // generic icon; otherwise we'd rather show nothing than guess wrong.
+  function applyCompanyInfo(name, logoUrl, confirmed) {
     if (name) {
       companyName = name;
       var el = document.getElementById("sf-hname");
       if (el) el.textContent = companyName;
     }
+    var hav = document.getElementById("sf-hav");
     if (logoUrl) {
       companyLogo = logoUrl;
-      var hav = document.getElementById("sf-hav");
       if (hav) setAvatarLogo(hav);
       // Any bot message bubbles already rendered (e.g. the __INIT__ greeting,
       // which can arrive before this config fetch resolves) still show the
@@ -671,19 +689,21 @@
         var avEl = rows[i].querySelector(".sf-av");
         if (avEl) setAvatarLogo(avEl);
       }
+    } else if (confirmed && hav && !hav.firstChild) {
+      hav.innerHTML = HAV_FALLBACK;
     }
   }
 
   // Shows the last-known name/logo instantly from localStorage (set by a previous
-  // page load on this site) so the header doesn't sit on the generic placeholder
-  // for the full network round trip on every page view — fetchCompany() below
-  // still runs and overwrites it with fresh data a moment later.
+  // page load on this site) so the header doesn't sit empty for the full network
+  // round trip on every page view — fetchCompany() below still runs and updates
+  // it with fresh data a moment later.
   function applyCachedCompanyInfo() {
     try {
       var raw = localStorage.getItem("sf_company");
       if (!raw) return;
       var cached = JSON.parse(raw);
-      if (cached && cached.key === KEY) applyCompanyInfo(cached.name, cached.logo);
+      if (cached && cached.key === KEY) applyCompanyInfo(cached.name, cached.logo, true);
     } catch (_) {}
   }
 
@@ -693,7 +713,7 @@
       .then(function(d) {
         if (!d.success || !d.data) return;
         var logoUrl = (d.data.settings && d.data.settings.logo) || d.data.logo;
-        applyCompanyInfo(d.data.name, logoUrl);
+        applyCompanyInfo(d.data.name, logoUrl, true);
         if (d.data.name || logoUrl) {
           try { localStorage.setItem("sf_company", JSON.stringify({ key: KEY, name: d.data.name || "", logo: logoUrl || "" })); } catch (_) {}
         }
