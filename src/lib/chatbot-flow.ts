@@ -139,7 +139,7 @@ function isEmail(s: string): boolean {
 
 // No businessHours configured (empty array) means "always open" — don't gate
 // behavior for companies that haven't set hours at all.
-function isWithinBusinessHours(hours: BizHour[] | undefined, timezone?: string): boolean {
+export function isWithinBusinessHours(hours: BizHour[] | undefined, timezone?: string): boolean {
   if (!hours || !hours.length) return true;
   const tz = timezone || "UTC";
   const now = new Date();

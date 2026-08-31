@@ -123,6 +123,7 @@
       "#sf-hname{color:white;font-size:15px;font-weight:700;letter-spacing:.01em}" +
       "#sf-hsub{color:rgba(255,255,255,.8);font-size:12px;margin-top:3px;display:flex;align-items:center;gap:5px}" +
       "#sf-online{width:7px;height:7px;border-radius:50%;background:#4ade80;flex-shrink:0;animation:sfOn 2s infinite}" +
+      "#sf-online.sf-off{background:#9ca3af;animation:none}" +
       "@keyframes sfOn{0%,100%{opacity:1;box-shadow:0 0 0 0 #4ade8066}50%{opacity:.7;box-shadow:0 0 0 5px #4ade8000}}" +
       "#sf-hx{background:rgba(255,255,255,.15);border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s;color:white}" +
       "#sf-hx:hover{background:rgba(255,255,255,.28)}" +
@@ -203,11 +204,16 @@
       "#sf-pwr a{color:" + COLOR + ";text-decoration:none;font-weight:600}" +
 
       // Mobile
+      "#sf-handle{display:none}" +
       "@media(max-width:440px){" +
         // A bottom sheet, not a full-screen takeover — leaves the page visible
         // above it so it still reads as an overlay on top of their site.
         "#sf-win{left:0!important;right:0!important;bottom:0!important;width:100%!important;height:80vh!important;height:80dvh!important;max-height:600px!important;border-radius:20px 20px 0 0!important;border:none}" +
         "#sf-launch{" + SIDE + ":16px;bottom:16px}" +
+        "#sf-head{padding-top:26px}" +
+        // Signals "this is a sheet" the way a native bottom sheet would —
+        // absolutely positioned so it doesn't disturb the header's flex row.
+        "#sf-handle{display:block;position:absolute;left:50%;top:6px;transform:translateX(-50%);width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,.5)}" +
       "}" +
 
       // Respect the visitor's OS-level motion preference
@@ -231,10 +237,11 @@
       '</div>' +
       '<div id="sf-win" role="dialog" aria-label="Chat">' +
         '<div id="sf-head">' +
+          '<div id="sf-handle"></div>' +
           '<div id="sf-hav"></div>' +
           '<div id="sf-hi">' +
             '<div id="sf-hname">Support</div>' +
-            '<div id="sf-hsub"><span id="sf-online"></span>Online &bull; Replies instantly</div>' +
+            '<div id="sf-hsub"><span id="sf-online"></span><span id="sf-hstat">Online &bull; Replies instantly</span></div>' +
           '</div>' +
           '<button id="sf-hx" aria-label="Close">' +
             '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>' +
@@ -718,6 +725,15 @@
         applyCompanyInfo(d.data.name, logoUrl, true);
         if (d.data.name || logoUrl) {
           try { localStorage.setItem("sf_company", JSON.stringify({ key: KEY, name: d.data.name || "", logo: logoUrl || "" })); } catch (_) {}
+        }
+        // Reflects the company's actual business-hours status — not cached, since
+        // it changes through the day. Previously the header always said "Online"
+        // even while the bot's own greeting was telling the visitor it's offline.
+        if (typeof d.data.isOnline === "boolean") {
+          var dot = document.getElementById("sf-online");
+          var stat = document.getElementById("sf-hstat");
+          if (dot) dot.classList.toggle("sf-off", !d.data.isOnline);
+          if (stat) stat.textContent = d.data.isOnline ? "Online • Replies instantly" : "Offline • Leave a message";
         }
         // Pick up Pusher config from server
         if (d.data.pusherKey) {

@@ -9,6 +9,8 @@ import { v4 as uuidv4 } from "uuid";
 import { getIO } from "@/server/socket";
 import { pusherConfigured } from "@/lib/pusher";
 import { autoAssignConversation } from "@/lib/auto-assign";
+import ChatbotConfig from "@/models/ChatbotConfig";
+import { isWithinBusinessHours } from "@/lib/chatbot-flow";
 
 // Resolves a widget API key to a company — supports both Company.apiKey and ApiKey model
 async function resolveCompany(apiKey: string) {
@@ -50,6 +52,8 @@ export async function GET(request: NextRequest) {
   }
 
   const settings = await Settings.findOne({ companyId: company._id });
+  const chatbotConfig = await ChatbotConfig.findOne({ companyId: company._id }).select("businessHours").lean() as { businessHours?: { day: string; open: string; close: string; isClosed: boolean }[] } | null;
+  const isOnline = isWithinBusinessHours(chatbotConfig?.businessHours, settings?.general?.timezone);
 
   return NextResponse.json({
     success: true,
@@ -57,6 +61,7 @@ export async function GET(request: NextRequest) {
       companyId: company._id,
       name: company.name,
       logo: company.logo,
+      isOnline,
       settings: {
         primaryColor: settings?.widget?.primaryColor || company.settings.brandColor,
         theme: settings?.widget?.theme || "LIGHT",
