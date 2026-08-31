@@ -257,7 +257,7 @@ export function Header() {
               <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 rounded-xl shadow-lg">
+          <DropdownMenuContent align="end" className="w-56 rounded-xl shadow-lg bg-white">
             <DropdownMenuLabel className="font-normal">
               <p className="font-semibold text-foreground text-sm leading-none">{session?.user?.name}</p>
               <p className="text-xs text-muted-foreground mt-1">{session?.user?.email}</p>
