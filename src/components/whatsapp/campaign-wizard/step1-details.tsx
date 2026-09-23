@@ -9,12 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogClose } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "@/components/ui/use-toast";
-import { MessageCircle, FileText, X, Plus, Loader2, ImageIcon, Trash2, AlertTriangle } from "lucide-react";
+import { MessageCircle, FileText, X, Plus, Loader2, ImageIcon, Trash2, AlertTriangle, CheckCheck, ArrowRight } from "lucide-react";
 import { uploadToImageKit } from "@/lib/imagekitUpload";
 import { CampaignDraft, WATemplate } from "./types";
+import { cn } from "@/lib/utils";
 
 function ImageUploadField({
   label,
@@ -83,6 +84,11 @@ function ImageUploadField({
   );
 }
 
+// WhatsApp-native template picker: every template previews as an actual chat
+// bubble on the WhatsApp wallpaper, so the admin sees exactly what the
+// customer will receive rather than reading a plain list. Selecting a bubble
+// only highlights it — the pick isn't committed until "Use this template" is
+// pressed, so a stray tap while scrolling can't silently swap the template.
 function TemplatePickerDialog({
   open,
   onOpenChange,
@@ -97,45 +103,110 @@ function TemplatePickerDialog({
     queryFn: () => axios.get("/api/whatsapp/templates").then((r) => r.data.data),
     enabled: open,
   });
+  const [selected, setSelected] = useState<WATemplate | null>(null);
+  // Reset the highlighted-but-not-yet-confirmed selection each time the
+  // dialog opens — adjusted during render (React's documented pattern for
+  // resetting state on a prop change) rather than in an effect, which this
+  // project's lint config flags as a cascading-render risk.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setSelected(null);
+  }
 
   const errorMessage = axios.isAxiosError(error) ? error.response?.data?.error : undefined;
 
+  const confirm = () => {
+    if (!selected) return;
+    onSelect(selected);
+    onOpenChange(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>Select Approved Template</DialogTitle></DialogHeader>
-        {isLoading ? (
-          <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-        ) : isError ? (
-          <div className="flex flex-col items-center text-center py-8 px-4 gap-2">
-            <AlertTriangle className="h-6 w-6 text-red-500" />
-            <p className="text-sm font-medium text-gray-700">Couldn&apos;t load templates</p>
-            <p className="text-xs text-muted-foreground max-w-xs">
-              {errorMessage || "Something went wrong talking to WhatsApp. Check your integration in Settings and try again."}
+      <DialogContent className="flex flex-col p-0 gap-0 overflow-hidden max-h-[85vh] sm:max-w-[560px] [&>button]:hidden">
+        {/* Header */}
+        <div className="bg-[#075E54] px-6 py-5 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+              <MessageCircle className="w-[18px] h-[18px] text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-white text-[17px] font-semibold leading-tight">Choose a WhatsApp template</p>
+              <p className="text-white/70 text-xs mt-0.5">Approved by Meta · previewed as real messages</p>
+            </div>
+          </div>
+          <DialogClose asChild>
+            <button type="button" aria-label="Close" className="w-7 h-7 rounded-md bg-white/10 hover:bg-white/20 flex items-center justify-center text-white shrink-0 transition-colors">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </DialogClose>
+        </div>
+
+        {/* Body */}
+        <div
+          className="flex-1 overflow-y-auto min-h-[220px] px-6 py-5"
+          style={{ background: "#ECE5DD" }}
+        >
+          {isLoading ? (
+            <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : isError ? (
+            <div className="flex flex-col items-center text-center py-8 px-4 gap-2">
+              <AlertTriangle className="h-6 w-6 text-red-500" />
+              <p className="text-sm font-medium text-gray-700">Couldn&apos;t load templates</p>
+              <p className="text-xs text-muted-foreground max-w-xs">
+                {errorMessage || "Something went wrong talking to WhatsApp. Check your integration in Settings and try again."}
+              </p>
+              <Button type="button" variant="outline" size="sm" className="mt-2 bg-white" onClick={() => refetch()}>Retry</Button>
+            </div>
+          ) : !templates?.length ? (
+            <p className="text-sm text-gray-600 py-4 text-center">
+              No approved templates found. Create and get a template approved in your Meta Business account first.
             </p>
-            <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => refetch()}>Retry</Button>
-          </div>
-        ) : !templates?.length ? (
-          <p className="text-sm text-muted-foreground py-4">
-            No approved templates found. Create and get a template approved in your Meta Business account first.
-          </p>
-        ) : (
-          <div className="space-y-2 max-h-80 overflow-y-auto">
-            {templates?.map((t) => (
-              <button
-                key={t.name}
-                onClick={() => { onSelect(t); onOpenChange(false); }}
-                className="w-full text-left p-3 rounded-lg border hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">{t.name}</p>
-                  <span className="text-[10px] text-muted-foreground uppercase">{t.language}</span>
-                </div>
-                {t.bodyText && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{t.bodyText}</p>}
-              </button>
-            ))}
-          </div>
-        )}
+          ) : (
+            <div className="space-y-4">
+              {templates.map((t) => {
+                const isSelected = selected?.name === t.name;
+                return (
+                  <div key={t.name} className="flex flex-col items-end">
+                    <div className="flex items-center gap-2 mb-1.5 self-start">
+                      <span className="text-[11px] font-bold text-[#075E54] bg-white rounded px-1.5 py-0.5 font-mono">{t.name}</span>
+                      <span className="text-[10px] text-gray-500 font-medium uppercase">{t.category}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelected(t)}
+                      className={cn(
+                        "max-w-[78%] text-left bg-white rounded-tl-[10px] rounded-tr-[10px] rounded-bl-[10px] rounded-br-[2px] px-3.5 py-2.5 border-2 transition-shadow",
+                        isSelected ? "border-[#25D366] shadow-[0_2px_10px_rgba(37,211,102,0.25)]" : "border-transparent shadow-sm hover:shadow-md"
+                      )}
+                    >
+                      <p className="text-[13.5px] text-[#111b21] leading-relaxed">{t.bodyText || "(no preview text)"}</p>
+                      <div className="flex items-center justify-end gap-1 mt-1.5">
+                        <span className="text-[10.5px] text-[#8696a0]">10:24 AM</span>
+                        <CheckCheck className="w-3.5 h-3.5 text-[#53BDEB]" />
+                      </div>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="bg-white px-6 py-4 flex items-center justify-between shrink-0 border-t">
+          <span className="text-xs text-muted-foreground">{selected ? `Selected: ${selected.name}` : "Tap a message to select it"}</span>
+          <Button
+            type="button"
+            disabled={!selected}
+            onClick={confirm}
+            className="rounded-full bg-[#25D366] hover:bg-[#20BD5C] text-white gap-1.5 disabled:opacity-40"
+          >
+            Use this template
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
