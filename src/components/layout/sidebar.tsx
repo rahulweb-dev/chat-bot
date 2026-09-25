@@ -7,13 +7,11 @@ import {
   MessageSquare, TicketIcon, Users, Building2, BarChart3,
   Settings, Bell, Key, Bot, Workflow, CreditCard,
   LayoutDashboard, BookOpen, Tag, Globe, Shield,
-  ChevronLeft, ChevronRight, Inbox, MessageCircle,
-  Zap, ArrowUpRight, Trophy, Mail, X,
+  Inbox, MessageCircle, Trophy, Mail, X,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { getInitials } from "@/lib/utils";
-import { useState } from "react";
 import { useUIStore } from "@/store/ui-store";
 
 interface NavItem {
@@ -109,10 +107,15 @@ const SUPER_ADMIN_GROUPS: NavGroup[] = [
   },
 ];
 
+// Icon-only "pill" rail — the design this replaced showed full text labels with
+// an expand/collapse toggle; this one never shows labels at all (matching the
+// floating-card reference), so every item leans on title/aria-label instead of
+// visible text. That's a real accessibility trade-off for touch users (no
+// hover to reveal a tooltip) — acceptable here because it mirrors the chosen
+// reference design, but worth knowing if mobile nav usability ever comes up.
 export function Sidebar() {
   const { data: session } = useSession();
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
   const mobileNavOpen = useUIStore((s) => s.mobileNavOpen);
   const closeMobileNav = useUIStore((s) => s.closeMobileNav);
   const isSuperAdmin = session?.user?.role === "SUPER_ADMIN";
@@ -130,161 +133,87 @@ export function Sidebar() {
         />
       )}
       <aside className={cn(
-        "flex flex-col h-full border-r border-gray-800/60 bg-gray-950 shrink-0 transition-transform duration-300",
+        "h-full shrink-0 transition-transform duration-300 flex items-center py-3",
         // Mobile: fixed off-canvas drawer, slides in over content
-        "fixed inset-y-0 left-0 z-50 w-64",
+        "fixed inset-y-0 left-0 z-50 w-24 px-3",
         mobileNavOpen ? "translate-x-0" : "-translate-x-full",
-        // Desktop: back in normal flow, collapse toggle applies, never translated
-        "lg:relative lg:z-auto lg:translate-x-0 lg:transition-[width]",
-        collapsed ? "lg:w-[60px]" : "lg:w-64"
+        // Desktop: back in normal flow, never translated
+        "lg:relative lg:z-auto lg:translate-x-0 lg:w-24 lg:px-3 lg:py-4"
       )}>
-      {/* Brand */}
-      <div className={cn(
-        "flex items-center h-16 border-b border-gray-800/60 shrink-0 px-4 gap-3",
-        collapsed && "justify-center px-0"
-      )}>
-        <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-900/50 shrink-0">
-          <MessageSquare className="w-4 h-4 text-white" />
-        </div>
-        {!collapsed && (
-          <div className="min-w-0 flex-1">
-            <p className="font-bold text-white text-sm leading-none tracking-tight">SupportFlow</p>
-            <p className="text-[10px] text-indigo-400/80 mt-0.5 font-semibold tracking-widest uppercase">AI Platform</p>
-          </div>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Close menu"
-          className="lg:hidden h-8 w-8 text-gray-500 hover:text-white hover:bg-white/10 shrink-0"
-          onClick={closeMobileNav}
-        >
-          <X className="w-4 h-4" />
-        </Button>
-      </div>
+        <div className="relative w-16 h-full max-h-full rounded-[28px] bg-gradient-to-b from-indigo-500 to-indigo-700 shadow-lg shadow-indigo-900/20 flex flex-col items-center py-4 mx-auto">
+          {/* Mobile close */}
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Close menu"
+            className="lg:hidden absolute -right-9 top-0 h-8 w-8 text-white/80 hover:text-white hover:bg-white/10"
+            onClick={closeMobileNav}
+          >
+            <X className="w-4 h-4" />
+          </Button>
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5 [&::-webkit-scrollbar]:hidden">
-        {groups.map((group, gi) => {
-          const visible = group.items.filter(item => !item.roles || item.roles.includes(userRole));
-          if (!visible.length) return null;
+          {/* Brand mark */}
+          <Link
+            href={isSuperAdmin ? "/admin" : "/dashboard"}
+            aria-label="SupportFlow home"
+            className="w-10 h-10 rounded-xl bg-white/15 hover:bg-white/25 transition-colors flex items-center justify-center shrink-0 mb-4"
+          >
+            <MessageSquare className="w-4.5 h-4.5 text-white" />
+          </Link>
 
-          return (
-            <div key={gi} className={gi > 0 ? "mt-3" : ""}>
-              {/* Section label */}
-              {group.label && !collapsed && (
-                <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-600 px-3 mb-1.5 select-none">
-                  {group.label}
-                </p>
-              )}
-              {group.label && collapsed && gi > 0 && (
-                <div className="mx-3 mb-3 h-px bg-gray-800/70" />
-              )}
+          <nav className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center gap-1.5 w-full [&::-webkit-scrollbar]:hidden">
+            {groups.map((group, gi) => {
+              const visible = group.items.filter(item => !item.roles || item.roles.includes(userRole));
+              if (!visible.length) return null;
 
-              {visible.map((item) => {
-                const Icon = item.icon;
-                const isActive = pathname === item.href
-                  || (item.href !== "/dashboard" && item.href !== "/admin" && pathname.startsWith(item.href));
+              return (
+                <div key={gi} className="flex flex-col items-center gap-1.5 w-full">
+                  {gi > 0 && <div className="w-6 h-px bg-white/15 my-1" />}
+                  {visible.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = pathname === item.href
+                      || (item.href !== "/dashboard" && item.href !== "/admin" && pathname.startsWith(item.href));
 
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    title={collapsed ? item.label : undefined}
-                    onClick={closeMobileNav}
-                    className={cn(
-                      "relative flex items-center gap-2.5 rounded-lg text-sm font-medium transition-all duration-150 group mb-0.5",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950",
-                      collapsed ? "justify-center w-10 h-9 mx-auto px-0" : "px-3 py-2",
-                      isActive
-                        ? "bg-indigo-500/15 text-indigo-300"
-                        : "text-gray-500 hover:text-gray-200 hover:bg-white/[0.05]"
-                    )}
-                  >
-                    {/* Active left accent */}
-                    {isActive && !collapsed && (
-                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-indigo-400 rounded-r-full" />
-                    )}
-                    <Icon className={cn(
-                      "shrink-0 transition-colors",
-                      collapsed ? "w-4.5 h-4.5" : "w-4 h-4",
-                      isActive ? "text-indigo-400" : "text-gray-600 group-hover:text-gray-300"
-                    )} />
-                    {!collapsed && (
-                      <>
-                        <span className="flex-1 truncate">{item.label}</span>
-                        {item.badge && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shrink-0">
-                            {item.badge}
-                          </span>
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        title={item.label}
+                        aria-label={item.label}
+                        onClick={closeMobileNav}
+                        className={cn(
+                          "relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors shrink-0",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
+                          isActive ? "bg-white text-indigo-600 shadow-sm" : "text-white/70 hover:text-white hover:bg-white/15"
                         )}
-                      </>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          );
-        })}
-      </nav>
+                      >
+                        <Icon className="w-4.5 h-4.5" />
+                        {item.badge && (
+                          <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-indigo-600" />
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </nav>
 
-      {/* Enterprise upgrade CTA */}
-      {!isSuperAdmin && !collapsed && (
-        <div className="px-3 pb-3 shrink-0">
-          <div className="rounded-xl bg-gradient-to-br from-indigo-600/20 to-violet-600/15 border border-indigo-500/20 p-3">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Zap className="w-3 h-3 text-indigo-400" />
-              <span className="text-[11px] font-semibold text-indigo-300">Enterprise Plan</span>
-            </div>
-            <p className="text-[10px] text-gray-500 leading-relaxed mb-2.5">
-              Unlimited agents · White-label · Priority SLA
-            </p>
-            <Link
-              href="/dashboard/billing"
-              className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/30 text-indigo-300 text-xs font-semibold transition-colors"
-            >
-              Upgrade <ArrowUpRight className="w-3 h-3" />
-            </Link>
-          </div>
+          {/* Profile */}
+          <Link
+            href="/dashboard/profile"
+            aria-label="My profile"
+            title={session?.user?.name || "Profile"}
+            className="shrink-0 mt-3"
+          >
+            <Avatar className="w-10 h-10 ring-2 ring-white/30 hover:ring-white/60 transition-all">
+              <AvatarImage src={session?.user?.image || ""} alt={session?.user?.name || "User avatar"} />
+              <AvatarFallback className="bg-white/20 text-white text-xs font-bold">
+                {getInitials(session?.user?.name || "U")}
+              </AvatarFallback>
+            </Avatar>
+          </Link>
         </div>
-      )}
-
-      {/* Profile */}
-      <div className="p-3 border-t border-gray-800/60 shrink-0">
-        <Link
-          href="/dashboard/profile"
-          className={cn(
-            "flex items-center gap-2.5 rounded-xl hover:bg-white/[0.05] transition-colors p-2 group",
-            collapsed && "justify-center"
-          )}
-        >
-          <Avatar className="w-8 h-8 shrink-0 ring-2 ring-indigo-500/20 ring-offset-1 ring-offset-gray-950">
-            <AvatarImage src={session?.user?.image || ""} alt={session?.user?.name || "User avatar"} />
-            <AvatarFallback className="bg-gradient-to-br from-indigo-600 to-violet-700 text-white text-xs font-bold">
-              {getInitials(session?.user?.name || "U")}
-            </AvatarFallback>
-          </Avatar>
-          {!collapsed && (
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-gray-200 truncate">{session?.user?.name}</p>
-              <p className="text-[10px] text-gray-600 truncate capitalize mt-0.5">
-                {session?.user?.role?.toLowerCase().replace(/_/g, " ")}
-              </p>
-            </div>
-          )}
-        </Link>
-      </div>
-
-      {/* Collapse toggle — a collapsed icon rail doesn't apply to the mobile drawer */}
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        className="hidden lg:flex absolute -right-3 top-[72px] w-6 h-6 bg-gray-950 border border-gray-800 rounded-full text-gray-500 hover:text-white hover:bg-gray-800 z-20 shadow-sm"
-        onClick={() => setCollapsed(!collapsed)}
-      >
-        {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
-      </Button>
       </aside>
     </>
   );
