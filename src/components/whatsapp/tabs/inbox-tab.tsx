@@ -239,23 +239,40 @@ export function InboxTab() {
 
   useEffect(() => {
     if (!session?.user || socket) return;
-    socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || "", {
-      auth: { token: session.user.id },
-      transports: ["websocket", "polling"],
-    });
+    let cancelled = false;
 
-    socket.on("whatsapp:message:new", () => {
-      qc.invalidateQueries({ queryKey: ["whatsapp-messages"] });
-      qc.invalidateQueries({ queryKey: ["whatsapp-conversations"] });
-    });
-    socket.on("whatsapp:conversation:updated", () => {
-      qc.invalidateQueries({ queryKey: ["whatsapp-conversations"] });
-    });
-    socket.on("whatsapp:status:update", () => {
-      qc.invalidateQueries({ queryKey: ["whatsapp-messages"] });
-    });
+    (async () => {
+      // See live-chat.tsx for why this mints a signed token via an
+      // authenticated HTTP call instead of sending the raw session user id.
+      let token: string | null = null;
+      try {
+        const res = await fetch("/api/auth/socket-token");
+        const json = await res.json();
+        token = json?.data?.token || null;
+      } catch {
+        // fall through — socket just won't connect
+      }
+      if (cancelled || !token || socket) return;
+
+      socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || "", {
+        auth: { token },
+        transports: ["websocket", "polling"],
+      });
+
+      socket.on("whatsapp:message:new", () => {
+        qc.invalidateQueries({ queryKey: ["whatsapp-messages"] });
+        qc.invalidateQueries({ queryKey: ["whatsapp-conversations"] });
+      });
+      socket.on("whatsapp:conversation:updated", () => {
+        qc.invalidateQueries({ queryKey: ["whatsapp-conversations"] });
+      });
+      socket.on("whatsapp:status:update", () => {
+        qc.invalidateQueries({ queryKey: ["whatsapp-messages"] });
+      });
+    })();
 
     return () => {
+      cancelled = true;
       socket?.disconnect();
       socket = null;
     };

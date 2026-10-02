@@ -49,40 +49,38 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
 
     if (!token) return next(new Error("Authentication required"));
 
-    // Try JWT first (API / mobile clients)
+    // Every non-widget client (dashboard, API, mobile) now authenticates with
+    // a real, signed JWT — the dashboard mints one via GET /api/auth/socket-token
+    // (which itself requires a valid NextAuth session) rather than sending its
+    // raw Mongo _id, which used to be trusted as-is with no signature check at
+    // all (anyone who knew/guessed another user's _id could open a socket
+    // impersonating them). Re-verify the user is still active so a disabled
+    // account can't keep using a token issued before it was deactivated.
     try {
       const decoded = verifyToken(token);
+      await connectDB();
+      const user = await User.findById(decoded.id).select("isActive").lean() as { isActive: boolean } | null;
+      if (!user?.isActive) return next(new Error("Invalid token"));
       socket.userId = decoded.id;
       socket.userRole = decoded.role;
       socket.companyId = decoded.companyId;
       return next();
     } catch {
-      // fall through to userId lookup
+      return next(new Error("Invalid token"));
     }
-
-    // Fallback: NextAuth dashboard passes user._id as the token
-    try {
-      await connectDB();
-      const user = await User.findById(token)
-        .select("role companyId isActive")
-        .lean() as { role: string; companyId?: unknown; isActive: boolean } | null;
-      if (user?.isActive) {
-        socket.userId = token;
-        socket.userRole = user.role;
-        socket.companyId = (user.companyId as { toString(): string } | undefined)?.toString();
-        return next();
-      }
-    } catch {
-      // invalid ObjectId format or DB error
-    }
-
-    return next(new Error("Invalid token"));
   });
 
   io.on("connection", (socket: AuthenticatedSocket) => {
     console.log(`Socket connected: ${socket.id} (${socket.userRole})`);
 
-    if (socket.companyId) {
+    // Staff dashboards need the company-wide room for live notifications (new
+    // conversation alerts, agent status changes, etc.) — a visitor only ever
+    // needs their own conversation room. Auto-joining visitors here meant
+    // anyone holding a company's public widget key (not a secret — it's
+    // pasted into that company's own public embed snippet) could open a raw
+    // socket.io-client connection and watch every OTHER visitor's
+    // conversation metadata for that company in real time.
+    if (socket.companyId && socket.userRole !== "VISITOR") {
       socket.join(`company:${socket.companyId}`);
     }
 

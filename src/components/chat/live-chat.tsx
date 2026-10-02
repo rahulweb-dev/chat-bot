@@ -84,9 +84,27 @@ export function LiveChat() {
 
   useEffect(() => {
     if (!session?.user || socket) return;
+    let cancelled = false;
+
+    (async () => {
+      // Socket.IO's handshake happens over a raw WebSocket, which can't rely on
+      // the session cookie the way a normal fetch does — so first mint a
+      // short-lived, SIGNED token via this authenticated HTTP route, then hand
+      // that to the socket handshake. This replaces sending the visitor's raw,
+      // unsigned Mongo _id as "proof" of identity, which let anyone who knew
+      // (or guessed) another user's _id open a socket impersonating them.
+      let token: string | null = null;
+      try {
+        const res = await fetch("/api/auth/socket-token");
+        const json = await res.json();
+        token = json?.data?.token || null;
+      } catch {
+        // fall through — connect_error below surfaces the failure to the user
+      }
+      if (cancelled || !token || socket) return;
 
     socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || "", {
-      auth: { token: session.user.id },
+      auth: { token },
       transports: ["websocket", "polling"],
     });
 
@@ -211,7 +229,10 @@ export function LiveChat() {
       }));
     });
 
+    })();
+
     return () => {
+      cancelled = true;
       socket?.emit("agent:status", { status: "offline" });
       socket?.disconnect();
       socket = null;

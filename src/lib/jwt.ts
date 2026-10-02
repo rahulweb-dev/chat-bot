@@ -10,8 +10,8 @@ export interface JWTPayload {
   companyId?: string;
 }
 
-export function signToken(payload: JWTPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions);
+export function signToken(payload: JWTPayload, expiresIn?: string): string {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: expiresIn || JWT_EXPIRES_IN } as jwt.SignOptions);
 }
 
 export function verifyToken(token: string): JWTPayload {
