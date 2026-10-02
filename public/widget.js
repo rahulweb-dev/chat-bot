@@ -159,6 +159,13 @@
       // Time
       ".sf-time{font-size:10px;color:" + MUTED + ";padding:0 4px;display:flex;align-items:center;gap:3px}" +
 
+      // System notices (offline hours, connecting-to-agent, errors) — visually
+      // distinct from a conversational turn so they read as status, not chat
+      ".sf-notice{align-self:center;max-width:90%;text-align:center;padding:9px 16px;border-radius:14px;font-size:12px;font-weight:600;line-height:1.5;margin:2px 0}" +
+      ".sf-notice-warn{background:" + (DARK ? "rgba(245,158,11,.16)" : "#fffbeb") + ";color:" + (DARK ? "#fbbf24" : "#92400e") + ";border:1px solid " + (DARK ? "rgba(245,158,11,.32)" : "#fde68a") + "}" +
+      ".sf-notice-info{background:" + C20 + ";color:" + COLOR + ";border:1px solid " + COLOR + "33}" +
+      ".sf-notice-error{background:" + (DARK ? "rgba(239,68,68,.16)" : "#fef2f2") + ";color:" + (DARK ? "#fca5a5" : "#991b1b") + ";border:1px solid " + (DARK ? "rgba(239,68,68,.32)" : "#fecaca") + "}" +
+
       // Typing
       ".sf-typing-wrap{display:flex;align-items:flex-end;gap:8px}" +
       ".sf-typing{background:" + BG + ";border:1px solid " + BORD + ";padding:12px 16px;border-radius:18px 18px 18px 4px;display:flex;gap:5px;align-items:center;box-shadow:0 1px 4px rgba(0,0,0,.07)}" +
@@ -168,10 +175,11 @@
       "@keyframes sfDot{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-7px);opacity:1}}" +
 
       // Quick replies
-      "#sf-qr{padding:10px 14px 12px;background:" + BG + ";border-top:1px solid " + BORD + ";display:flex;flex-wrap:wrap;gap:7px;flex-shrink:0;max-height:200px;overflow-y:auto}" +
+      "#sf-qr{position:relative;padding:10px 14px 14px;background:" + BG + ";border-top:1px solid " + BORD + ";display:flex;flex-wrap:wrap;gap:6px;flex-shrink:0;max-height:240px;overflow-y:auto}" +
       "#sf-qr::-webkit-scrollbar{width:3px}" +
       "#sf-qr::-webkit-scrollbar-thumb{background:" + BORD + ";border-radius:3px}" +
-      ".sf-qb{padding:8px 16px;border-radius:20px;border:1.5px solid " + COLOR + "55;background:" + C20 + ";color:" + COLOR + ";font-size:13px;font-weight:600;cursor:pointer;transition:transform .15s,box-shadow .15s,background .15s;line-height:1.3;text-align:left}" +
+      "#sf-qr.sf-qr-scroll{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent 100%);mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent 100%)}" +
+      ".sf-qb{padding:9px 16px;border-radius:20px;border:1.5px solid " + COLOR + "55;background:" + C20 + ";color:" + COLOR + ";font-size:13px;font-weight:600;cursor:pointer;transition:transform .15s,box-shadow .15s,background .15s;line-height:1.35;text-align:left}" +
       ".sf-qb:hover{background:" + COLOR + ";color:white;border-color:" + COLOR + ";transform:translateY(-1px);box-shadow:0 4px 12px " + C60 + "}" +
       ".sf-qb:active{transform:translateY(0) scale(.98)}" +
       ".sf-qb.back{border-color:" + BORD + ";background:transparent;color:" + MUTED + ";font-size:12px;font-weight:500}" +
@@ -275,6 +283,15 @@
     });
     inp.addEventListener("keydown", function(e) {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(); }
+    });
+
+    // Drop the "more options below" fade once they've scrolled to the bottom
+    // of the quick-reply list, so it doesn't look like the last button is
+    // still being clipped once it's actually fully in view.
+    var qrEl = document.getElementById("sf-qr");
+    qrEl.addEventListener("scroll", function() {
+      var atBottom = qrEl.scrollTop + qrEl.clientHeight >= qrEl.scrollHeight - 2;
+      qrEl.classList.toggle("sf-qr-scroll", !atBottom && qrEl.scrollHeight > qrEl.clientHeight + 1);
     });
   }
 
@@ -561,9 +578,31 @@
     av.appendChild(img);
   }
 
+  // Pure bot messages (not a live agent reply) that open with one of these
+  // emoji are status updates, not conversation — offline hours, "connecting
+  // you to an agent", or an error. Rendering them as a centered notice pill
+  // instead of a chat bubble keeps them from reading as just another thing
+  // the bot "said".
+  function noticeClassFor(text) {
+    if (/^⏰/.test(text)) return "warn";  // ⏰ business hours / offline
+    if (/^\u{1F4AC}/u.test(text)) return "info"; // 💬 connecting to agent
+    if (/^⚠/.test(text)) return "error"; // ⚠️ error
+    return null;
+  }
+
   function addBubble(text, side, ts, senderLabel) {
     var msgs = document.getElementById("sf-msgs");
     var isBot = side === "bot";
+
+    var noticeCls = (isBot && !senderLabel) ? noticeClassFor(text) : null;
+    if (noticeCls) {
+      var notice = document.createElement("div");
+      notice.className = "sf-notice sf-notice-" + noticeCls;
+      notice.textContent = text;
+      msgs.appendChild(notice);
+      msgs.scrollTop = msgs.scrollHeight;
+      return notice;
+    }
 
     var row = document.createElement("div");
     row.className = "sf-row " + side;
@@ -628,6 +667,7 @@
       el.appendChild(btn);
     });
     el.scrollTop = 0;
+    el.classList.toggle("sf-qr-scroll", el.scrollHeight > el.clientHeight + 1);
   }
 
   function showTyping() {
