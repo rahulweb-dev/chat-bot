@@ -26,6 +26,21 @@ const { resolve } = require("path") as typeof import("path");
 config({ path: resolve(__dirname, ".env.local") });
 config({ path: resolve(__dirname, ".env") });
 
+// On some Windows machines (VPN clients, security/ad-block tools) the OS
+// registers a loopback DNS stub (127.0.0.1) that Windows' own resolver can
+// talk to, but that Node's c-ares resolver cannot — every dns.resolveSrv /
+// dns.resolve4 call fails with ECONNREFUSED even though `nslookup` and
+// dns.lookup() work fine, because they go through a different, OS-native
+// resolution path. The Mongo driver's `mongodb+srv://` connection string
+// depends on dns.resolveSrv, so this breaks every DB call (including login)
+// with "querySrv ECONNREFUSED ..." despite the network and DB being fine.
+// Prepending public resolvers fixes it without touching the OS config;
+// existing (working) servers stay in the list as a fallback.
+if (process.env.NODE_ENV !== "production") {
+  const dns = require("node:dns") as typeof import("node:dns");
+  dns.setServers(["1.1.1.1", "8.8.8.8", ...dns.getServers()]);
+}
+
 const { createServer } = require("http") as typeof import("http");
 const { parse } = require("url") as typeof import("url");
 const next: (opts: Record<string, unknown>) => NextServer = require("next");
