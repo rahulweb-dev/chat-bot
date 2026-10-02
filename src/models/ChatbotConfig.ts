@@ -44,6 +44,14 @@ export interface ICustomFlow {
   flows: ICustomFlowItem[];
 }
 
+// Opt-in AI fallback: when training rules, FAQs, and the custom flow all miss, the
+// bot asks Gemini — grounded only in this company's own READY knowledge base
+// entries, never a general-purpose open question — before giving up to the
+// hardcoded default menu. Off by default since it costs plan-metered AI usage.
+export interface IAiFallback {
+  enabled: boolean;
+}
+
 export interface IChatbotConfig extends Document {
   companyId: mongoose.Types.ObjectId;
   faqs: { question: string; answer: string; isActive: boolean }[];
@@ -52,6 +60,7 @@ export interface IChatbotConfig extends Document {
   businessHours: { day: string; open: string; close: string; isClosed: boolean }[];
   training: ITrainingEntry[];
   customFlow: ICustomFlow;
+  aiFallback: IAiFallback;
   agentOnlineMessage: string;
   agentOfflineMessage: string;
   welcomeMessage: string;
@@ -122,6 +131,9 @@ const ChatbotConfigSchema = new Schema<IChatbotConfig>(
           ticketSubject:  { type: String, default: "" },
         }],
       }],
+    },
+    aiFallback: {
+      enabled: { type: Boolean, default: false },
     },
     agentOnlineMessage:  { type: String, default: "💬 Connecting you to a live agent..." },
     agentOfflineMessage: { type: String, default: "We're offline. Leave your details and we'll call you back!" },

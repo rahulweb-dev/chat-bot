@@ -1,4 +1,7 @@
 import ChatbotConfig from "@/models/ChatbotConfig";
+import KnowledgeBase from "@/models/KnowledgeBase";
+import { checkUsageLimit, incrementUsage } from "@/lib/api-helpers";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export interface SessionData {
   flow: string;
@@ -312,6 +315,52 @@ export async function matchTraining(message: string, companyId: string, collecte
   return null;
 }
 
+// Opt-in AI fallback — only reached when training rules, FAQs, and any active
+// custom flow step all missed. Grounded exclusively in this company's own READY
+// knowledge base (never a general open question, to keep answers on-topic and
+// reduce hallucination risk); returns null — letting the caller fall through to
+// the normal menu/escalation path — whenever there's nothing to ground an answer
+// in, the plan's AI usage limit is hit, or Gemini itself fails. A "Talk to a
+// human" quick reply rides along on every AI answer since the model can still be
+// wrong even when grounded.
+async function getAIFallbackReply(message: string, companyId: string, collected: Record<string, string>): Promise<BotResponse | null> {
+  if (!process.env.GEMINI_API_KEY) return null;
+
+  // AGENTS-only knowledge base entries are internal notes — never expose them to
+  // the public-facing bot. BOT_ONLY and ALL are fair game.
+  const kbItems = await KnowledgeBase.find({
+    companyId,
+    status: "READY",
+    accessibleBy: { $in: ["ALL", "BOT_ONLY"] },
+  }).select("content").lean();
+  const contextContent = kbItems.map((kb) => kb.content).filter(Boolean).join("\n\n---\n\n").slice(0, 8000);
+  if (!contextContent) return null; // nothing trained — don't let the model improvise
+
+  const usageCheck = await checkUsageLimit(companyId, "aiMessages");
+  if (!usageCheck.allowed) return null; // degrade quietly to the normal menu, not an error shown to the visitor
+
+  try {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const systemPrompt = `You are a helpful customer support assistant. Use ONLY the following knowledge base to answer the visitor's question — do not use outside knowledge. Keep the answer under 80 words, friendly and concise. If the knowledge base doesn't cover this, say so plainly and suggest talking to a human instead of guessing.\n\n${contextContent}`;
+    const chat = model.startChat({ systemInstruction: systemPrompt });
+    const result = await chat.sendMessage(message);
+    const answer = result.response.text()?.trim();
+    if (!answer) return null;
+
+    await incrementUsage(companyId, "aiMessages");
+    return {
+      messages: [answer],
+      quickReplies: ["💬 Talk to a Human", "🔙 Main Menu"],
+      action: "NONE",
+      sessionData: { flow: "INITIAL", step: "", collected },
+    };
+  } catch (err) {
+    console.error("[chatbot-ai-fallback] Gemini call failed:", err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
 // Shared first-contact behaviour for both the hardcoded flow and any per-company
 // custom flow: collect name + phone conversationally, then hand off to whichever
 // menu the caller provides. Returns null when the message isn't identify-related,
@@ -511,9 +560,10 @@ export async function getBotReply(message: string, session: SessionData, company
   }
 
   const config = await ChatbotConfig.findOne({ companyId })
-    .select("customFlow businessHours agentOnlineMessage agentOfflineMessage vehicles offers")
+    .select("customFlow aiFallback businessHours agentOnlineMessage agentOfflineMessage vehicles offers")
     .lean() as {
       customFlow?: CustomFlow;
+      aiFallback?: { enabled?: boolean };
       businessHours?: BizHour[];
       agentOnlineMessage?: string;
       agentOfflineMessage?: string;
@@ -534,6 +584,14 @@ export async function getBotReply(message: string, session: SessionData, company
   if (cf?.enabled && cf.flows?.length) {
     const custom = runCustomFlow(message, session, cf, greeting, ctx);
     if (custom) return custom;
+  }
+
+  // Last stop before the hardcoded default script: only for genuine open-ended
+  // free text at the start of a conversation, never mid-flow (where free text has
+  // an expected shape, like "enter your phone number").
+  if (config?.aiFallback?.enabled && (!session.flow || session.flow === "INITIAL") && message !== "__INIT__") {
+    const aiReply = await getAIFallbackReply(message, companyId, session.collected);
+    if (aiReply) return aiReply;
   }
 
   return processFlow(message, session, welcomeMessage, ctx);

@@ -43,9 +43,10 @@ interface CustomFlowItem {
   branches?: CustomFlowBranch[];
 }
 interface CustomFlow { enabled: boolean; menuIntro: string; flows: CustomFlowItem[] }
+interface AiFallback { enabled: boolean }
 interface Config   {
   faqs: FAQ[]; offers: Offer[]; vehicles: Vehicle[];
-  businessHours: BizHour[]; training: Training[]; customFlow?: CustomFlow;
+  businessHours: BizHour[]; training: Training[]; customFlow?: CustomFlow; aiFallback?: AiFallback;
   welcomeMessage: string; agentOnlineMessage: string; agentOfflineMessage: string;
 }
 
@@ -511,7 +512,74 @@ function TrainingTab({ config, refetch, showStepBanner = true }: { config: Confi
           </Card>
         ))}
       </div>
+
+      <AiFallbackCard config={config} refetch={refetch} />
     </div>
+  );
+}
+
+// Anything training rules, FAQs, and the menu flow don't catch can optionally be
+// answered by Gemini, grounded only in this company's own Knowledge Base — never
+// a general open question. Surfaced here, right under the manual rules, since
+// it's the same "what does the bot say when nothing else matches" concern.
+function AiFallbackCard({ config, refetch }: { config: Config; refetch: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const enabled = config.aiFallback?.enabled ?? false;
+
+  const { data: kbCount } = useQuery({
+    queryKey: ["knowledge-base-ready-count"],
+    queryFn: async () => {
+      const res = await fetch("/api/knowledge-base?status=READY&limit=1");
+      const d = await res.json().catch(() => ({}));
+      return d?.pagination?.total ?? 0;
+    },
+  });
+
+  async function toggle() {
+    setSaving(true);
+    const r = await patchConfig({ aiFallback: { enabled: !enabled } });
+    setSaving(false);
+    if (r.success) { refetch(); toast({ title: enabled ? "AI fallback turned off" : "AI fallback turned on" }); }
+    else toast({ title: r.error, variant: "destructive" });
+  }
+
+  return (
+    <Card className="border-indigo-100 bg-indigo-50/30">
+      <CardContent className="p-4">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+            <Sparkles className="w-4.5 h-4.5 text-indigo-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold text-gray-900">AI Fallback</p>
+              <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">Beta</span>
+            </div>
+            <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+              When a visitor asks something your rules, FAQs, and menu don&apos;t cover, let AI answer using your{" "}
+              <a href="/dashboard/knowledge-base" className="text-indigo-600 hover:underline inline-flex items-center gap-0.5">
+                Knowledge Base <ExternalLink className="w-3 h-3" />
+              </a>{" "}
+              instead of just reshowing the main menu. It never makes things up outside what you&apos;ve uploaded — if your knowledge base doesn&apos;t cover it, it says so and offers a human instead.
+            </p>
+            {kbCount === 0 && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5 mt-2">
+                No ready knowledge base documents yet — add some first, or this toggle won&apos;t have anything to answer from.
+              </p>
+            )}
+            {typeof kbCount === "number" && kbCount > 0 && (
+              <p className="text-xs text-gray-400 mt-2">{kbCount} knowledge base document{kbCount === 1 ? "" : "s"} ready to use.</p>
+            )}
+          </div>
+          <Switch
+            checked={enabled}
+            disabled={saving}
+            onCheckedChange={toggle}
+            className="data-[state=checked]:bg-indigo-600 shrink-0"
+          />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
