@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess, paginatedResponse, paginate, incrementUsage } from "@/lib/api-helpers";
 import KnowledgeBase from "@/models/KnowledgeBase";
+import { safeFetch } from "@/lib/safe-fetch";
 
 export async function GET(request: NextRequest) {
   const ctx = await getRequestContext(request);
@@ -71,9 +72,9 @@ async function processKnowledgeBase(kbId: string) {
     let content = kb.content || "";
 
     if (kb.type === "URL" && kb.sourceUrl) {
-      const response = await fetch(kb.sourceUrl, {
+      const response = await safeFetch(kb.sourceUrl, {
         headers: { "User-Agent": "Mozilla/5.0 (compatible; SupportFlowBot/1.0)" },
-        signal: AbortSignal.timeout(15000),
+        timeoutMs: 15000,
       });
       const html = await response.text();
       // Strip scripts/styles first, then all tags
@@ -93,7 +94,7 @@ async function processKnowledgeBase(kbId: string) {
     // For TXT files hosted on Firebase — fetch and read content
     if (["TXT", "CSV"].includes(kb.type) && kb.fileUrl && !content) {
       try {
-        const r = await fetch(kb.fileUrl, { signal: AbortSignal.timeout(10000) });
+        const r = await safeFetch(kb.fileUrl, { timeoutMs: 10000 });
         content = await r.text();
       } catch {}
     }

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { getRequestContext, apiError, apiSuccess } from "@/lib/api-helpers";
+import { safeFetch } from "@/lib/safe-fetch";
 
 export async function GET(request: NextRequest) {
   const ctx = await getRequestContext(request);
@@ -10,9 +11,9 @@ export async function GET(request: NextRequest) {
   if (!url) return apiError("url required", 400);
 
   try {
-    const res = await fetch(url, {
+    const res = await safeFetch(url, {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; SupportFlowBot/1.0)" },
-      signal: AbortSignal.timeout(8000),
+      timeoutMs: 8000,
     });
 
     if (!res.ok) return apiError("Could not fetch page", 400);
