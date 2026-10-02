@@ -179,7 +179,7 @@
       "#sf-qr::-webkit-scrollbar{width:3px}" +
       "#sf-qr::-webkit-scrollbar-thumb{background:" + BORD + ";border-radius:3px}" +
       "#sf-qr.sf-qr-scroll{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent 100%);mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent 100%)}" +
-      ".sf-qb{padding:9px 16px;border-radius:20px;border:1.5px solid " + COLOR + "55;background:" + C20 + ";color:" + COLOR + ";font-size:13px;font-weight:600;cursor:pointer;transition:transform .15s,box-shadow .15s,background .15s;line-height:1.35;text-align:left}" +
+      ".sf-qb{max-width:100%;box-sizing:border-box;overflow-wrap:break-word;padding:9px 16px;border-radius:20px;border:1.5px solid " + COLOR + "55;background:" + C20 + ";color:" + COLOR + ";font-size:13px;font-weight:600;cursor:pointer;transition:transform .15s,box-shadow .15s,background .15s;line-height:1.35;text-align:left}" +
       ".sf-qb:hover{background:" + COLOR + ";color:white;border-color:" + COLOR + ";transform:translateY(-1px);box-shadow:0 4px 12px " + C60 + "}" +
       ".sf-qb:active{transform:translateY(0) scale(.98)}" +
       ".sf-qb.back{border-color:" + BORD + ";background:transparent;color:" + MUTED + ";font-size:12px;font-weight:500}" +
@@ -669,13 +669,19 @@
     if (!show || !opts || !opts.length) { el.style.display = "none"; return; }
     el.style.display = "flex";
 
-    var avgLen = opts.reduce(function(a, o) { return a + o.length; }, 0) / opts.length;
-    var useFullWidth = avgLen > 20 || opts.length > 5;
+    // A single long option mixed in with short ones used to be judged by the
+    // AVERAGE length of the whole set, so it kept its shrink-to-fit single-line
+    // width and overflowed its row instead of wrapping — the pill's rounded
+    // right edge got clipped by the widget window. Decide per-option instead:
+    // anything individually long, or any option once the list itself is long,
+    // goes full-width so it wraps properly inside the pill's own background.
+    var manyOptions = opts.length > 5;
 
     opts.forEach(function(opt) {
       var isBack = /Main Menu|Go Back/i.test(opt);
+      var isLong = opt.length > 20;
       var btn = document.createElement("button");
-      btn.className = "sf-qb" + (isBack ? " back" : "") + (useFullWidth ? " full" : "");
+      btn.className = "sf-qb" + (isBack ? " back" : "") + ((isLong || manyOptions) ? " full" : "");
       btn.textContent = opt;
       btn.addEventListener("click", function() { sendOption(opt); });
       el.appendChild(btn);
