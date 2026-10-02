@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Check, Zap, Crown, Building, AlertTriangle, Mail } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { StatCardsSkeleton } from "@/components/ui/page-skeletons";
 
 const plans = [
   {
@@ -44,7 +46,7 @@ const plans = [
 export default function BillingPage() {
   const [billing, setBilling] = useState<"MONTHLY" | "ANNUALLY">("MONTHLY");
 
-  const { data: subscription } = useQuery({
+  const { data: subscription, isLoading: subscriptionLoading } = useQuery({
     queryKey: ["subscription"],
     queryFn: async () => {
       const res = await fetch("/api/subscriptions");
@@ -53,7 +55,7 @@ export default function BillingPage() {
     },
   });
 
-  const { data: usageData } = useQuery({
+  const { data: usageData, isLoading: usageLoading } = useQuery({
     queryKey: ["usage"],
     queryFn: async () => {
       const res = await fetch("/api/usage");
@@ -74,6 +76,24 @@ export default function BillingPage() {
         <h1 className="text-2xl font-bold text-gray-900">Billing & Plans</h1>
         <p className="text-gray-500 text-sm mt-1">Manage your subscription and usage</p>
       </div>
+
+      {subscriptionLoading && (
+        <Card className="border-0 shadow-sm bg-gradient-to-r from-indigo-50 to-purple-50">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between">
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-7 w-32" />
+                <Skeleton className="h-5 w-24 rounded-full" />
+              </div>
+              <div className="space-y-2 text-right">
+                <Skeleton className="h-7 w-24 ml-auto" />
+                <Skeleton className="h-3 w-36 ml-auto" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {subscription && (
         <Card className="border-0 shadow-sm bg-gradient-to-r from-indigo-50 to-purple-50">
@@ -102,6 +122,19 @@ export default function BillingPage() {
                 </p>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {usageLoading && (
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Zap className="w-4 h-4 text-indigo-500" /> Current Usage
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <StatCardsSkeleton count={4} />
           </CardContent>
         </Card>
       )}

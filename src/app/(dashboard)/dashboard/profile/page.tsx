@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { getInitials } from "@/lib/utils";
 import { User, Mail, Lock, Shield, Building2, Clock, Loader2, Camera } from "lucide-react";
+import { FormSkeleton } from "@/components/ui/page-skeletons";
 
 const profileSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -55,7 +56,7 @@ export default function ProfilePage() {
   const qc = useQueryClient();
   const [avatarLoading, setAvatarLoading] = useState(false);
 
-  const { data: profileData } = useQuery({
+  const { data: profileData, isLoading: profileLoading } = useQuery({
     queryKey: ["profile"],
     queryFn: async () => {
       const res = await fetch("/api/agents/me");
@@ -127,6 +128,10 @@ export default function ProfilePage() {
         <p className="text-gray-500 text-sm mt-1">Manage your account settings and preferences</p>
       </div>
 
+      {profileLoading ? (
+        <FormSkeleton fields={4} />
+      ) : (
+      <>
       {/* Avatar + basic info */}
       <Card className="border-0 shadow-sm">
         <CardContent className="p-6">
@@ -230,6 +235,8 @@ export default function ProfilePage() {
           </form>
         </CardContent>
       </Card>
+      </>
+      )}
 
       {/* Change password */}
       <Card className="border-0 shadow-sm">

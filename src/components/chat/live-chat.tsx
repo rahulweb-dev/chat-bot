@@ -17,6 +17,7 @@ import {
   requestBrowserNotificationPermission,
   showBrowserNotification,
 } from "@/lib/notification-sound";
+import { ChatThreadSkeleton } from "@/components/ui/page-skeletons";
 
 let socket: Socket | null = null;
 
@@ -36,7 +37,7 @@ const STATUS_CONFIG: Record<AgentStatus, { label: string; color: string; dot: st
 };
 
 export function LiveChat() {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const qc = useQueryClient();
   const [showDetails, setShowDetails] = useState(true);
   const [notifications, setNotifications] = useState<LiveNotification[]>([]);
@@ -262,6 +263,17 @@ export function LiveChat() {
     setAgentStatus(status);
     socket?.emit("agent:status", { status });
   };
+
+  // Session is still resolving — nothing below (socket, conversations, messages) can
+  // load yet, so show the inbox skeleton instead of flashing the "select a
+  // conversation" empty state.
+  if (sessionStatus === "loading") {
+    return (
+      <div className="h-[calc(100vh-4rem-3rem)] -m-6 overflow-hidden border rounded-xl bg-white shadow-sm">
+        <ChatThreadSkeleton />
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex h-[calc(100vh-4rem-3rem)] -m-6 overflow-hidden border rounded-xl bg-white shadow-sm">

@@ -16,7 +16,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/components/ui/use-toast";
 import { Plus, Search, Trash2, Loader2, Users, Upload, CheckCircle, XCircle } from "lucide-react";
-import { EmptyState, PageLoading } from "@/components/whatsapp/empty-state";
+import { EmptyState } from "@/components/whatsapp/empty-state";
+import { TableSkeleton } from "@/components/ui/page-skeletons";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 interface Contact {
@@ -200,7 +201,7 @@ export function ContactsTab() {
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <PageLoading />
+            <TableSkeleton rows={6} cols={3} />
           ) : contacts?.length === 0 ? (
             <EmptyState icon={Users} title="No contacts yet" description="Add a contact manually, or they'll be created automatically when they message you on WhatsApp." />
           ) : (

@@ -7,10 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Loader2, Search, Users } from "lucide-react";
+import { Search, Users } from "lucide-react";
 import { getInitials } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { TableSkeleton } from "@/components/ui/page-skeletons";
 
 const ROLE_COLORS: Record<string, string> = {
   SUPER_ADMIN: "bg-red-100 text-red-700",
@@ -56,9 +57,7 @@ export default function AdminUsersPage() {
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
+            <TableSkeleton rows={8} cols={5} />
           ) : users.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
               <Users className="h-12 w-12 text-muted-foreground mb-3" />

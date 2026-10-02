@@ -18,6 +18,7 @@ import { Plus, Search, Users, Trash2, Mail, MessageSquare, Clock, ShieldCheck, S
 import { getInitials, timeAgo } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { CardGridSkeleton } from "@/components/ui/page-skeletons";
 
 const agentSchema = z.object({
   name: z.string().min(2),
@@ -222,12 +223,11 @@ export default function AgentsPage() {
       </div>
 
       {/* Grid */}
+      {isLoading ? (
+        <CardGridSkeleton count={6} cardClassName="h-52" />
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {isLoading && Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-52 bg-white rounded-2xl animate-pulse border" />
-        ))}
-
-        {!isLoading && agents.length === 0 && (
+        {agents.length === 0 && (
           <div className="col-span-3 text-center py-20 text-gray-400">
             <Users className="w-14 h-14 mx-auto mb-3 opacity-20" />
             <p className="font-semibold text-gray-500">No agents yet</p>
@@ -392,6 +392,7 @@ export default function AgentsPage() {
           );
         })}
       </div>
+      )}
 
       {/* Invite Agent Dialog */}
       <Dialog open={showInvite} onOpenChange={v => { setShowInvite(v); if (!v) { setInviteDone(false); setInviteForm({ name: "", email: "", role: "AGENT" }); } }}>

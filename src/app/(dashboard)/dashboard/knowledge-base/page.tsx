@@ -14,6 +14,7 @@ import { Plus, Search, FileText, Globe, Upload, Check, Trash2, Loader2, Link2 } 
 import { timeAgo, formatBytes } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { uploadFile } from "@/lib/firebase";
+import { CardGridSkeleton } from "@/components/ui/page-skeletons";
 
 const typeConfig: Record<string, { color: string; icon: string }> = {
   PDF:    { color: "bg-red-100 text-red-700",    icon: "📄" },
@@ -264,12 +265,11 @@ export default function KnowledgeBasePage() {
       </div>
 
       {/* Document grid */}
+      {isLoading ? (
+        <CardGridSkeleton count={6} cardClassName="h-36 rounded-xl" />
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {isLoading && Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-36 bg-white rounded-xl animate-pulse border" />
-        ))}
-
-        {!isLoading && items.length === 0 && (
+        {items.length === 0 && (
           <div className="col-span-3 text-center py-16 text-gray-400">
             <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
             <p className="font-medium">No documents yet</p>
@@ -347,6 +347,7 @@ export default function KnowledgeBasePage() {
           );
         })}
       </div>
+      )}
 
       {/* ── URL Dialog ─────────────────────────────────────────────────────────── */}
       <Dialog open={mode === "url"} onOpenChange={(o) => !o && setMode(null)}>

@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Send, Search, MessageCircle, FileText, LayoutTemplate, Download, Loader2, X } from "lucide-react";
 import { cn, getInitials, timeAgo } from "@/lib/utils";
 import { EmptyState } from "@/components/whatsapp/empty-state";
+import { ChatThreadSkeleton } from "@/components/ui/page-skeletons";
 
 interface Conversation {
   _id: string;
@@ -266,6 +267,16 @@ export function InboxTab() {
 
   const active = conversations?.find((c) => c._id === activeId);
 
+  if (conversationsLoading) {
+    return (
+      <div className="h-full flex flex-col p-6">
+        <div className="flex-1 border rounded-xl bg-white shadow-sm overflow-hidden">
+          <ChatThreadSkeleton />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full flex flex-col p-6">
       <div className="flex-1 flex border rounded-xl bg-white shadow-sm overflow-hidden">
@@ -287,9 +298,7 @@ export function InboxTab() {
             </Select>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {conversationsLoading ? (
-              <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-            ) : conversations?.length === 0 ? (
+            {conversations?.length === 0 ? (
               <EmptyState icon={MessageCircle} title="No conversations yet" description="Inbound WhatsApp messages will show up here." />
             ) : (
               (conversations || []).map((c) => (

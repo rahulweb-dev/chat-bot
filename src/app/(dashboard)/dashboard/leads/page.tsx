@@ -13,6 +13,7 @@ import { Plus, Search, IndianRupee, Mail, Phone, Bot, Zap, Download, ClipboardLi
 import { timeAgo } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { KanbanSkeleton, ListRowsSkeleton } from "@/components/ui/page-skeletons";
 
 const STAGES = ["NEW", "CONTACTED", "QUALIFIED", "MEETING", "PROPOSAL", "WON", "LOST"] as const;
 
@@ -178,7 +179,13 @@ export default function LeadsPage() {
         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search leads..." className="pl-9" />
       </div>
 
-      {viewMode === "kanban" ? (
+      {isLoading ? (
+        viewMode === "kanban" ? (
+          <KanbanSkeleton columns={STAGES.length} cardsPerColumn={3} />
+        ) : (
+          <ListRowsSkeleton rows={6} withAvatar={false} />
+        )
+      ) : viewMode === "kanban" ? (
         <div className="flex gap-4 overflow-x-auto pb-4">
           {STAGES.map((stage) => {
             const stageLeads = leadsByStage[stage] || [];

@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
-import { Loader2, IndianRupee, TrendingUp, Users, CreditCard } from "lucide-react";
+import { IndianRupee, TrendingUp, Users, CreditCard } from "lucide-react";
+import { StatCardsSkeleton, ChartSkeleton } from "@/components/ui/page-skeletons";
 
 export default function AdminRevenuePage() {
   const { data, isLoading } = useQuery({
@@ -14,8 +15,16 @@ export default function AdminRevenuePage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="p-6 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Revenue Overview</h1>
+          <p className="text-muted-foreground">Platform-wide revenue metrics</p>
+        </div>
+        <StatCardsSkeleton count={4} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <ChartSkeleton height={240} />
+          <ChartSkeleton height={240} />
+        </div>
       </div>
     );
   }

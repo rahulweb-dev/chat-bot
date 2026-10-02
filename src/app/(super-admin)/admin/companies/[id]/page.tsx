@@ -5,9 +5,10 @@ import { useRouter, useSearchParams, useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import Link from "next/link";
-import { ArrowLeft, LayoutGrid, Megaphone, Users, BarChart3, MessageCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, LayoutGrid, Megaphone, Users, BarChart3, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ErrorState, CompanyCampaignStats } from "@/components/admin/company-detail/shared";
+import { StatCardsSkeleton, ChartSkeleton } from "@/components/ui/page-skeletons";
 import { OverviewTab } from "@/components/admin/company-detail/overview-tab";
 import { CampaignsTab } from "@/components/admin/company-detail/campaigns-tab";
 import { RecipientsTab } from "@/components/admin/company-detail/recipients-tab";
@@ -90,7 +91,7 @@ function CompanyDetailInner() {
       </div>
 
       {statsLoading ? (
-        <div className="flex items-center justify-center h-40"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        <StatCardsSkeleton count={4} />
       ) : statsError ? (
         <ErrorState message="Couldn't load this company's campaign stats." onRetry={() => refetchStats()} />
       ) : (
@@ -108,7 +109,15 @@ function CompanyDetailInner() {
 
 export default function CompanyDetailPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
+    <Suspense
+      fallback={
+        <div className="p-6 max-w-7xl mx-auto space-y-6">
+          <div className="h-7 w-48 bg-gray-200 rounded animate-pulse" />
+          <StatCardsSkeleton count={4} />
+          <ChartSkeleton height={260} />
+        </div>
+      }
+    >
       <CompanyDetailInner />
     </Suspense>
   );

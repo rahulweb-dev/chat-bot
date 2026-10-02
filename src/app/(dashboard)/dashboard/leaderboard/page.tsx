@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Trophy, Star, Clock, MessageSquare, TrendingUp } from "lucide-react";
 import { getInitials } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { ListRowsSkeleton } from "@/components/ui/page-skeletons";
 
 interface LeaderboardRow {
   agentId: string;
@@ -54,13 +55,7 @@ export default function LeaderboardPage() {
         </Select>
       </div>
 
-      {isLoading && (
-        <div className="space-y-3">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="animate-pulse h-16 bg-gray-100 rounded-xl" />
-          ))}
-        </div>
-      )}
+      {isLoading && <ListRowsSkeleton rows={5} />}
 
       {!isLoading && (!data || data.length === 0) && (
         <Card className="border border-gray-100 shadow-none">

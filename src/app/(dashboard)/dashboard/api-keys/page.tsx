@@ -17,6 +17,7 @@ import { toast } from "@/components/ui/use-toast";
 import { Loader2, Plus, Key, Copy, Trash2, Eye, EyeOff, AlertTriangle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
+import { ListRowsSkeleton } from "@/components/ui/page-skeletons";
 
 export default function ApiKeysPage() {
   const queryClient = useQueryClient();
@@ -139,8 +140,8 @@ export default function ApiKeysPage() {
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <div className="p-4">
+              <ListRowsSkeleton rows={4} />
             </div>
           ) : apiKeys.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">

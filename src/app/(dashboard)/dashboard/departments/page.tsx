@@ -15,6 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/use-toast";
 import { Loader2, Plus, Building2, Trash2, Users } from "lucide-react";
+import { CardGridSkeleton } from "@/components/ui/page-skeletons";
 
 export default function DepartmentsPage() {
   const queryClient = useQueryClient();
@@ -99,9 +100,7 @@ export default function DepartmentsPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center h-48">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+        <CardGridSkeleton count={3} cardClassName="h-32" />
       ) : departments.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">

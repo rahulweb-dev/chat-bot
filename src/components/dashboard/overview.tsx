@@ -16,6 +16,8 @@ import {
 } from "recharts";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { StatCardsSkeleton, ChartSkeleton, ListRowsSkeleton } from "@/components/ui/page-skeletons";
 
 interface OverviewProps { role: string }
 
@@ -63,13 +65,13 @@ export function DashboardOverview({ role }: OverviewProps) {
   const { data: session } = useSession();
   const [copied, setCopied] = useState(false);
 
-  const { data: analytics } = useQuery({
+  const { data: analytics, isLoading: analyticsLoading } = useQuery({
     queryKey: ["analytics", "30d"],
     queryFn: () => fetch("/api/analytics?range=30d").then(r => r.json()).then(d => d.data),
     enabled: role !== "AGENT",
   });
 
-  const { data: usageData } = useQuery({
+  const { data: usageData, isLoading: usageLoading } = useQuery({
     queryKey: ["usage"],
     queryFn: () => fetch("/api/usage").then(r => r.json()).then(d => d.data),
   });
@@ -80,7 +82,7 @@ export function DashboardOverview({ role }: OverviewProps) {
     enabled: role !== "AGENT",
   });
 
-  const { data: recentLeads } = useQuery({
+  const { data: recentLeads, isLoading: recentLeadsLoading } = useQuery({
     queryKey: ["dashboard-leads"],
     queryFn: () => fetch("/api/leads?limit=5").then(r => r.json()).then(d => d.data || []),
     enabled: role !== "AGENT",
@@ -92,7 +94,7 @@ export function DashboardOverview({ role }: OverviewProps) {
     enabled: role !== "AGENT",
   });
 
-  const { data: liveStats } = useQuery({
+  const { data: liveStats, isLoading: liveStatsLoading } = useQuery({
     queryKey: ["live-stats"],
     queryFn: () => fetch("/api/chat/stats").then(r => r.json()).then(d => d.data),
     refetchInterval: 30_000,
@@ -188,61 +190,73 @@ export function DashboardOverview({ role }: OverviewProps) {
       </div>
 
       {/* ── Live Stats — hero gradient cards + compact chips ──────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <HeroStat
-          label="Active Chats" value={liveStats?.totalActive ?? "—"} sublabel="Live right now"
-          gradient="linear-gradient(135deg,#1FA8A0,#0E7A76)" href="/dashboard/conversations"
-        />
-        <HeroStat
-          label="Resolved Today" value={liveStats?.resolvedToday ?? "—"} sublabel="Closed out today"
-          gradient="linear-gradient(135deg,#5843D9,#3A2C9E)"
-        />
-        <div className="rounded-2xl bg-[#F7F7FB] p-4 h-[104px] flex flex-col justify-center">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shrink-0">
-              <Users className="w-3.5 h-3.5 text-[#5843D9]" />
-            </div>
-            <span className="text-[10px] font-semibold text-[#9A96B0] uppercase tracking-wide">Online Agents</span>
-          </div>
-          <p className="text-xl font-bold text-[#1E1B3A] tabular-nums">{liveStats?.onlineAgents ?? "—"}</p>
+      {liveStatsLoading ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-[104px] rounded-2xl" />
+          ))}
         </div>
-        <div className="rounded-2xl bg-[#F7F7FB] p-4 h-[104px] flex flex-col justify-center">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shrink-0">
-              <Timer className="w-3.5 h-3.5 text-[#F2A93B]" />
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <HeroStat
+            label="Active Chats" value={liveStats?.totalActive ?? "—"} sublabel="Live right now"
+            gradient="linear-gradient(135deg,#1FA8A0,#0E7A76)" href="/dashboard/conversations"
+          />
+          <HeroStat
+            label="Resolved Today" value={liveStats?.resolvedToday ?? "—"} sublabel="Closed out today"
+            gradient="linear-gradient(135deg,#5843D9,#3A2C9E)"
+          />
+          <div className="rounded-2xl bg-[#F7F7FB] p-4 h-[104px] flex flex-col justify-center">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shrink-0">
+                <Users className="w-3.5 h-3.5 text-[#5843D9]" />
+              </div>
+              <span className="text-[10px] font-semibold text-[#9A96B0] uppercase tracking-wide">Online Agents</span>
             </div>
-            <span className="text-[10px] font-semibold text-[#9A96B0] uppercase tracking-wide">Avg Wait</span>
+            <p className="text-xl font-bold text-[#1E1B3A] tabular-nums">{liveStats?.onlineAgents ?? "—"}</p>
           </div>
-          <p className="text-xl font-bold text-[#1E1B3A] tabular-nums">{liveStats ? `${liveStats.avgWaitMinutes}m` : "—"}</p>
+          <div className="rounded-2xl bg-[#F7F7FB] p-4 h-[104px] flex flex-col justify-center">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shrink-0">
+                <Timer className="w-3.5 h-3.5 text-[#F2A93B]" />
+              </div>
+              <span className="text-[10px] font-semibold text-[#9A96B0] uppercase tracking-wide">Avg Wait</span>
+            </div>
+            <p className="text-xl font-bold text-[#1E1B3A] tabular-nums">{liveStats ? `${liveStats.avgWaitMinutes}m` : "—"}</p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── KPI Cards ────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: "Chats Today",       value: todayChats,   icon: MessageSquare, color: "text-[#5843D9]", bg: "bg-[#F0EEFC]",  href: "/dashboard/conversations" },
-          { label: "Leads Captured",    value: todayLeads,   icon: Tag,           color: "text-[#2FBF9F]", bg: "bg-[#E8F8F5]",  href: "/dashboard/leads"         },
-          { label: "Open Tickets",      value: todayTickets, icon: TicketIcon,    color: "text-[#F2A93B]", bg: "bg-[#FCEFE0]",  href: "/dashboard/tickets"       },
-          { label: "Avg Response Time", value: `${overview?.avgResponseTime ?? 0}m`, icon: Clock, color: "text-[#E0577C]", bg: "bg-[#FCE9EF]", href: null },
-        ].map(({ label, value, icon: Icon, color, bg, href }) => (
-          <Card key={label} className="border-0 shadow-none bg-[#F7F7FB] rounded-2xl group">
-            <CardContent className="p-5">
-              <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center mb-3`}>
-                <Icon className={`w-5 h-5 ${color}`} />
-              </div>
-              <p className="text-3xl font-bold text-[#1E1B3A] tabular-nums">{value}</p>
-              <div className="flex items-center justify-between mt-1">
-                <p className="text-sm text-[#9A96B0]">{label}</p>
-                {href && (
-                  <Link href={href} className="opacity-0 group-hover:opacity-100 transition-opacity">
-                    <ArrowUpRight className="w-3.5 h-3.5 text-[#9A96B0]" />
-                  </Link>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {analyticsLoading ? (
+        <StatCardsSkeleton count={4} />
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { label: "Chats Today",       value: todayChats,   icon: MessageSquare, color: "text-[#5843D9]", bg: "bg-[#F0EEFC]",  href: "/dashboard/conversations" },
+            { label: "Leads Captured",    value: todayLeads,   icon: Tag,           color: "text-[#2FBF9F]", bg: "bg-[#E8F8F5]",  href: "/dashboard/leads"         },
+            { label: "Open Tickets",      value: todayTickets, icon: TicketIcon,    color: "text-[#F2A93B]", bg: "bg-[#FCEFE0]",  href: "/dashboard/tickets"       },
+            { label: "Avg Response Time", value: `${overview?.avgResponseTime ?? 0}m`, icon: Clock, color: "text-[#E0577C]", bg: "bg-[#FCE9EF]", href: null },
+          ].map(({ label, value, icon: Icon, color, bg, href }) => (
+            <Card key={label} className="border-0 shadow-none bg-[#F7F7FB] rounded-2xl group">
+              <CardContent className="p-5">
+                <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center mb-3`}>
+                  <Icon className={`w-5 h-5 ${color}`} />
+                </div>
+                <p className="text-3xl font-bold text-[#1E1B3A] tabular-nums">{value}</p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-sm text-[#9A96B0]">{label}</p>
+                  {href && (
+                    <Link href={href} className="opacity-0 group-hover:opacity-100 transition-opacity">
+                      <ArrowUpRight className="w-3.5 h-3.5 text-[#9A96B0]" />
+                    </Link>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* ── Main Content ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -261,7 +275,9 @@ export function DashboardOverview({ role }: OverviewProps) {
                   <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-[#2FBF9F] inline-block rounded" />Leads</span>
                 </div>
               </div>
-              {chartData.length ? (
+              {analyticsLoading ? (
+                <ChartSkeleton height={200} />
+              ) : chartData.length ? (
                 <ResponsiveContainer width="100%" height={200}>
                   <AreaChart data={chartData}>
                     <defs>
@@ -301,7 +317,9 @@ export function DashboardOverview({ role }: OverviewProps) {
                     <Link href="/dashboard/leads">View all <ArrowUpRight className="w-3 h-3 ml-1" /></Link>
                   </Button>
                 </div>
-                {recentLeads?.length ? (
+                {recentLeadsLoading ? (
+                  <ListRowsSkeleton rows={5} />
+                ) : recentLeads?.length ? (
                   <div className="space-y-3">
                     {recentLeads.slice(0, 5).map((lead: { _id: string; name: string; phone?: string; stage: string }) => (
                       <div key={lead._id} className="flex items-center gap-3 bg-white rounded-xl p-2.5">
@@ -399,6 +417,14 @@ export function DashboardOverview({ role }: OverviewProps) {
           )}
 
           {/* Usage */}
+          {role !== "AGENT" && usageLoading && (
+            <Card className="border-0 shadow-none bg-[#F7F7FB] rounded-2xl">
+              <CardContent className="p-5">
+                <Skeleton className="h-3.5 w-24 mb-4" />
+                <ListRowsSkeleton rows={4} withAvatar={false} />
+              </CardContent>
+            </Card>
+          )}
           {usageData && role !== "AGENT" && (
             <Card className="border-0 shadow-none bg-[#F7F7FB] rounded-2xl">
               <CardContent className="p-5">

@@ -5,10 +5,11 @@ import axios from "axios";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Bell, CheckCheck, MessageSquare, Ticket, Users, AlertTriangle, Star } from "lucide-react";
+import { Bell, CheckCheck, MessageSquare, Ticket, Users, AlertTriangle, Star } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import { ListRowsSkeleton } from "@/components/ui/page-skeletons";
 
 const typeIcon: Record<string, React.ReactNode> = {
   NEW_CONVERSATION: <MessageSquare className="h-4 w-4 text-blue-500" />,
@@ -46,8 +47,19 @@ export default function NotificationsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="p-6 max-w-3xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Notifications</h1>
+          <p className="text-muted-foreground">Your activity feed</p>
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Recent Notifications</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ListRowsSkeleton rows={6} />
+          </CardContent>
+        </Card>
       </div>
     );
   }

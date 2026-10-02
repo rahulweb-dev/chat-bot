@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "@/components/ui/use-toast";
 import { Loader2, Save, Bell, Shield, MessageSquare, Globe, Palette, ImageIcon, Trash2, Building2 } from "lucide-react";
 import { uploadToImageKit } from "@/lib/imagekitUpload";
+import { FormSkeleton } from "@/components/ui/page-skeletons";
 
 function LogoUploadField({ value, onChange }: { value: string; onChange: (url: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -138,8 +139,9 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="p-6 max-w-4xl mx-auto space-y-6">
+        <FormSkeleton fields={2} />
+        <FormSkeleton fields={6} />
       </div>
     );
   }

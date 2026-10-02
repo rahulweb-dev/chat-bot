@@ -23,6 +23,7 @@ import axios from "axios";
 import { timeAgo, formatNumber } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { CardGridSkeleton, ListRowsSkeleton, StatCardsSkeleton } from "@/components/ui/page-skeletons";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -407,9 +408,7 @@ export function SuperAdminDashboard() {
 
           {/* Company cards */}
           <div className="space-y-2">
-            {companiesQuery.isLoading && Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-20 bg-white rounded-xl animate-pulse border" />
-            ))}
+            {companiesQuery.isLoading && <ListRowsSkeleton rows={5} />}
 
             {companies.map((company) => {
               const isToggling =
@@ -576,11 +575,7 @@ export function SuperAdminDashboard() {
         <div className="space-y-4">
           <p className="text-sm text-gray-500">Use -1 in any limit field to set it as unlimited (∞).</p>
 
-          {plansQuery.isLoading && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {[1, 2, 3].map((i) => <div key={i} className="h-64 bg-white rounded-xl animate-pulse border" />)}
-            </div>
-          )}
+          {plansQuery.isLoading && <CardGridSkeleton count={3} cardClassName="h-72" />}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {(plansQuery.data || []).map((plan) => {
@@ -652,11 +647,7 @@ export function SuperAdminDashboard() {
       {/* ══════════════ REVENUE TAB ══════════════ */}
       {tab === "revenue" && (
         <div className="space-y-4">
-          {revenueQuery.isLoading && (
-            <div className="grid grid-cols-3 gap-4">
-              {[1, 2, 3].map((i) => <div key={i} className="h-28 bg-white rounded-xl animate-pulse border" />)}
-            </div>
-          )}
+          {revenueQuery.isLoading && <StatCardsSkeleton count={3} />}
 
           {revenueQuery.data && (
             <>

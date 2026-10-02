@@ -13,6 +13,7 @@ import { Plus, Search, Ticket, Clock, CheckCircle, XCircle, Send, MessageSquare,
 import { timeAgo } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { ListRowsSkeleton } from "@/components/ui/page-skeletons";
 
 const ticketSchema = z.object({
   subject: z.string().min(3),
@@ -179,9 +180,7 @@ export default function TicketsPage() {
       </div>
 
       <div className="space-y-2">
-        {isLoading && Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-20 bg-white rounded-xl animate-pulse border" />
-        ))}
+        {isLoading && <ListRowsSkeleton rows={5} />}
 
         {!isLoading && isError && (
           <Card className="border-0 shadow-sm">

@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import { MessageSquare, Ticket, Tag, Star, Clock, TrendingUp, Users, Zap, Bot } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
+import { StatCardsSkeleton, ChartSkeleton } from "@/components/ui/page-skeletons";
 
 interface Lead {
   _id: string;
@@ -98,22 +99,26 @@ export default function AnalyticsPage() {
         </Select>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {statCards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <Card key={card.label} className="border-0 shadow-sm">
-              <CardContent className="p-4">
-                <div className={`w-9 h-9 rounded-lg ${card.bg} flex items-center justify-center mb-2`}>
-                  <Icon className={`w-4 h-4 ${card.color}`} />
-                </div>
-                <p className="text-2xl font-bold">{isLoading ? "—" : formatNumber(typeof card.value === "number" ? card.value : 0) || card.value}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{card.label}</p>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      {isLoading ? (
+        <StatCardsSkeleton count={8} />
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {statCards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <Card key={card.label} className="border-0 shadow-sm">
+                <CardContent className="p-4">
+                  <div className={`w-9 h-9 rounded-lg ${card.bg} flex items-center justify-center mb-2`}>
+                    <Icon className={`w-4 h-4 ${card.color}`} />
+                  </div>
+                  <p className="text-2xl font-bold">{formatNumber(typeof card.value === "number" ? card.value : 0) || card.value}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{card.label}</p>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2 border-0 shadow-sm">
@@ -121,6 +126,9 @@ export default function AnalyticsPage() {
             <CardTitle className="text-base">Activity Trends</CardTitle>
           </CardHeader>
           <CardContent>
+            {isLoading ? (
+              <ChartSkeleton height={280} />
+            ) : (
             <ResponsiveContainer width="100%" height={280}>
               <AreaChart data={chartData}>
                 <defs>
@@ -141,6 +149,7 @@ export default function AnalyticsPage() {
                 <Area type="monotone" dataKey="Tickets" stroke="#f59e0b" fill="url(#grad2)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -179,6 +188,8 @@ export default function AnalyticsPage() {
         <Card className="border-0 shadow-sm">
           <CardHeader><CardTitle className="text-base">Ticket Resolution Rate</CardTitle></CardHeader>
           <CardContent>
+            {isLoading ? <ChartSkeleton height={180} /> : (
+            <>
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
                 <Pie
@@ -198,12 +209,16 @@ export default function AnalyticsPage() {
               <p className="text-3xl font-bold text-green-600">{overview?.ticketResolutionRate || 0}%</p>
               <p className="text-xs text-gray-500">resolved</p>
             </div>
+            </>
+            )}
           </CardContent>
         </Card>
 
         <Card className="border-0 shadow-sm">
           <CardHeader><CardTitle className="text-base">Chat Resolution Rate</CardTitle></CardHeader>
           <CardContent>
+            {isLoading ? <ChartSkeleton height={180} /> : (
+            <>
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
                 <Pie
@@ -223,12 +238,16 @@ export default function AnalyticsPage() {
               <p className="text-3xl font-bold text-indigo-600">{overview?.chatResolutionRate || 0}%</p>
               <p className="text-xs text-gray-500">resolved</p>
             </div>
+            </>
+            )}
           </CardContent>
         </Card>
 
         <Card className="border-0 shadow-sm">
           <CardHeader><CardTitle className="text-base">Lead Conversion</CardTitle></CardHeader>
           <CardContent>
+            {isLoading ? <ChartSkeleton height={180} /> : (
+            <>
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
                 <Pie
@@ -248,6 +267,8 @@ export default function AnalyticsPage() {
               <p className="text-3xl font-bold text-green-600">{overview?.leadConversionRate || 0}%</p>
               <p className="text-xs text-gray-500">conversion</p>
             </div>
+            </>
+            )}
           </CardContent>
         </Card>
       </div>

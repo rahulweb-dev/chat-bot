@@ -7,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Crown, Users, MessageSquare, Brain, Check } from "lucide-react";
+import { Crown, Users, MessageSquare, Brain, Check } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { CardGridSkeleton } from "@/components/ui/page-skeletons";
 
 export default function AdminPlansPage() {
   const queryClient = useQueryClient();
@@ -44,8 +45,12 @@ export default function AdminPlansPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="p-6 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Plan Management</h1>
+          <p className="text-muted-foreground">Configure pricing plans and limits</p>
+        </div>
+        <CardGridSkeleton count={3} cardClassName="h-72" />
       </div>
     );
   }

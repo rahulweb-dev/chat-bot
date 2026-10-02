@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/components/ui/use-toast";
 import { Plus, Ban, Megaphone } from "lucide-react";
-import { EmptyState, PageLoading } from "@/components/whatsapp/empty-state";
+import { EmptyState } from "@/components/whatsapp/empty-state";
+import { ListRowsSkeleton } from "@/components/ui/page-skeletons";
 import { EmailCampaignWizard } from "./campaign-wizard";
 import { timeAgo } from "@/lib/utils";
 
@@ -83,7 +84,7 @@ export function EmailCampaignsTab() {
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <PageLoading />
+            <ListRowsSkeleton rows={5} withAvatar={false} />
           ) : campaigns?.length === 0 ? (
             <EmptyState icon={Megaphone} title="No campaigns yet" description="Create a campaign to send a bulk email to your opted-in contacts." />
           ) : (

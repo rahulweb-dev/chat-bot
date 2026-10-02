@@ -13,7 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
 import { Plus, Trash2, Loader2, FileText, Zap, RefreshCw } from "lucide-react";
-import { EmptyState, PageLoading } from "@/components/whatsapp/empty-state";
+import { EmptyState } from "@/components/whatsapp/empty-state";
+import { ListRowsSkeleton } from "@/components/ui/page-skeletons";
 
 interface Template {
   id?: string;
@@ -242,7 +243,7 @@ export function TemplatesTab() {
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <PageLoading />
+            <ListRowsSkeleton rows={5} withAvatar={false} />
           ) : !templates?.length ? (
             <EmptyState
               icon={FileText}

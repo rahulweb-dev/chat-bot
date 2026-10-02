@@ -6,10 +6,11 @@ import axios from "axios";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Search, ShieldCheck, ShieldAlert } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { TableSkeleton } from "@/components/ui/page-skeletons";
 
 const getActionColor = (action: string) => {
   if (action.includes("CREATE")) return "text-green-600 bg-green-50 dark:bg-green-950";
@@ -55,9 +56,7 @@ export default function AdminAuditLogsPage() {
         <CardHeader><CardTitle className="text-base">Audit Trail</CardTitle></CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
+            <TableSkeleton rows={8} cols={5} />
           ) : (
             <div className="divide-y">
               {logs.map((log: {

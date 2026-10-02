@@ -11,6 +11,8 @@ import { Loader2, Search, MessageSquare, CheckCircle, XCircle, Clock, Send, Bot,
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
+import { ListRowsSkeleton } from "@/components/ui/page-skeletons";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const STATUS_CONFIG = {
   OPEN:     { label: "Open",     color: "bg-green-100 text-green-700",  icon: MessageSquare },
@@ -150,8 +152,8 @@ export default function ConversationsPage() {
         {/* List */}
         <div className="flex-1 overflow-y-auto">
           {isLoading && (
-            <div className="flex items-center justify-center h-32">
-              <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+            <div className="p-3">
+              <ListRowsSkeleton rows={6} />
             </div>
           )}
           {!isLoading && conversations.length === 0 && (
@@ -250,8 +252,18 @@ export default function ConversationsPage() {
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {msgsLoading && (
-              <div className="flex items-center justify-center h-32">
-                <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+              <div className="space-y-4">
+                <div className="flex gap-2.5">
+                  <Skeleton className="h-7 w-7 rounded-full shrink-0" />
+                  <Skeleton className="h-10 w-56 rounded-2xl" />
+                </div>
+                <div className="flex gap-2.5 justify-end">
+                  <Skeleton className="h-9 w-40 rounded-2xl" />
+                </div>
+                <div className="flex gap-2.5">
+                  <Skeleton className="h-7 w-7 rounded-full shrink-0" />
+                  <Skeleton className="h-14 w-64 rounded-2xl" />
+                </div>
               </div>
             )}
             {!msgsLoading && (!messages || messages.length === 0) && (

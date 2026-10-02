@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Plug, Unplug, CheckCircle2, XCircle, Copy, Check, HelpCircle, ExternalLink, AlertTriangle, Send } from "lucide-react";
+import { FormSkeleton } from "@/components/ui/page-skeletons";
 
 interface IntegrationStatus {
   _id: string;
@@ -132,7 +133,7 @@ export function SettingsTab() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+        <FormSkeleton fields={5} />
       ) : (
         <>
           {integration && (

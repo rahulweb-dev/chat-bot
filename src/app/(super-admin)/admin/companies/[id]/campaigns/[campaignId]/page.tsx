@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { ArrowLeft, Loader2, Search, Send, CheckCheck, XCircle, Eye, MousePointerClick, Clock, MessageCircle } from "lucide-react";
+import { ArrowLeft, Search, Send, CheckCheck, XCircle, Eye, MousePointerClick, Clock, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/whatsapp/empty-state";
 import {
@@ -24,6 +24,7 @@ import {
 } from "@/components/admin/company-detail/shared";
 import { ContactDetailDialog } from "@/components/admin/company-detail/contact-detail-dialog";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { StatCardsSkeleton, TableSkeleton, ChartSkeleton } from "@/components/ui/page-skeletons";
 
 type Channel = "WHATSAPP" | "RCS" | "EMAIL";
 
@@ -59,7 +60,13 @@ function CampaignDetailInner() {
   });
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
+    return (
+      <div className="p-6 max-w-6xl mx-auto space-y-6">
+        <div className="h-7 w-64 bg-gray-200 rounded animate-pulse" />
+        <StatCardsSkeleton count={4} />
+        <ChartSkeleton height={260} />
+      </div>
+    );
   }
   if (isError) {
     return <div className="p-6"><ErrorState message="Couldn't load this campaign." onRetry={() => refetch()} /></div>;
@@ -276,7 +283,7 @@ function RecipientsSection({ companyId, campaignId, channel }: { companyId: stri
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="flex items-center justify-center h-40"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            <TableSkeleton rows={6} cols={6} />
           ) : isError ? (
             <ErrorState message="Couldn't load recipients." onRetry={() => refetch()} />
           ) : items.length === 0 ? (
@@ -363,7 +370,7 @@ function RepliesSection({ companyId, campaignId, channel }: { companyId: string;
         .then((r) => r.data.data as { available: boolean; reason?: string; truncated?: boolean; recipientsScanned?: number; totalRecipients?: number; replies: Array<Record<string, unknown> & { contactId: string; name?: string; phone: string; conversationStatus: string; firstReplyAt: string; lastReplyAt: string; replyCount: number; latestReplyText?: string }> }),
   });
 
-  if (isLoading) return <div className="flex items-center justify-center h-40"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  if (isLoading) return <TableSkeleton rows={5} cols={6} />;
   if (isError) return <ErrorState message="Couldn't load replies." onRetry={() => refetch()} />;
   if (!data) return null;
 
@@ -441,7 +448,15 @@ function RepliesSection({ companyId, campaignId, channel }: { companyId: string;
 
 export default function CampaignDetailPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
+    <Suspense
+      fallback={
+        <div className="p-6 max-w-6xl mx-auto space-y-6">
+          <div className="h-7 w-64 bg-gray-200 rounded animate-pulse" />
+          <StatCardsSkeleton count={4} />
+          <ChartSkeleton height={260} />
+        </div>
+      }
+    >
       <CampaignDetailInner />
     </Suspense>
   );

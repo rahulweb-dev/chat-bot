@@ -5,7 +5,8 @@ import axios from "axios";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, Users, CheckCheck, Eye, Megaphone } from "lucide-react";
-import { EmptyState, PageLoading } from "@/components/whatsapp/empty-state";
+import { EmptyState } from "@/components/whatsapp/empty-state";
+import { StatCardsSkeleton, ListRowsSkeleton } from "@/components/ui/page-skeletons";
 
 interface Analytics {
   messagesToday: number;
@@ -24,8 +25,9 @@ export function AnalyticsTab() {
 
   if (isLoading || !data) {
     return (
-      <div className="p-6 max-w-5xl mx-auto">
-        <PageLoading />
+      <div className="p-6 max-w-5xl mx-auto space-y-4">
+        <StatCardsSkeleton count={4} />
+        <ListRowsSkeleton rows={3} withAvatar={false} />
       </div>
     );
   }
