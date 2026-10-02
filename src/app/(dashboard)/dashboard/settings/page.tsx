@@ -290,6 +290,42 @@ export default function SettingsPage() {
               </form>
             </CardContent>
           </Card>
+
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Pre-chat Form</CardTitle>
+              <CardDescription>
+                Collect a visitor&apos;s details before the conversation starts — useful when you want a
+                name and phone number on file even if they close the chat early (e.g. a real estate or
+                property enquiry). This runs once, before the bot&apos;s first message; it&apos;s separate
+                from any questions you ask later inside a{" "}
+                <a href="/dashboard/chatbot?tab=flow" className="font-medium underline underline-offset-2">Custom Flow</a>.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit("chat")} className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Switch id="preChatForm" name="preChatForm" defaultChecked={s.chat?.preChatForm === true} />
+                  <Label htmlFor="preChatForm">Ask for visitor details before starting the chat</Label>
+                </div>
+                <div className="pl-11 space-y-3 border-l border-gray-100 ml-1.5">
+                  <div className="flex items-center gap-2">
+                    <Switch id="requireEmail" name="requireEmail" defaultChecked={s.chat?.requireEmail === true} />
+                    <Label htmlFor="requireEmail">Also collect email</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch id="requirePhone" name="requirePhone" defaultChecked={s.chat?.requirePhone === true} />
+                    <Label htmlFor="requirePhone">Also collect phone number</Label>
+                  </div>
+                  <p className="text-xs text-gray-400">Name is always asked once the form above is on.</p>
+                </div>
+                <Button type="submit" disabled={saving}>
+                  {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                  Save Pre-chat Form
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="notifications">

@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Search, IndianRupee, Mail, Phone, Bot, Zap, Download } from "lucide-react";
+import { Plus, Search, IndianRupee, Mail, Phone, Bot, Zap, Download, ClipboardList } from "lucide-react";
 import { timeAgo } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -25,6 +25,25 @@ const stageColors: Record<string, string> = {
   WON: "bg-green-50 text-green-700 border-green-200",
   LOST: "bg-red-50 text-red-700 border-red-200",
 };
+
+// customFields on a lead carries everything a custom chatbot flow collected
+// (via each step's "saveAs"), but the route that creates it also dumps the
+// already-promoted name/phone/email/score/type keys into the same object —
+// strip those so the detail view only shows genuinely extra answers, like
+// "which property are you interested in".
+const REDUNDANT_CUSTOM_FIELD_KEYS = new Set(["name", "phone", "email", "score", "type"]);
+
+function humanizeFieldKey(key: string) {
+  const spaced = key.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
+}
+
+function enquiryEntries(customFields?: Record<string, unknown>) {
+  if (!customFields) return [];
+  return Object.entries(customFields).filter(
+    ([key, value]) => !REDUNDANT_CUSTOM_FIELD_KEYS.has(key) && value !== undefined && value !== null && value !== ""
+  );
+}
 
 const leadSchema = z.object({
   name: z.string().min(2),
@@ -45,6 +64,7 @@ export default function LeadsPage() {
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [activeStage, setActiveStage] = useState("all");
+  const [detailLead, setDetailLead] = useState<Lead | null>(null);
 
   const debouncedSearch = useDebouncedValue(search);
 
@@ -175,8 +195,14 @@ export default function LeadsPage() {
                   </div>
                 )}
                 <div className="min-h-[200px] bg-gray-50 rounded-b-lg border border-t-0 p-2 space-y-2">
-                  {stageLeads.map((lead) => (
-                    <div key={lead._id} className="bg-white rounded-lg p-3 border shadow-sm cursor-grab">
+                  {stageLeads.map((lead) => {
+                    const extra = enquiryEntries(lead.customFields);
+                    return (
+                    <div
+                      key={lead._id}
+                      onClick={() => setDetailLead(lead)}
+                      className="bg-white rounded-lg p-3 border shadow-sm cursor-pointer hover:border-indigo-200 hover:shadow transition-all"
+                    >
                       <div className="flex items-start justify-between gap-1">
                         <p className="font-medium text-sm leading-tight">{lead.name}</p>
                         <div className="flex gap-1 shrink-0">
@@ -199,6 +225,12 @@ export default function LeadsPage() {
                           <Mail className="w-3 h-3" /><span className="truncate">{lead.email}</span>
                         </div>
                       )}
+                      {extra.length > 0 && (
+                        <div className="flex items-center gap-1 mt-1 text-xs text-indigo-500">
+                          <ClipboardList className="w-3 h-3 shrink-0" />
+                          <span className="truncate">{humanizeFieldKey(extra[0][0])}: {String(extra[0][1])}</span>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between mt-1.5">
                         {lead.value ? (
                           <div className="flex items-center gap-0.5 text-xs text-green-600 font-medium">
@@ -213,7 +245,7 @@ export default function LeadsPage() {
                         {STAGES.filter((s) => s !== stage).slice(0, 2).map((s) => (
                           <button
                             key={s}
-                            onClick={() => updateStageMutation.mutate({ id: lead._id, stage: s })}
+                            onClick={(e) => { e.stopPropagation(); updateStageMutation.mutate({ id: lead._id, stage: s }); }}
                             className="text-[10px] px-1.5 py-0.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
                           >
                             → {s}
@@ -221,7 +253,8 @@ export default function LeadsPage() {
                         ))}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                   {stageLeads.length === 0 && (
                     <p className="text-xs text-gray-400 text-center py-4">No leads</p>
                   )}
@@ -232,8 +265,14 @@ export default function LeadsPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {leads.map((lead) => (
-            <Card key={lead._id} className="border-0 shadow-sm">
+          {leads.map((lead) => {
+            const extra = enquiryEntries(lead.customFields);
+            return (
+            <Card
+              key={lead._id}
+              onClick={() => setDetailLead(lead)}
+              className="border-0 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+            >
               <CardContent className="p-4 flex items-center gap-4">
                 <div className="w-9 h-9 bg-indigo-100 rounded-full flex items-center justify-center text-sm font-bold text-indigo-700 shrink-0">
                   {lead.name.charAt(0).toUpperCase()}
@@ -245,6 +284,12 @@ export default function LeadsPage() {
                     {lead.company && <span>{lead.company}</span>}
                     <span>{timeAgo(lead.createdAt)}</span>
                   </div>
+                  {extra.length > 0 && (
+                    <div className="flex items-center gap-1 mt-0.5 text-xs text-indigo-500">
+                      <ClipboardList className="w-3 h-3 shrink-0" />
+                      <span className="truncate">{humanizeFieldKey(extra[0][0])}: {String(extra[0][1])}{extra.length > 1 ? ` +${extra.length - 1} more` : ""}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {lead.source === "CHAT_WIDGET" && <span title="From chatbot"><Bot className="w-4 h-4 text-indigo-400" /></span>}
@@ -260,7 +305,8 @@ export default function LeadsPage() {
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -313,6 +359,88 @@ export default function LeadsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!detailLead} onOpenChange={(open) => !open && setDetailLead(null)}>
+        <DialogContent className="max-w-lg bg-white">
+          {detailLead && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-sm font-bold text-indigo-700 shrink-0">
+                    {detailLead.name.charAt(0).toUpperCase()}
+                  </div>
+                  {detailLead.name}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium border ${stageColors[detailLead.stage]}`}>
+                    {detailLead.stage}
+                  </span>
+                  {detailLead.source === "CHAT_WIDGET" && (
+                    <span className="text-xs px-2 py-1 rounded-full font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1">
+                      <Bot className="w-3 h-3" /> From chatbot
+                    </span>
+                  )}
+                  {typeof detailLead.score === "number" && (
+                    <span className="text-xs px-2 py-1 rounded-full font-medium bg-gray-100 text-gray-600">
+                      Score: {detailLead.score}
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  {detailLead.phone && (
+                    <div>
+                      <p className="text-xs text-gray-400">Phone</p>
+                      <p className="flex items-center gap-1.5 mt-0.5"><Phone className="w-3.5 h-3.5 text-gray-400" />{detailLead.phone}</p>
+                    </div>
+                  )}
+                  {detailLead.email && (
+                    <div>
+                      <p className="text-xs text-gray-400">Email</p>
+                      <p className="flex items-center gap-1.5 mt-0.5"><Mail className="w-3.5 h-3.5 text-gray-400" />{detailLead.email}</p>
+                    </div>
+                  )}
+                  {detailLead.company && (
+                    <div>
+                      <p className="text-xs text-gray-400">Company</p>
+                      <p className="mt-0.5">{detailLead.company}</p>
+                    </div>
+                  )}
+                  {detailLead.value ? (
+                    <div>
+                      <p className="text-xs text-gray-400">Deal Value</p>
+                      <p className="flex items-center gap-0.5 mt-0.5 text-green-600 font-medium"><IndianRupee className="w-3.5 h-3.5" />{detailLead.value.toLocaleString()}</p>
+                    </div>
+                  ) : null}
+                </div>
+
+                {enquiryEntries(detailLead.customFields).length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 flex items-center gap-1.5 mb-2">
+                      <ClipboardList className="w-3.5 h-3.5" /> What they enquired about
+                    </p>
+                    <div className="rounded-lg border divide-y">
+                      {enquiryEntries(detailLead.customFields).map(([key, value]) => (
+                        <div key={key} className="px-3 py-2 flex items-start justify-between gap-3 text-sm">
+                          <span className="text-gray-500">{humanizeFieldKey(key)}</span>
+                          <span className="font-medium text-right">{String(value)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-xs text-gray-400">Captured {timeAgo(detailLead.createdAt)}</p>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setDetailLead(null)}>Close</Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -329,4 +457,5 @@ interface Lead {
   source?: string;
   createdAt: string;
   assignedTo?: { name: string };
+  customFields?: Record<string, unknown>;
 }
