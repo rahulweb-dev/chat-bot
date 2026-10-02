@@ -28,6 +28,12 @@ export async function PATCH(request: NextRequest) {
 
   await connectDB();
   const body = await request.json();
+  // Strip companyId/_id so a request can't detach this Settings document from
+  // its own company (or spoof its id) just by including those fields in the
+  // body — the filter below only controls which document is found, not what
+  // an update is allowed to write.
+  delete (body as Record<string, unknown>).companyId;
+  delete (body as Record<string, unknown>)._id;
 
   const updateFields: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(body)) {

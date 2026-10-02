@@ -25,9 +25,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   await connectDB();
   const body = await request.json();
+  // Strip companyId/_id so a request can't re-parent a document into a
+  // different tenant (or spoof its id) just by including those fields in
+  // the body — the filter above only controls which document is found, not
+  // what an update is allowed to write.
+  const { companyId: _companyId, _id: _ignoredId, ...update } = body;
   const doc = await KnowledgeBase.findOneAndUpdate(
     { _id: id, companyId: ctx.companyId },
-    { $set: body },
+    { $set: update },
     { new: true }
   );
   if (!doc) return apiError("Not found", 404);

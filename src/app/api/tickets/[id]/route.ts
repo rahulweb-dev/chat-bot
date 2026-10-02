@@ -28,7 +28,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   await connectDB();
 
   const body = await request.json();
-  const { addComment, ...rest } = body;
+  // Strip companyId/_id so a request can't re-parent a ticket into a
+  // different tenant (or spoof its id) just by including those fields in
+  // the body — the filter below only controls which document is found, not
+  // what an update is allowed to write.
+  const { addComment, companyId: _companyId, _id: _ignoredId, ...rest } = body;
 
   if (addComment) {
     const ticket = await Ticket.findOneAndUpdate(

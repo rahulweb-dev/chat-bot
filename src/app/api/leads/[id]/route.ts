@@ -24,7 +24,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params;
   await connectDB();
 
-  const body = await request.json();
+  // Strip companyId/_id so a request can't re-parent a lead into a different
+  // tenant (or spoof its id) just by including those fields in the body —
+  // the filter below only controls which document is found, not what an
+  // update is allowed to write.
+  const { companyId: _companyId, _id: _ignoredId, ...body } = await request.json();
   if (body.stage === "WON" || body.stage === "LOST") {
     body.closedAt = new Date();
   }
