@@ -25,9 +25,24 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   await connectDB();
 
   const body = await request.json();
-  const { password, ...rest } = body;
+  // Strip fields this route must never let the caller set directly:
+  // - companyId: prevents re-parenting an agent into a different tenant by
+  //   just including it in the PATCH body (the query below only scopes
+  //   which document can be found, not what the update can write).
+  // - password: handled separately below so it's always hashed.
+  const { password, companyId: _companyId, ...rest } = body;
 
   const updateData: Record<string, unknown> = { ...rest };
+  // This endpoint manages the non-admin "agents" roster (same set GET already
+  // restricts its listing to) — never let a MANAGER/COMPANY_ADMIN grant
+  // SUPER_ADMIN/COMPANY_ADMIN through here, which would be a backdoor to
+  // create a full admin account with only "manage my team" permissions.
+  if ("role" in updateData) {
+    const allowedRoles = ["AGENT", "MANAGER", "TEAM_LEADER", "VIEWER"];
+    if (!allowedRoles.includes(updateData.role as string)) {
+      return apiError("Invalid role", 400);
+    }
+  }
   if (password) {
     const bcrypt = await import("bcryptjs");
     updateData.password = await bcrypt.hash(password, 12);

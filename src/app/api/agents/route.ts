@@ -45,6 +45,13 @@ export async function POST(request: NextRequest) {
 
   if (!name || !email || !password) return apiError("Missing required fields");
 
+  // This endpoint creates the non-admin "agents" roster (same set GET already
+  // restricts its listing to) — never let a MANAGER/COMPANY_ADMIN create a
+  // SUPER_ADMIN/COMPANY_ADMIN account through here, which would be a backdoor
+  // to mint a full admin with only "manage my team" permissions.
+  const allowedRoles = ["AGENT", "MANAGER", "TEAM_LEADER", "VIEWER"];
+  if (!allowedRoles.includes(role)) return apiError("Invalid role", 400);
+
   const usageCheck = await checkUsageLimit(ctx.companyId, "agents" as keyof import("@/models/Usage").IUsage);
   if (!usageCheck.allowed) {
     return apiError(`Agent limit reached. Your plan allows ${usageCheck.limit} agents. Upgrade to add more.`, 403);
