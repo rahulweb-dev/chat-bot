@@ -392,9 +392,23 @@
     var delay = 0;
     msgs.forEach(function(msg, i) {
       setTimeout(function() {
+        // The server fires the Pusher broadcast for this same saved message
+        // before this POST's response even finishes, so on a fast connection
+        // the real-time echo can reach subscribeRealtime()'s handler and render
+        // the bubble BEFORE this staggered local render fires — especially for
+        // the 2nd+ message in a multi-message reply, delayed 420ms+ here. That
+        // handler already skips anything in renderedIds; this side didn't skip
+        // back, so both paths rendered the same message — a real, reproducible
+        // double-bubble, not just a rare edge case. Check first and bail here too.
+        if (ids[i] && renderedIds.has(ids[i])) {
+          if (i === msgs.length - 1) {
+            var qrSkip = data.quickReplies || [];
+            setOptions(qrSkip, qrSkip.length > 0);
+            if (qrSkip.length) saveQR(qrSkip);
+          }
+          return;
+        }
         addBubble(msg, "bot");
-        // Mark as already-rendered so the Pusher echo of this same saved message
-        // (the server broadcasts every bot message it saves) doesn't render it again.
         if (ids[i]) renderedIds.add(ids[i]);
         msgCount++;
         if (!isOpen) { unreadCount++; showDot(); }
