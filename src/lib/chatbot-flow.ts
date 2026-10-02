@@ -554,11 +554,6 @@ function runCustomFlow(input: string, session: SessionData, cf: CustomFlow, gree
 export async function getBotReply(message: string, session: SessionData, companyId: string, welcomeMessage?: string, timezone?: string): Promise<BotResponse> {
   const greeting = welcomeMessage?.trim() || "👋 Hi! Welcome!";
 
-  if (session.flow === "INITIAL" && message !== "__INIT__") {
-    const trained = await matchTraining(message, companyId, session.collected);
-    if (trained) return trained;
-  }
-
   const config = await ChatbotConfig.findOne({ companyId })
     .select("customFlow aiFallback businessHours agentOnlineMessage agentOfflineMessage vehicles offers")
     .lean() as {
@@ -581,6 +576,25 @@ export async function getBotReply(message: string, session: SessionData, company
   };
 
   const cf = config?.customFlow;
+
+  // "Main Menu" / "Go Back" / "Start Over" are navigation controls, not
+  // conversation content — they must always work, even when a company's own
+  // Training keywords or FAQs loosely match the same words (e.g. an FAQ
+  // whose question contains "menu") and would otherwise silently hijack the
+  // button below before it ever reaches the actual reset logic. Checking this
+  // first, ahead of matchTraining/custom-flow/AI-fallback, makes the button
+  // deterministic regardless of what the company has trained.
+  const trimmed = message.trim();
+  if (match(trimmed, "Main Menu") || match(trimmed, "Start Over") || match(trimmed, "Go Back")) {
+    const col = session.collected || {};
+    return cf?.enabled && cf.flows?.length ? customMenu(cf, col, greeting) : mainMenu(col, greeting);
+  }
+
+  if (session.flow === "INITIAL" && message !== "__INIT__") {
+    const trained = await matchTraining(message, companyId, session.collected);
+    if (trained) return trained;
+  }
+
   if (cf?.enabled && cf.flows?.length) {
     const custom = runCustomFlow(message, session, cf, greeting, ctx);
     if (custom) return custom;
