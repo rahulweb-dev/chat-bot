@@ -1,4 +1,5 @@
 "use client";
+import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
@@ -7,7 +8,7 @@ import {
   MessageSquare, TicketIcon, Users, Building2, BarChart3,
   Settings, Bell, Key, Bot, Workflow, CreditCard,
   LayoutDashboard, BookOpen, Tag, Globe, Shield,
-  Inbox, MessageCircle, Trophy, Mail, X, LogOut,
+  Inbox, MessageCircle, Trophy, Mail, X, LogOut, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { getInitials } from "@/lib/utils";
 import { useUIStore } from "@/store/ui-store";
@@ -103,15 +104,32 @@ const SUPER_ADMIN_GROUPS: NavGroup[] = [
   },
 ];
 
+function subscribeToDesktopQuery(callback: () => void) {
+  const mq = window.matchMedia("(min-width: 1024px)");
+  mq.addEventListener("change", callback);
+  return () => mq.removeEventListener("change", callback);
+}
+function getIsDesktopSnapshot() {
+  return window.matchMedia("(min-width: 1024px)").matches;
+}
+
 export function Sidebar() {
   const { data: session } = useSession();
   const pathname = usePathname();
   const mobileNavOpen = useUIStore((s) => s.mobileNavOpen);
   const closeMobileNav = useUIStore((s) => s.closeMobileNav);
+  const collapsed = useUIStore((s) => s.sidebarCollapsed);
+  const toggleCollapsed = useUIStore((s) => s.toggleSidebarCollapsed);
   const isSuperAdmin = session?.user?.role === "SUPER_ADMIN";
   const groups = isSuperAdmin ? SUPER_ADMIN_GROUPS : NAV_GROUPS;
   const userRole = session?.user?.role || "";
   const settingsHref = isSuperAdmin ? "/admin/settings" : "/dashboard/settings";
+
+  // Collapsing is a desktop convenience for reclaiming page width — the mobile
+  // nav is already an overlay drawer that only exists while open, so forcing
+  // it icon-only too would just make it harder to use for no space benefit.
+  const isDesktop = useSyncExternalStore(subscribeToDesktopQuery, getIsDesktopSnapshot, () => false);
+  const collapsedEffective = collapsed && isDesktop;
 
   return (
     <>
@@ -124,26 +142,37 @@ export function Sidebar() {
         />
       )}
       <aside className={cn(
-        "h-full shrink-0 transition-transform duration-300 flex flex-col",
-        "w-[236px] bg-white border-r border-[#ECEBE6] py-6 px-4.5",
+        "h-full shrink-0 transition-[width,transform] duration-300 flex flex-col relative",
+        "bg-white border-r border-[#ECEBE6] py-6",
+        collapsedEffective ? "w-[236px] lg:w-[76px] px-4.5 lg:px-2.5" : "w-[236px] px-4.5",
         // Mobile: fixed off-canvas drawer, slides in over content
         "fixed inset-y-0 left-0 z-50",
         mobileNavOpen ? "translate-x-0" : "-translate-x-full",
         // Desktop: back in normal flow, never translated
         "lg:relative lg:z-auto lg:translate-x-0"
       )}>
-        <div className="flex items-center justify-between px-1.5 pb-6">
+        {/* Collapse/expand toggle — straddles the sidebar's right edge, desktop only */}
+        <button
+          type="button"
+          aria-label={collapsedEffective ? "Expand sidebar" : "Collapse sidebar"}
+          onClick={toggleCollapsed}
+          className="hidden lg:flex absolute top-7 -right-3 w-6 h-6 rounded-full bg-white border border-[#ECEBE6] items-center justify-center text-[#9A988D] hover:text-[#15140F] hover:border-[#15140F]/30 shadow-sm z-10"
+        >
+          {collapsedEffective ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+        </button>
+
+        <div className={cn("flex items-center pb-6", collapsedEffective ? "lg:justify-center px-1.5" : "justify-between px-1.5")}>
           <Link
             href={isSuperAdmin ? "/admin" : "/dashboard"}
             className="flex items-center gap-2 font-display font-bold text-[21px] tracking-tight text-[#15140F]"
           >
-            <img src="/app_icon.png" alt="" className="w-6 h-6 rounded-md" />
-            Convo360
+            <img src="/app_icon.png" alt="" className="w-6 h-6 rounded-md shrink-0" />
+            <span className={collapsedEffective ? "lg:hidden" : ""}>Convo360</span>
           </Link>
           <button
             type="button"
             aria-label="Close menu"
-            className="lg:hidden text-[#9A988D] hover:text-[#15140F]"
+            className={cn("lg:hidden text-[#9A988D] hover:text-[#15140F]", collapsedEffective && "lg:hidden")}
             onClick={closeMobileNav}
           >
             <X className="w-5 h-5" />
@@ -158,7 +187,10 @@ export function Sidebar() {
             return (
               <div key={gi} className="flex flex-col gap-0.5">
                 {group.label && (
-                  <p className="px-3 pb-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[#B3B1A6]">
+                  <p className={cn(
+                    "px-3 pb-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[#B3B1A6]",
+                    collapsedEffective && "lg:hidden"
+                  )}>
                     {group.label}
                   </p>
                 )}
@@ -172,17 +204,20 @@ export function Sidebar() {
                       key={item.href}
                       href={item.href}
                       onClick={closeMobileNav}
+                      title={collapsedEffective ? item.label : undefined}
                       className={cn(
                         "flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px] font-medium transition-colors shrink-0",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15140F]/30",
+                        collapsedEffective && "lg:justify-center lg:px-0",
                         isActive ? "bg-[#15140F] text-white font-semibold" : "text-[#716F66] hover:bg-[#F3F2EE] hover:text-[#15140F]"
                       )}
                     >
                       <Icon className="w-[18px] h-[18px] shrink-0" />
-                      <span className="flex-1">{item.label}</span>
+                      <span className={cn("flex-1", collapsedEffective && "lg:hidden")}>{item.label}</span>
                       {item.badge && (
                         <span className={cn(
                           "text-[10px] font-bold px-1.5 py-0.5 rounded-full",
+                          collapsedEffective && "lg:hidden",
                           isActive ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-600"
                         )}>
                           {item.badge}
@@ -200,30 +235,42 @@ export function Sidebar() {
           <Link
             href={settingsHref}
             onClick={closeMobileNav}
-            className="flex items-center gap-3 px-3 py-2 rounded-xl text-[13.5px] font-medium text-[#716F66] hover:bg-[#F3F2EE] hover:text-[#15140F] transition-colors"
+            title={collapsedEffective ? "Settings" : undefined}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-xl text-[13.5px] font-medium text-[#716F66] hover:bg-[#F3F2EE] hover:text-[#15140F] transition-colors",
+              collapsedEffective && "lg:justify-center lg:px-0"
+            )}
           >
-            <Settings className="w-[17px] h-[17px]" />
-            Settings
+            <Settings className="w-[17px] h-[17px] shrink-0" />
+            <span className={collapsedEffective ? "lg:hidden" : ""}>Settings</span>
           </Link>
           <button
             type="button"
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="flex items-center gap-3 px-3 py-2 rounded-xl text-[13.5px] font-medium text-[#716F66] hover:bg-[#F3F2EE] hover:text-[#15140F] transition-colors text-left"
+            title={collapsedEffective ? "Log out" : undefined}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-xl text-[13.5px] font-medium text-[#716F66] hover:bg-[#F3F2EE] hover:text-[#15140F] transition-colors text-left",
+              collapsedEffective && "lg:justify-center lg:px-0"
+            )}
           >
-            <LogOut className="w-[17px] h-[17px]" />
-            Log out
+            <LogOut className="w-[17px] h-[17px] shrink-0" />
+            <span className={collapsedEffective ? "lg:hidden" : ""}>Log out</span>
           </button>
           <Link
             href="/dashboard/profile"
             onClick={closeMobileNav}
-            className="flex items-center gap-2.5 mt-2.5 px-3 py-2 rounded-xl hover:bg-[#F3F2EE] transition-colors"
+            title={collapsedEffective ? (session?.user?.name || "Account") : undefined}
+            className={cn(
+              "flex items-center gap-2.5 mt-2.5 px-3 py-2 rounded-xl hover:bg-[#F3F2EE] transition-colors",
+              collapsedEffective && "lg:justify-center lg:px-0"
+            )}
           >
             <div className="w-8 h-8 rounded-full bg-[#15140F] text-white flex items-center justify-center text-[11px] font-bold shrink-0 overflow-hidden">
               {session?.user?.image
                 ? <img src={session.user.image} alt="" className="w-full h-full object-cover" />
                 : getInitials(session?.user?.name || "U")}
             </div>
-            <div className="min-w-0">
+            <div className={cn("min-w-0", collapsedEffective && "lg:hidden")}>
               <p className="text-[13px] font-semibold text-[#15140F] truncate">{session?.user?.name || "Account"}</p>
               <p className="text-[11px] text-[#9A988D] truncate">{session?.user?.email}</p>
             </div>
