@@ -195,21 +195,6 @@ export function Sidebar() {
           })}
         </nav>
 
-        {!isSuperAdmin && (
-          <div className="mt-5 bg-[#15140F] rounded-[18px] p-4.5 text-white">
-            <p className="font-display font-bold text-[14px] m-0">Upgrade to Pro</p>
-            <p className="mt-1.5 mb-3.5 text-[12px] leading-relaxed text-white/65">
-              Unlock unlimited agents, AI fallback and advanced analytics.
-            </p>
-            <Link
-              href="/dashboard/billing"
-              className="block w-full text-center bg-white text-[#15140F] rounded-[10px] py-2.5 text-[13px] font-bold"
-            >
-              Upgrade
-            </Link>
-          </div>
-        )}
-
         <div className="mt-4 pt-3.5 border-t border-[#ECEBE6] flex flex-col gap-0.5">
           <Link
             href={settingsHref}
