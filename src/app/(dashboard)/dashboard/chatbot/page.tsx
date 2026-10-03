@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -50,10 +50,55 @@ async function patchConfig(body: Partial<Config>): Promise<{ success: true; data
   return { success: true, data: d.data };
 }
 
-const TAB_TRIGGER_CLASS =
-  "text-xs rounded-full px-3.5 py-2 font-medium text-[#716F66] transition-colors " +
-  "data-[state=active]:bg-[#15140F] data-[state=active]:text-white data-[state=active]:shadow-none " +
-  "data-[state=inactive]:hover:bg-[#F3F2EE] data-[state=inactive]:hover:text-[#15140F]";
+// ── Settings rail (grouped left nav replacing the old horizontal tab strip) ────
+interface RailItem { value: string; label: string; icon: React.ComponentType<{ className?: string }> }
+interface RailGroup { label: string; items: RailItem[] }
+const RAIL_GROUPS: RailGroup[] = [
+  { label: "", items: [{ value: "overview", label: "Overview", icon: Sparkles }] },
+  { label: "Setup", items: [
+    { value: "welcome",  label: "Welcome Message", icon: MessageSquare },
+    { value: "flow",     label: "Menu Flow",        icon: GitBranch },
+    { value: "faqs",     label: "FAQs",             icon: HelpCircle },
+    { value: "training", label: "Training",         icon: Brain },
+    { value: "catalog",  label: "Catalog",          icon: Tag },
+  ] },
+  { label: "Design", items: [{ value: "appearance", label: "Appearance", icon: Palette }] },
+  { label: "Deploy", items: [
+    { value: "install",  label: "Install Code",     icon: Code },
+    { value: "hours",    label: "Business Hours",   icon: Clock },
+    { value: "canned",   label: "Canned Replies",   icon: Reply },
+    { value: "realtime", label: "Live Chat Setup",  icon: Zap },
+  ] },
+];
+
+function SettingsRail({ tab, setTab }: { tab: string; setTab: (v: string) => void }) {
+  return (
+    <nav className="w-[216px] shrink-0 bg-white rounded-[18px] p-2.5 h-fit sticky top-4">
+      {RAIL_GROUPS.map((group, gi) => (
+        <div key={gi}>
+          {group.label && (
+            <p className="mt-3.5 mb-1.5 px-2.5 text-[10px] font-bold uppercase tracking-wide text-[#B3B1A6]">{group.label}</p>
+          )}
+          {group.items.map((item) => {
+            const active = tab === item.value;
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.value}
+                type="button"
+                onClick={() => setTab(item.value)}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-[11px] text-[13px] transition-colors text-left ${active ? "bg-[#15140F] text-white font-semibold" : "text-[#716F66] font-medium hover:bg-[#F3F2EE] hover:text-[#15140F]"}`}
+              >
+                <Icon className="w-4 h-4 shrink-0" />
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+      ))}
+    </nav>
+  );
+}
 
 // ── Step banner ────────────────────────────────────────────────────────────────
 function StepBanner({ n, of, title, children }: { n: number; of: number; title: string; children: React.ReactNode }) {
@@ -2207,25 +2252,13 @@ function ChatbotPageInner() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-        <div className="xl:col-span-3 space-y-4">
-          <Tabs value={tab} onValueChange={setTab}>
-            <TabsList className="flex flex-wrap gap-1.5 h-auto w-full justify-start bg-transparent p-0 border-b border-[#ECEBE6] pb-3 rounded-none">
-              <TabsTrigger value="overview"   className={TAB_TRIGGER_CLASS}><Sparkles className="w-3.5 h-3.5 mr-1.5" />Overview</TabsTrigger>
-              <TabsTrigger value="welcome"    className={TAB_TRIGGER_CLASS}><MessageSquare className="w-3.5 h-3.5 mr-1.5" />Welcome Message</TabsTrigger>
-              <TabsTrigger value="flow"       className={TAB_TRIGGER_CLASS}><GitBranch className="w-3.5 h-3.5 mr-1.5" />Menu Flow</TabsTrigger>
-              <TabsTrigger value="faqs"       className={TAB_TRIGGER_CLASS}><HelpCircle className="w-3.5 h-3.5 mr-1.5" />FAQs</TabsTrigger>
-              <TabsTrigger value="training"   className={TAB_TRIGGER_CLASS}><Brain className="w-3.5 h-3.5 mr-1.5" />Training</TabsTrigger>
-              <TabsTrigger value="catalog"    className={TAB_TRIGGER_CLASS}><Tag className="w-3.5 h-3.5 mr-1.5" />Catalog</TabsTrigger>
-              <TabsTrigger value="appearance" className={TAB_TRIGGER_CLASS}><Palette className="w-3.5 h-3.5 mr-1.5" />Appearance</TabsTrigger>
-              <TabsTrigger value="install"    className={TAB_TRIGGER_CLASS}><Code className="w-3.5 h-3.5 mr-1.5" />Install Code</TabsTrigger>
-              <TabsTrigger value="hours"      className={TAB_TRIGGER_CLASS}><Clock className="w-3.5 h-3.5 mr-1.5" />Hours</TabsTrigger>
-              <TabsTrigger value="canned"     className={TAB_TRIGGER_CLASS}><Reply className="w-3.5 h-3.5 mr-1.5" />Canned</TabsTrigger>
-              <TabsTrigger value="realtime"   className={TAB_TRIGGER_CLASS}><Zap className="w-3.5 h-3.5 mr-1.5" />Live Chat Setup</TabsTrigger>
-            </TabsList>
+      <div className="flex flex-col lg:flex-row gap-[18px] items-start">
+        <SettingsRail tab={tab} setTab={setTab} />
 
+        <div className="flex-1 min-w-0 w-full">
+          <Tabs value={tab} onValueChange={setTab}>
             {/* Overview */}
-            <TabsContent value="overview" className="mt-4">
+            <TabsContent value="overview" className="mt-0">
               {configLoading || !config ? <OverviewSkeleton /> : <OverviewTab config={config} refetch={refetchConfig} />}
             </TabsContent>
 
@@ -2386,15 +2419,15 @@ function ChatbotPageInner() {
         </div>
 
         {/* ── Right: Live Chatbot Flow Preview ──────────────────────────────── */}
-        <div className="xl:col-span-2">
+        <div className="w-full lg:w-[320px] shrink-0 bg-white rounded-[18px] p-4">
           <div className="sticky top-4 space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold flex items-center gap-1.5">
-                <Eye className="w-4 h-4 text-indigo-500" />
+              <p className="text-sm font-semibold flex items-center gap-1.5 text-[#15140F]">
+                <Eye className="w-4 h-4" />
                 Live Preview
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full leading-none ml-1">● LIVE</span>
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full leading-none ml-1">● LIVE</span>
               </p>
-              <span className="text-[11px] text-gray-400 flex items-center gap-1"><RotateCcw className="w-3 h-3" /> Click Restart to reset</span>
+              <span className="text-[11px] text-[#9A988D] flex items-center gap-1"><RotateCcw className="w-3 h-3" /> Click Restart to reset</span>
             </div>
 
             <ChatbotFlowPreview color={settings.primaryColor} theme={settings.theme} companyName={companyProfile?.name || ""} logo={companyProfile?.logo} triggerMessage={testTrigger} />
@@ -2404,7 +2437,7 @@ function ChatbotPageInner() {
                 Couldn&apos;t load your company name/logo ({companyProfileError instanceof Error ? companyProfileError.message : "error"}) — showing defaults instead.
               </p>
             )}
-            <p className="text-center text-xs text-gray-400">This is the real chatbot — same as what visitors see · No DB entries created</p>
+            <p className="text-center text-xs text-[#9A988D]">This is the real chatbot — same as what visitors see · No DB entries created</p>
           </div>
         </div>
       </div>
@@ -2422,14 +2455,14 @@ function ChatbotPageSkeleton() {
           <Skeleton className="h-3 w-72" />
         </div>
       </div>
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-        <div className="xl:col-span-3 space-y-4">
-          <div className="flex flex-wrap gap-1">
-            {Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="h-8 w-24 rounded-md" />)}
-          </div>
+      <div className="flex flex-col lg:flex-row gap-[18px] items-start">
+        <div className="w-[216px] shrink-0 bg-white rounded-[18px] p-2.5 space-y-1.5 hidden lg:block">
+          {Array.from({ length: 11 }).map((_, i) => <Skeleton key={i} className="h-9 w-full rounded-[11px]" />)}
+        </div>
+        <div className="flex-1 min-w-0 w-full">
           <OverviewSkeleton />
         </div>
-        <div className="xl:col-span-2 space-y-3">
+        <div className="w-full lg:w-[320px] shrink-0 bg-white rounded-[18px] p-4 space-y-3">
           <Skeleton className="h-5 w-32" />
           <Skeleton className="w-full rounded-2xl" style={{ minHeight: 500 }} />
         </div>
