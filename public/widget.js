@@ -105,8 +105,9 @@
       "#sf-launch{position:fixed;" + SIDE + ":24px;bottom:24px;z-index:2147483646}" +
       "#sf-btn{position:relative;width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg," + COLOR + " 0%," + COLOR + "cc 100%);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 32px " + C60 + ";transition:transform .2s,box-shadow .2s}" +
       "#sf-btn:hover{transform:scale(1.1);box-shadow:0 12px 40px " + C60 + "}" +
-      "#sf-btn svg{transition:all .2s}" +
-      "#sf-btn.open svg.chat-icon{display:none}" +
+      "#sf-btn svg,#sf-btn img{transition:all .2s}" +
+      "#sf-btn img.chat-icon{width:30px;height:30px;border-radius:50%;object-fit:cover}" +
+      "#sf-btn.open img.chat-icon{display:none}" +
       "#sf-btn.open svg.close-icon{display:block!important}" +
       "#sf-dot{position:absolute;top:-3px;right:-3px;min-width:20px;height:20px;background:#ef4444;border-radius:10px;border:2px solid white;display:none;font-size:11px;font-weight:700;color:white;padding:0 4px;line-height:16px;text-align:center;animation:sfP 2s infinite}" +
       "@keyframes sfP{0%,100%{box-shadow:0 0 0 0 #ef444466}60%{box-shadow:0 0 0 8px #ef444400}}" +
@@ -237,7 +238,7 @@
     root.innerHTML =
       '<div id="sf-launch">' +
         '<button id="sf-btn" aria-label="Open chat">' +
-          '<svg class="chat-icon" width="26" height="26" viewBox="0 0 24 24" fill="white"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>' +
+          '<img class="chat-icon" src="' + BASE + '/app_icon.png" alt="" width="30" height="30" />' +
           '<svg class="close-icon" style="display:none" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>' +
         '</button>' +
         '<div id="sf-dot"></div>' +
@@ -742,7 +743,7 @@
   // real logo, which reads as "the wrong icon flashing before the right one".
   // It only ever shows something once we have a definitive answer: the real
   // logo, or — once we're sure there isn't one — this fallback glyph.
-  var HAV_FALLBACK = '<svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>';
+  var HAV_FALLBACK = '<img src="' + BASE + '/app_icon.png" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover" />';
 
   // Applies a company name/logo to the header and any bot bubbles already on
   // screen. `confirmed` means the caller actually knows whether a logo exists

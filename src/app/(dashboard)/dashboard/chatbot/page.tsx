@@ -1975,9 +1975,7 @@ function ChatbotFlowPreview({ color, theme, companyName, logo, triggerMessage }:
           {logo ? (
             <img src={logo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           ) : (
-            <svg viewBox="0 0 24 24" style={{ width: 20, height: 20, fill: "white" }}>
-              <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
-            </svg>
+            <img src="/app_icon.png" alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           )}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -2023,9 +2021,7 @@ function ChatbotFlowPreview({ color, theme, companyName, logo, triggerMessage }:
                   {logo ? (
                     <img src={logo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   ) : (
-                    <svg viewBox="0 0 24 24" style={{ width: 11, height: 11, fill: "white" }}>
-                      <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
-                    </svg>
+                    <img src="/app_icon.png" alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   )}
                 </div>
               )}
@@ -2053,9 +2049,7 @@ function ChatbotFlowPreview({ color, theme, companyName, logo, triggerMessage }:
                 {logo ? (
                   <img src={logo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 ) : (
-                  <svg viewBox="0 0 24 24" style={{ width: 11, height: 11, fill: "white" }}>
-                    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
-                  </svg>
+                  <img src="/app_icon.png" alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 )}
               </div>
               <div style={{ padding: "10px 14px", borderRadius: "18px 18px 18px 4px", background: BG, border: `1px solid ${BORD}`, display: "flex", gap: 4, alignItems: "center" }}>
