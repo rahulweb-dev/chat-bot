@@ -69,15 +69,22 @@ export const useChatStore = create<ChatStore>((set) => ({
   setMessages: (conversationId, messages) =>
     set((state) => ({ messages: { ...state.messages, [conversationId]: messages } })),
   addMessage: (message) =>
-    set((state) => ({
-      messages: {
-        ...state.messages,
-        [message.conversationId]: [
-          ...(state.messages[message.conversationId] || []),
-          message,
-        ],
-      },
-    })),
+    set((state) => {
+      const existing = state.messages[message.conversationId] || [];
+      // A visitor message is emitted to both its own conversation room and
+      // the whole company room (the latter is how agents NOT currently
+      // viewing this conversation get an unread badge/notification for it —
+      // see src/app/api/widget/chat/route.ts) — an agent who IS viewing it
+      // is in both rooms and gets both socket events for the same saved
+      // message. Dedupe by _id so that doesn't render as two bubbles.
+      if (existing.some((m) => m._id === message._id)) return state;
+      return {
+        messages: {
+          ...state.messages,
+          [message.conversationId]: [...existing, message],
+        },
+      };
+    }),
   updateMessage: (id, updates) =>
     set((state) => ({
       messages: Object.fromEntries(

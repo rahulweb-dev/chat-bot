@@ -38,7 +38,7 @@ export async function POST(
     { new: true }
   );
 
-  await Message.create({
+  const systemMessage = await Message.create({
     companyId: ctx.companyId,
     conversationId: id,
     senderType: "SYSTEM",
@@ -50,12 +50,16 @@ export async function POST(
 
   getIO()?.to(`user:${agentId}`).emit("conversation:assigned", { conversationId: id });
   getIO()?.to(`company:${ctx.companyId}`).emit("conversation:updated", { conversationId: id });
+  // Use the saved message's real _id (not a fabricated one) — the dashboard's
+  // REST poll later fetches this same message by its real id, and only
+  // matching ids let it recognize the two as the same message and avoid
+  // rendering this line twice permanently.
   getIO()?.to(`conversation:${id}`).emit("message:new", {
-    _id: Date.now().toString(),
+    _id: systemMessage._id.toString(),
     conversationId: id,
     senderType: "SYSTEM",
-    content: `Chat transferred${note ? `: ${note}` : " to another agent"}`,
-    createdAt: new Date(),
+    content: systemMessage.content,
+    createdAt: systemMessage.createdAt,
   });
 
   return apiSuccess(conversation);

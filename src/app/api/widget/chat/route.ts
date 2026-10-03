@@ -107,6 +107,14 @@ export async function POST(request: NextRequest) {
       if (visitorMsg) {
         const io = getIO();
         if (io) {
+          // Deliberately emitted to BOTH rooms: the conversation room is what
+          // ChatWindow listens on to render the thread, and the company room
+          // is what lets an agent who DOESN'T have this conversation open get
+          // an unread badge/notification for it (live-chat.tsx checks
+          // message.conversationId !== activeConversationId). An agent who
+          // DOES have this exact conversation open is in both rooms and gets
+          // both events — chat-store's addMessage dedupes by _id so that
+          // doesn't render twice (see chat-store.ts).
           io.to(`conversation:${conversationId}`).emit("message:new", visitorMsg);
           io.to(`company:${companyId}`).emit("message:new", { ...visitorMsg.toObject(), conversationId });
           io.to(`company:${companyId}`).emit("conversation:updated", { conversationId, lastMessage: message, lastMessageAt: new Date() });
