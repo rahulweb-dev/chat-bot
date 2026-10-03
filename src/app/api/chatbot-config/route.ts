@@ -57,7 +57,12 @@ export async function PATCH(request: NextRequest) {
   if (!ctx || !ctx.companyId) return apiError("Unauthorized", 401);
 
   await connectDB();
-  const body = await request.json();
+  const requestBody = await request.json();
+  // Strip companyId/_id so a request can't re-parent this config into a
+  // different tenant (or spoof its id) just by including those fields in
+  // the body — the filter below only controls which document is found, not
+  // what an update is allowed to write.
+  const { companyId: _companyId, _id: _ignoredId, ...body } = requestBody;
 
   const config = await ChatbotConfig.findOneAndUpdate(
     { companyId: ctx.companyId },
