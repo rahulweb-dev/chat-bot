@@ -40,6 +40,7 @@
   var companyLogo   = null;
   var chatStarted   = false;
   var unreadCount   = 0;
+  var labelPinned   = false; // true once the greeting label is showing persistently (not just on hover)
   var lastQR        = [];
   var renderedIds   = new Set(); // prevent duplicate messages from double-polling
   var pusherKey     = cfg.pusherKey     || null;
@@ -294,8 +295,24 @@
     setTimeout(function() {
       if (isOpen) return;
       var lbl = document.getElementById("sf-label");
-      if (lbl) lbl.classList.add("show");
+      if (lbl) { lbl.classList.add("show"); labelPinned = true; }
     }, 1200);
+
+    // Hovering the launcher also reveals the label as a tooltip, even before
+    // the delayed greet above has fired (or after it's been dismissed by
+    // opening/closing). mouseleave only hides it if it isn't already pinned
+    // (shown persistently) — otherwise moving the mouse off would undo the
+    // delayed greet the instant it appeared.
+    var launchEl = document.getElementById("sf-launch");
+    var hoverLbl = document.getElementById("sf-label");
+    if (launchEl && hoverLbl) {
+      launchEl.addEventListener("mouseenter", function() {
+        if (!isOpen) hoverLbl.classList.add("show");
+      });
+      launchEl.addEventListener("mouseleave", function() {
+        if (!isOpen && !labelPinned) hoverLbl.classList.remove("show");
+      });
+    }
 
     var inp = document.getElementById("sf-inp");
     inp.addEventListener("input", function() {
@@ -324,6 +341,7 @@
     var btn = document.getElementById("sf-btn");
     var lbl = document.getElementById("sf-label");
     if (lbl) lbl.classList.toggle("show", !isOpen);
+    labelPinned = !isOpen;
     win.classList.toggle("open", isOpen);
     btn.classList.toggle("open", isOpen);
 
