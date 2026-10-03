@@ -2,7 +2,7 @@
   "use strict";
 
   var cfg = window.SupportFlowConfig || {};
-  if (!cfg.apiKey) { console.error("SupportFlow: apiKey required"); return; }
+  if (!cfg.apiKey) { console.error("Convo360: apiKey required"); return; }
 
   // Guards against the install snippet being embedded more than once on the same
   // page (e.g. pasted into both a header and footer template) — without this,
@@ -267,7 +267,7 @@
             '<svg width="17" height="17" viewBox="0 0 24 24" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>' +
           '</button>' +
         '</div>' +
-        '<div id="sf-pwr">Powered by <a href="https://supportflow.app" target="_blank">SupportFlow</a></div>' +
+        '<div id="sf-pwr">Powered by <a href="https://supportflow.app" target="_blank">Convo360</a></div>' +
       '</div>';
     document.body.appendChild(root);
 
@@ -440,7 +440,7 @@
       message: msg, sessionData: sess,
     }).then(function(r) {
       if (!r.success) {
-        if (r.error === "Invalid API key") showErr("Invalid API key. Please check your SupportFlow dashboard.");
+        if (r.error === "Invalid API key") showErr("Invalid API key. Please check your Convo360 dashboard.");
         return null;
       }
       return r.data;

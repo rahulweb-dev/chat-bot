@@ -10,7 +10,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-const FROM = process.env.SMTP_FROM || "SupportFlow <noreply@supportflow.app>";
+const FROM = process.env.SMTP_FROM || "Convo360 <noreply@supportflow.app>";
 const APP_URL = process.env.AUTH_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
 
 interface EmailOptions {
@@ -31,7 +31,7 @@ export async function sendEmail({ to, subject, html, text }: EmailOptions) {
 export function welcomeEmail(name: string, companyName: string): string {
   return `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #6366f1;">Welcome to SupportFlow!</h2>
+      <h2 style="color: #6366f1;">Welcome to Convo360!</h2>
       <p>Hi ${name},</p>
       <p>Your account for <strong>${companyName}</strong> has been created successfully.</p>
       <p>You can now log in and start managing your customer support operations.</p>
@@ -40,7 +40,7 @@ export function welcomeEmail(name: string, companyName: string): string {
         Get Started
       </a>
       <hr style="margin: 32px 0; border: none; border-top: 1px solid #e5e7eb;" />
-      <p style="color: #6b7280; font-size: 12px;">SupportFlow – Enterprise Customer Engagement Platform</p>
+      <p style="color: #6b7280; font-size: 12px;">Convo360 – Enterprise Customer Engagement Platform</p>
     </div>
   `;
 }

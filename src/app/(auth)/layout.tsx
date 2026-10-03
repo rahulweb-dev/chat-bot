@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "SupportFlow – Sign In",
+  title: "Convo360 – Sign In",
   description: "Customer engagement platform",
 };
 

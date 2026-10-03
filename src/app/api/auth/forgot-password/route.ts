@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     const { sendEmail } = await import("@/lib/email");
     await sendEmail({
       to: user.email,
-      subject: "SupportFlow: Reset your password",
+      subject: "Convo360: Reset your password",
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #4f46e5;">Reset your password</h2>

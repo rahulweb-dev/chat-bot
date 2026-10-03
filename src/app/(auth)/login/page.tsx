@@ -250,10 +250,8 @@ function LoginInner() {
 
         {/* Logo */}
         <div className="flex items-center gap-3 relative z-10">
-          <div className="w-10 h-10 rounded-xl bg-linear-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-600/40">
-            <MessageSquare className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-white font-bold text-xl tracking-tight">SupportFlow</span>
+          <img src="/app_icon.png" alt="" className="w-10 h-10 rounded-xl shadow-lg shadow-violet-600/40" />
+          <span className="text-white font-bold text-xl tracking-tight">Convo360</span>
         </div>
 
         {/* Hero */}
@@ -298,7 +296,7 @@ function LoginInner() {
               </div>
             </div>
             <p className="text-slate-300 text-xs leading-relaxed">
-              &ldquo;SupportFlow cut our response time by 60%. The AI handles 90% of queries automatically — our team finally focuses on what matters.&rdquo;
+              &ldquo;Convo360 cut our response time by 60%. The AI handles 90% of queries automatically — our team finally focuses on what matters.&rdquo;
             </p>
           </div>
         </motion.div>
@@ -320,10 +318,8 @@ function LoginInner() {
             className="lg:hidden mb-6 text-center"
           >
             <div className="flex items-center justify-center gap-2.5 mb-3">
-              <div className="w-9 h-9 rounded-xl bg-linear-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-md shadow-violet-500/30">
-                <MessageSquare className="w-4 h-4 text-white" />
-              </div>
-              <span className="text-gray-900 font-bold text-lg">SupportFlow</span>
+              <img src="/app_icon.png" alt="" className="w-9 h-9 rounded-xl shadow-md shadow-violet-500/30" />
+              <span className="text-gray-900 font-bold text-lg">Convo360</span>
             </div>
             <p className="text-gray-500 text-sm mb-4">AI-powered customer engagement</p>
             <div className="grid grid-cols-2 gap-2 max-w-[280px] mx-auto">

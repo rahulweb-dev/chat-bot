@@ -8,7 +8,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { MessageSquare, Loader2, User, Mail, Lock, Building2 } from "lucide-react";
+import { Loader2, User, Mail, Lock, Building2 } from "lucide-react";
 import { signIn } from "next-auth/react";
 
 const registerSchema = z.object({
@@ -59,10 +59,8 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-3">
-            <MessageSquare className="w-6 h-6 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">SupportFlow</h1>
+          <img src="/app_icon.png" alt="" className="w-12 h-12 rounded-xl mx-auto mb-3" />
+          <h1 className="text-2xl font-bold text-gray-900">Convo360</h1>
           <p className="text-gray-500 text-sm mt-1">Start your free trial today</p>
         </div>
 

@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const res = await safeFetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; SupportFlowBot/1.0)" },
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; Convo360Bot/1.0)" },
       timeoutMs: 8000,
     });
 

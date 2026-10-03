@@ -233,7 +233,7 @@ export default function ApiKeysPage() {
             >
               <Copy className="h-3 w-3 mr-1" /> Copy
             </Button>
-            <span className="text-gray-500">{"<!-- SupportFlow Widget -->"}</span><br />
+            <span className="text-gray-500">{"<!-- Convo360 Widget -->"}</span><br />
             <span className="text-blue-400">&lt;script&gt;</span><br />
             <span className="pl-4 text-white">{"  window.SupportFlowConfig = {"}</span><br />
             <span className="pl-8"><span className="text-yellow-300">apiKey</span><span className="text-white">: </span><span className="text-green-400">&quot;YOUR_API_KEY&quot;</span><span className="text-white">,</span></span><br />

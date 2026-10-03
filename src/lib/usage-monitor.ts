@@ -67,7 +67,7 @@ export async function checkAndSendUsageAlerts() {
             if (company.email && percentage >= 90) {
               await sendEmail({
                 to: company.email,
-                subject: `SupportFlow: ${label} usage alert for ${company.name}`,
+                subject: `Convo360: ${label} usage alert for ${company.name}`,
                 html: usageAlertEmail(company.name, label, percentage),
               }).catch(console.error);
             }

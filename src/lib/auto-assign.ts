@@ -52,7 +52,7 @@ async function notifyOfflineAgents(companyId: string, conversationId: string, vi
     for (const agent of offlineAgents) {
       sendEmail({
         to: agent.email,
-        subject: `New chat from ${visitor} — SupportFlow`,
+        subject: `New chat from ${visitor} — Convo360`,
         html: `
           <div style="font-family:sans-serif;max-width:520px;margin:0 auto">
             <h2 style="color:#6366f1">New Chat Waiting 💬</h2>
@@ -62,7 +62,7 @@ async function notifyOfflineAgents(companyId: string, conversationId: string, vi
                style="display:inline-block;background:#6366f1;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;margin-top:12px">
               View Conversation →
             </a>
-            <p style="color:#9ca3af;font-size:12px;margin-top:24px">SupportFlow · Conversation #${conversationId.slice(-6)}</p>
+            <p style="color:#9ca3af;font-size:12px;margin-top:24px">Convo360 · Conversation #${conversationId.slice(-6)}</p>
           </div>`,
       }).catch(() => {});
     }

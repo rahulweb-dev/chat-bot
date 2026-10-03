@@ -42,8 +42,8 @@ export async function POST(request: NextRequest) {
 
   await sendEmail({
     to: invite.email,
-    subject: `Welcome to ${company?.name ?? "SupportFlow"}!`,
-    html: welcomeEmail(invite.name, company?.name ?? "SupportFlow"),
+    subject: `Welcome to ${company?.name ?? "Convo360"}!`,
+    html: welcomeEmail(invite.name, company?.name ?? "Convo360"),
   }).catch(() => {});
 
   return apiSuccess({ userId: user._id, email: user.email }, "Account created successfully", 201);

@@ -12,7 +12,7 @@ export default function AdminSettingsPage() {
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Platform Settings</h1>
-        <p className="text-muted-foreground">Global configuration for the SupportFlow platform</p>
+        <p className="text-muted-foreground">Global configuration for the Convo360 platform</p>
       </div>
 
       <Card>
@@ -27,7 +27,7 @@ export default function AdminSettingsPage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Platform Name</Label>
-              <Input defaultValue="SupportFlow" />
+              <Input defaultValue="Convo360" />
             </div>
             <div className="space-y-2">
               <Label>Support Email</Label>

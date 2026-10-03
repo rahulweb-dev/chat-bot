@@ -445,7 +445,7 @@ export default function SettingsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Switch id="showBranding" name="showBranding" defaultChecked={s.widget?.showBranding !== false} />
-                  <Label htmlFor="showBranding">Show &quot;Powered by SupportFlow&quot;</Label>
+                  <Label htmlFor="showBranding">Show &quot;Powered by Convo360&quot;</Label>
                 </div>
                 <Button type="submit" disabled={saving}>
                   {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}

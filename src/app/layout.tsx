@@ -7,11 +7,11 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: {
-    default: "SupportFlow - Enterprise Customer Engagement Platform",
-    template: "%s | SupportFlow",
+    default: "Convo360 - Enterprise Customer Engagement Platform",
+    template: "%s | Convo360",
   },
   description: "Enterprise-grade live chat, helpdesk, and CRM platform for modern businesses",
-  icons: { icon: "/favicon.ico" },
+  icons: { icon: "/app_icon.png" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

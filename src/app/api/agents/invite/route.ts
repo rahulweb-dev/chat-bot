@@ -37,14 +37,14 @@ export async function POST(request: NextRequest) {
 
   await sendEmail({
     to: email,
-    subject: `You've been invited to join ${company.name} on SupportFlow`,
+    subject: `You've been invited to join ${company.name} on Convo360`,
     html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px">
       <div style="background:#6366f1;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px">
         <h1 style="color:white;margin:0;font-size:24px">You're Invited! 🎉</h1>
       </div>
       <p style="font-size:16px;color:#374151">Hi <strong>${name}</strong>,</p>
       <p style="color:#6b7280">
-        <strong>${company.name}</strong> has invited you to join their support team on SupportFlow as a <strong>${role}</strong>.
+        <strong>${company.name}</strong> has invited you to join their support team on Convo360 as a <strong>${role}</strong>.
       </p>
       <div style="background:#f9fafb;border-radius:8px;padding:16px;margin:24px 0;border:1px solid #e5e7eb">
         <p style="margin:0;font-size:13px;color:#6b7280">This invite link expires in <strong>48 hours</strong>.</p>

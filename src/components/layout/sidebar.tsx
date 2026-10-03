@@ -135,9 +135,10 @@ export function Sidebar() {
         <div className="flex items-center justify-between px-1.5 pb-6">
           <Link
             href={isSuperAdmin ? "/admin" : "/dashboard"}
-            className="font-display font-bold text-[21px] tracking-tight text-[#15140F]"
+            className="flex items-center gap-2 font-display font-bold text-[21px] tracking-tight text-[#15140F]"
           >
-            SupportFlow
+            <img src="/app_icon.png" alt="" className="w-6 h-6 rounded-md" />
+            Convo360
           </Link>
           <button
             type="button"

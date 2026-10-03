@@ -73,7 +73,7 @@ async function processKnowledgeBase(kbId: string) {
 
     if (kb.type === "URL" && kb.sourceUrl) {
       const response = await safeFetch(kb.sourceUrl, {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; SupportFlowBot/1.0)" },
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; Convo360Bot/1.0)" },
         timeoutMs: 15000,
       });
       const html = await response.text();

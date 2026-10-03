@@ -980,7 +980,7 @@ function RealtimeTab() {
 
   const steps = [
     { title: "Create a free Pusher account", desc: "Go to pusher.com, sign up for free. The free plan gives you 200 concurrent connections and 200,000 messages per day — enough for most businesses.", action: { label: "Open Pusher.com", href: "https://pusher.com" } },
-    { title: "Create a new Channels app", desc: 'In the Pusher dashboard, click "Create app". Choose any name (e.g. "SupportFlow"), select your nearest cluster (e.g. ap2 for Asia Pacific), and click Create.', action: null },
+    { title: "Create a new Channels app", desc: 'In the Pusher dashboard, click "Create app". Choose any name (e.g. "Convo360"), select your nearest cluster (e.g. ap2 for Asia Pacific), and click Create.', action: null },
     { title: "Copy your App Keys", desc: "Go to App Keys tab in your new Pusher app. You will see: App ID, Key, Secret, and Cluster. Copy all four.", action: null },
     { title: "Add keys to your .env.local file", desc: "Open your .env.local file and fill in the four Pusher values below. Then restart your server.", action: null },
     { title: "Restart the server", desc: "Stop and restart your Next.js server (npm run dev or your production process manager). The widget will automatically pick up Pusher — no changes to your embed snippet needed.", action: null },
@@ -2106,7 +2106,7 @@ function ChatbotFlowPreview({ color, theme, companyName, logo, triggerMessage }:
       </div>
 
       <div style={{ textAlign: "center", fontSize: 10, color: MUTED, padding: "4px 0 6px" }}>
-        Powered by <span style={{ color }}>SupportFlow</span>
+        Powered by <span style={{ color }}>Convo360</span>
       </div>
 
       <style>{`
@@ -2216,7 +2216,7 @@ function ChatbotPageInner() {
   const widgetKey = selectedKey?.key || "YOUR_API_KEY";
   const appUrl    = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "");
 
-  const snippetCode = `<!-- SupportFlow Widget -->
+  const snippetCode = `<!-- Convo360 Widget -->
 <script>
   window.SupportFlowConfig = {
     apiKey: "${widgetKey}",
