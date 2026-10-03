@@ -50,6 +50,11 @@ async function patchConfig(body: Partial<Config>): Promise<{ success: true; data
   return { success: true, data: d.data };
 }
 
+const TAB_TRIGGER_CLASS =
+  "text-xs rounded-full px-3.5 py-2 font-medium text-[#716F66] transition-colors " +
+  "data-[state=active]:bg-[#15140F] data-[state=active]:text-white data-[state=active]:shadow-none " +
+  "data-[state=inactive]:hover:bg-[#F3F2EE] data-[state=inactive]:hover:text-[#15140F]";
+
 // ── Step banner ────────────────────────────────────────────────────────────────
 function StepBanner({ n, of, title, children }: { n: number; of: number; title: string; children: React.ReactNode }) {
   return (
@@ -2193,30 +2198,30 @@ function ChatbotPageInner() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
-          <Bot className="w-5 h-5 text-indigo-600" />
+        <div className="w-10 h-10 bg-[#F3F2EE] rounded-xl flex items-center justify-center">
+          <Bot className="w-5 h-5 text-[#15140F]" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold">Your Chatbot</h1>
-          <p className="text-sm text-gray-500">Set up the welcome message, FAQs, training rules, appearance and install code — all in one place</p>
+          <h1 className="font-display text-2xl font-semibold text-[#15140F]">Your Chatbot</h1>
+          <p className="text-sm text-[#9A988D]">Set up the welcome message, FAQs, training rules, appearance and install code — all in one place</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
         <div className="xl:col-span-3 space-y-4">
           <Tabs value={tab} onValueChange={setTab}>
-            <TabsList className="flex flex-wrap gap-1 h-auto w-full justify-start bg-gray-100 p-1">
-              <TabsTrigger value="overview"   className="text-xs"><Sparkles className="w-3.5 h-3.5 mr-1" />Overview</TabsTrigger>
-              <TabsTrigger value="welcome"    className="text-xs"><MessageSquare className="w-3.5 h-3.5 mr-1" />Welcome Message</TabsTrigger>
-              <TabsTrigger value="flow"       className="text-xs"><GitBranch className="w-3.5 h-3.5 mr-1" />Menu Flow</TabsTrigger>
-              <TabsTrigger value="faqs"       className="text-xs"><HelpCircle className="w-3.5 h-3.5 mr-1" />FAQs</TabsTrigger>
-              <TabsTrigger value="training"   className="text-xs"><Brain className="w-3.5 h-3.5 mr-1" />Training</TabsTrigger>
-              <TabsTrigger value="catalog"    className="text-xs"><Tag className="w-3.5 h-3.5 mr-1" />Catalog</TabsTrigger>
-              <TabsTrigger value="appearance" className="text-xs"><Palette className="w-3.5 h-3.5 mr-1" />Appearance</TabsTrigger>
-              <TabsTrigger value="install"    className="text-xs"><Code className="w-3.5 h-3.5 mr-1" />Install Code</TabsTrigger>
-              <TabsTrigger value="hours"      className="text-xs"><Clock className="w-3.5 h-3.5 mr-1" />Hours</TabsTrigger>
-              <TabsTrigger value="canned"     className="text-xs"><Reply className="w-3.5 h-3.5 mr-1" />Canned</TabsTrigger>
-              <TabsTrigger value="realtime"   className="text-xs"><Zap className="w-3.5 h-3.5 mr-1" />Live Chat Setup</TabsTrigger>
+            <TabsList className="flex flex-wrap gap-1.5 h-auto w-full justify-start bg-transparent p-0 border-b border-[#ECEBE6] pb-3 rounded-none">
+              <TabsTrigger value="overview"   className={TAB_TRIGGER_CLASS}><Sparkles className="w-3.5 h-3.5 mr-1.5" />Overview</TabsTrigger>
+              <TabsTrigger value="welcome"    className={TAB_TRIGGER_CLASS}><MessageSquare className="w-3.5 h-3.5 mr-1.5" />Welcome Message</TabsTrigger>
+              <TabsTrigger value="flow"       className={TAB_TRIGGER_CLASS}><GitBranch className="w-3.5 h-3.5 mr-1.5" />Menu Flow</TabsTrigger>
+              <TabsTrigger value="faqs"       className={TAB_TRIGGER_CLASS}><HelpCircle className="w-3.5 h-3.5 mr-1.5" />FAQs</TabsTrigger>
+              <TabsTrigger value="training"   className={TAB_TRIGGER_CLASS}><Brain className="w-3.5 h-3.5 mr-1.5" />Training</TabsTrigger>
+              <TabsTrigger value="catalog"    className={TAB_TRIGGER_CLASS}><Tag className="w-3.5 h-3.5 mr-1.5" />Catalog</TabsTrigger>
+              <TabsTrigger value="appearance" className={TAB_TRIGGER_CLASS}><Palette className="w-3.5 h-3.5 mr-1.5" />Appearance</TabsTrigger>
+              <TabsTrigger value="install"    className={TAB_TRIGGER_CLASS}><Code className="w-3.5 h-3.5 mr-1.5" />Install Code</TabsTrigger>
+              <TabsTrigger value="hours"      className={TAB_TRIGGER_CLASS}><Clock className="w-3.5 h-3.5 mr-1.5" />Hours</TabsTrigger>
+              <TabsTrigger value="canned"     className={TAB_TRIGGER_CLASS}><Reply className="w-3.5 h-3.5 mr-1.5" />Canned</TabsTrigger>
+              <TabsTrigger value="realtime"   className={TAB_TRIGGER_CLASS}><Zap className="w-3.5 h-3.5 mr-1.5" />Live Chat Setup</TabsTrigger>
             </TabsList>
 
             {/* Overview */}

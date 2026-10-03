@@ -70,7 +70,7 @@ function FlowCanvasInner(props: FlowCanvasProps) {
   }, [props.updateFlow, props.updateStep]);
 
   return (
-    <div className="flex h-[640px] rounded-2xl border border-[#ECEBE6] overflow-hidden bg-[#FAFAF8]">
+    <div className="flex h-[calc(100vh-260px)] min-h-[600px] max-h-[900px] rounded-2xl border border-[#ECEBE6] overflow-hidden bg-[#FAFAF8]">
       <div className="flex-1 min-w-0">
         <ReactFlow
           nodes={nodes}
