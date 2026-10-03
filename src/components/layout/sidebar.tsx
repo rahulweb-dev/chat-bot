@@ -1,16 +1,14 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import {
   MessageSquare, TicketIcon, Users, Building2, BarChart3,
   Settings, Bell, Key, Bot, Workflow, CreditCard,
   LayoutDashboard, BookOpen, Tag, Globe, Shield,
-  Inbox, MessageCircle, Trophy, Mail, X,
+  Inbox, MessageCircle, Trophy, Mail, X, LogOut,
 } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { getInitials } from "@/lib/utils";
 import { useUIStore } from "@/store/ui-store";
 
@@ -79,7 +77,6 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "API Keys",       href: "/dashboard/api-keys",       icon: Key,       roles: ["COMPANY_ADMIN"] },
       { label: "Audit Logs",     href: "/dashboard/audit-logs",     icon: Shield,    roles: ["COMPANY_ADMIN"] },
       { label: "Notifications",  href: "/dashboard/notifications",  icon: Bell },
-      { label: "Settings",       href: "/dashboard/settings",       icon: Settings },
     ],
   },
 ];
@@ -102,17 +99,10 @@ const SUPER_ADMIN_GROUPS: NavGroup[] = [
     label: "System",
     items: [
       { label: "Audit Logs", href: "/admin/audit-logs", icon: Shield },
-      { label: "Settings",   href: "/admin/settings",   icon: Settings },
     ],
   },
 ];
 
-// Icon-only "pill" rail — the design this replaced showed full text labels with
-// an expand/collapse toggle; this one never shows labels at all (matching the
-// floating-card reference), so every item leans on title/aria-label instead of
-// visible text. That's a real accessibility trade-off for touch users (no
-// hover to reveal a tooltip) — acceptable here because it mirrors the chosen
-// reference design, but worth knowing if mobile nav usability ever comes up.
 export function Sidebar() {
   const { data: session } = useSession();
   const pathname = usePathname();
@@ -121,97 +111,136 @@ export function Sidebar() {
   const isSuperAdmin = session?.user?.role === "SUPER_ADMIN";
   const groups = isSuperAdmin ? SUPER_ADMIN_GROUPS : NAV_GROUPS;
   const userRole = session?.user?.role || "";
+  const settingsHref = isSuperAdmin ? "/admin/settings" : "/dashboard/settings";
 
   return (
     <>
       {/* Mobile backdrop — dismisses the drawer, never rendered/needed at lg+ */}
       {mobileNavOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
           onClick={closeMobileNav}
           aria-hidden="true"
         />
       )}
       <aside className={cn(
-        "h-full shrink-0 transition-transform duration-300 flex items-center py-3",
+        "h-full shrink-0 transition-transform duration-300 flex flex-col",
+        "w-[236px] bg-white border-r border-[#ECEBE6] py-6 px-4.5",
         // Mobile: fixed off-canvas drawer, slides in over content
-        "fixed inset-y-0 left-0 z-50 w-24 px-3",
+        "fixed inset-y-0 left-0 z-50",
         mobileNavOpen ? "translate-x-0" : "-translate-x-full",
         // Desktop: back in normal flow, never translated
-        "lg:relative lg:z-auto lg:translate-x-0 lg:w-24 lg:px-3 lg:py-4"
+        "lg:relative lg:z-auto lg:translate-x-0"
       )}>
-        <div className="relative w-16 h-full max-h-full rounded-[28px] bg-gradient-to-b from-indigo-500 to-indigo-700 shadow-lg shadow-indigo-900/20 flex flex-col items-center py-4 mx-auto">
-          {/* Mobile close */}
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Close menu"
-            className="lg:hidden absolute -right-9 top-0 h-8 w-8 text-white/80 hover:text-white hover:bg-white/10"
-            onClick={closeMobileNav}
-          >
-            <X className="w-4 h-4" />
-          </Button>
-
-          {/* Brand mark */}
+        <div className="flex items-center justify-between px-1.5 pb-6">
           <Link
             href={isSuperAdmin ? "/admin" : "/dashboard"}
-            aria-label="SupportFlow home"
-            className="w-10 h-10 rounded-xl bg-white/15 hover:bg-white/25 transition-colors flex items-center justify-center shrink-0 mb-4"
+            className="font-display font-bold text-[21px] tracking-tight text-[#15140F]"
           >
-            <MessageSquare className="w-4.5 h-4.5 text-white" />
+            SupportFlow
           </Link>
+          <button
+            type="button"
+            aria-label="Close menu"
+            className="lg:hidden text-[#9A988D] hover:text-[#15140F]"
+            onClick={closeMobileNav}
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
-          <nav className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center gap-1.5 w-full [&::-webkit-scrollbar]:hidden">
-            {groups.map((group, gi) => {
-              const visible = group.items.filter(item => !item.roles || item.roles.includes(userRole));
-              if (!visible.length) return null;
+        <nav className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4 [&::-webkit-scrollbar]:hidden">
+          {groups.map((group, gi) => {
+            const visible = group.items.filter(item => !item.roles || item.roles.includes(userRole));
+            if (!visible.length) return null;
 
-              return (
-                <div key={gi} className="flex flex-col items-center gap-1.5 w-full">
-                  {gi > 0 && <div className="w-6 h-px bg-white/15 my-1" />}
-                  {visible.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = pathname === item.href
-                      || (item.href !== "/dashboard" && item.href !== "/admin" && pathname.startsWith(item.href));
+            return (
+              <div key={gi} className="flex flex-col gap-0.5">
+                {group.label && (
+                  <p className="px-3 pb-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[#B3B1A6]">
+                    {group.label}
+                  </p>
+                )}
+                {visible.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = pathname === item.href
+                    || (item.href !== "/dashboard" && item.href !== "/admin" && pathname.startsWith(item.href));
 
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        title={item.label}
-                        aria-label={item.label}
-                        onClick={closeMobileNav}
-                        className={cn(
-                          "relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors shrink-0",
-                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
-                          isActive ? "bg-white text-indigo-600 shadow-sm" : "text-white/70 hover:text-white hover:bg-white/15"
-                        )}
-                      >
-                        <Icon className="w-4.5 h-4.5" />
-                        {item.badge && (
-                          <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-indigo-600" />
-                        )}
-                      </Link>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </nav>
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={closeMobileNav}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px] font-medium transition-colors shrink-0",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15140F]/30",
+                        isActive ? "bg-[#15140F] text-white font-semibold" : "text-[#716F66] hover:bg-[#F3F2EE] hover:text-[#15140F]"
+                      )}
+                    >
+                      <Icon className="w-[18px] h-[18px] shrink-0" />
+                      <span className="flex-1">{item.label}</span>
+                      {item.badge && (
+                        <span className={cn(
+                          "text-[10px] font-bold px-1.5 py-0.5 rounded-full",
+                          isActive ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-600"
+                        )}>
+                          {item.badge}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </nav>
 
-          {/* Profile */}
+        {!isSuperAdmin && (
+          <div className="mt-5 bg-[#15140F] rounded-[18px] p-4.5 text-white">
+            <p className="font-display font-bold text-[14px] m-0">Upgrade to Pro</p>
+            <p className="mt-1.5 mb-3.5 text-[12px] leading-relaxed text-white/65">
+              Unlock unlimited agents, AI fallback and advanced analytics.
+            </p>
+            <Link
+              href="/dashboard/billing"
+              className="block w-full text-center bg-white text-[#15140F] rounded-[10px] py-2.5 text-[13px] font-bold"
+            >
+              Upgrade
+            </Link>
+          </div>
+        )}
+
+        <div className="mt-4 pt-3.5 border-t border-[#ECEBE6] flex flex-col gap-0.5">
+          <Link
+            href={settingsHref}
+            onClick={closeMobileNav}
+            className="flex items-center gap-3 px-3 py-2 rounded-xl text-[13.5px] font-medium text-[#716F66] hover:bg-[#F3F2EE] hover:text-[#15140F] transition-colors"
+          >
+            <Settings className="w-[17px] h-[17px]" />
+            Settings
+          </Link>
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="flex items-center gap-3 px-3 py-2 rounded-xl text-[13.5px] font-medium text-[#716F66] hover:bg-[#F3F2EE] hover:text-[#15140F] transition-colors text-left"
+          >
+            <LogOut className="w-[17px] h-[17px]" />
+            Log out
+          </button>
           <Link
             href="/dashboard/profile"
-            aria-label="My profile"
-            title={session?.user?.name || "Profile"}
-            className="shrink-0 mt-3"
+            onClick={closeMobileNav}
+            className="flex items-center gap-2.5 mt-2.5 px-3 py-2 rounded-xl hover:bg-[#F3F2EE] transition-colors"
           >
-            <Avatar className="w-10 h-10 ring-2 ring-white/30 hover:ring-white/60 transition-all">
-              <AvatarImage src={session?.user?.image || ""} alt={session?.user?.name || "User avatar"} />
-              <AvatarFallback className="bg-white/20 text-white text-xs font-bold">
-                {getInitials(session?.user?.name || "U")}
-              </AvatarFallback>
-            </Avatar>
+            <div className="w-8 h-8 rounded-full bg-[#15140F] text-white flex items-center justify-center text-[11px] font-bold shrink-0 overflow-hidden">
+              {session?.user?.image
+                ? <img src={session.user.image} alt="" className="w-full h-full object-cover" />
+                : getInitials(session?.user?.name || "U")}
+            </div>
+            <div className="min-w-0">
+              <p className="text-[13px] font-semibold text-[#15140F] truncate">{session?.user?.name || "Account"}</p>
+              <p className="text-[11px] text-[#9A988D] truncate">{session?.user?.email}</p>
+            </div>
           </Link>
         </div>
       </aside>

@@ -107,3 +107,5 @@
 
 .animate-slide-in-right { animation: slide-in-right 0.3s ease-out; }
 .animate-fade-in { animation: fade-in 0.2s ease-out; }
+
+.font-display { font-family: var(--font-fraunces), "Georgia", serif; }

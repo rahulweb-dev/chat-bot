@@ -96,7 +96,7 @@ function GlobalSearch() {
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           onKeyDown={(e) => { if (e.key === "Escape") { setOpen(false); inputRef.current?.blur(); } }}
           placeholder="Search conversations, tickets, leads…"
-          className="w-full h-9 pl-9 pr-16 bg-muted border border-input rounded-xl text-sm text-foreground placeholder-muted-foreground outline-none focus:bg-background focus:border-ring focus:ring-2 focus:ring-ring/20 transition-all"
+          className="w-full h-9 pl-9 pr-16 bg-[#F3F2EE] border border-[#ECEBE6] rounded-full text-sm text-foreground placeholder-muted-foreground outline-none focus:bg-white focus:border-[#15140F]/30 focus:ring-2 focus:ring-[#15140F]/10 transition-all"
         />
         <div className="absolute right-3 flex items-center gap-0.5 pointer-events-none select-none">
           {isFetching ? (
@@ -192,7 +192,7 @@ export function Header() {
   const unreadCount = notifData?.unreadCount || 0;
 
   return (
-    <header className="h-16 border-b border-border bg-background flex items-center gap-4 px-4 sm:px-6 shrink-0">
+    <header className="h-16 border-b border-[#ECEBE6] bg-white flex items-center gap-4 px-4 sm:px-6 shrink-0">
       {/* Mobile nav toggle */}
       <Button
         variant="ghost"
@@ -206,12 +206,12 @@ export function Header() {
 
       {/* Page title */}
       <div className="shrink-0 min-w-0">
-        <h1 className="text-[15px] font-semibold text-foreground leading-none">{pageTitle}</h1>
-        <p className="text-[11px] text-muted-foreground mt-0.5 hidden sm:block">{today}</p>
+        <h1 className="font-display text-[18px] font-semibold text-[#15140F] leading-none">{pageTitle}</h1>
+        <p className="text-[11px] text-[#9A988D] mt-1 hidden sm:block">{today}</p>
       </div>
 
       {/* Divider */}
-      <div className="hidden sm:block w-px h-6 bg-border shrink-0" />
+      <div className="hidden sm:block w-px h-6 bg-[#ECEBE6] shrink-0" />
 
       {/* Search */}
       <GlobalSearch />
@@ -227,11 +227,11 @@ export function Header() {
             variant="ghost"
             size="icon"
             aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
-            className="relative h-9 w-9 rounded-xl text-muted-foreground hover:text-foreground"
+            className="relative h-9 w-9 rounded-full border border-[#ECEBE6] bg-white text-[#454337] hover:bg-[#F3F2EE] hover:text-[#15140F]"
           >
             <Bell className="w-4 h-4" />
             {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 text-[9px] font-bold flex items-center justify-center bg-red-500 text-white rounded-full border-2 border-background px-0.5">
+              <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 text-[9px] font-bold flex items-center justify-center bg-red-500 text-white rounded-full border-2 border-white px-0.5">
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
@@ -241,10 +241,10 @@ export function Header() {
         {/* User menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="flex items-center gap-2 h-9 pl-2 pr-2.5 rounded-xl">
-              <Avatar className="w-7 h-7 ring-2 ring-indigo-100 shrink-0">
+            <Button variant="ghost" className="flex items-center gap-2 h-9 pl-2 pr-2.5 rounded-full">
+              <Avatar className="w-7 h-7 ring-2 ring-[#ECEBE6] shrink-0">
                 <AvatarImage src={session?.user?.image || ""} alt={session?.user?.name || "User avatar"} />
-                <AvatarFallback className="bg-linear-to-br from-indigo-600 to-violet-600 text-white text-xs font-bold">
+                <AvatarFallback className="bg-[#15140F] text-white text-xs font-bold">
                   {getInitials(session?.user?.name || "U")}
                 </AvatarFallback>
               </Avatar>

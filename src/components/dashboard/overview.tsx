@@ -21,44 +21,35 @@ import { StatCardsSkeleton, ChartSkeleton, ListRowsSkeleton } from "@/components
 
 interface OverviewProps { role: string }
 
-// Progress ring for the setup checklist — a real percentage (setupSteps
-// completed / total), just rendered as the circular motif from the floating-
-// card design instead of a linear bar, to match the rest of the shell.
+// Setup-checklist progress ring — a real percentage (setupSteps completed /
+// total), drawn as the circular motif from the Skillset-inspired shell.
 function ProgressRing({ percent, size = 46, stroke = 5 }: { percent: number; size?: number; stroke?: number }) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90 shrink-0">
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#EEEDF5" strokeWidth={stroke} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#ECEBE6" strokeWidth={stroke} />
       <circle
-        cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#5843D9" strokeWidth={stroke}
+        cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#15140F" strokeWidth={stroke}
         strokeDasharray={c} strokeDashoffset={c - (percent / 100) * c} strokeLinecap="round"
       />
     </svg>
   );
 }
 
-// Hero stat card with a decorative wave behind the number — the gradient
-// "channel snapshot" card treatment from the floating-card design, applied to
-// this dashboard's own live numbers instead of borrowing unrelated content.
-function HeroStat({
-  label, value, sublabel, gradient, waveOpacity = 0.5, href,
-}: {
-  label: string; value: string | number; sublabel: string; gradient: string; waveOpacity?: number; href?: string | null;
-}) {
-  const content = (
-    <div className="relative overflow-hidden rounded-2xl p-4 h-[104px]" style={{ background: gradient }}>
-      <svg width="100%" height="104" viewBox="0 0 200 104" preserveAspectRatio="none" className="absolute inset-0" style={{ opacity: waveOpacity }}>
-        <path d="M0 80 Q50 55 100 75 T200 60 V104 H0 Z" fill="rgba(255,255,255,.18)" />
-      </svg>
-      <div className="relative">
-        <span className="text-[10px] font-bold text-white/80 tracking-widest uppercase">{label}</span>
-        <p className="text-xl font-bold text-white mt-4 tabular-nums leading-none">{value}</p>
-        <p className="text-[11px] text-white/75 mt-1.5">{sublabel}</p>
-      </div>
-    </div>
-  );
-  return href ? <Link href={href}>{content}</Link> : content;
+// A lead's customFields carries whatever a custom chatbot flow collected
+// (saveAs per step) plus the already-promoted name/phone/email/score/type
+// keys — pull out the first genuinely extra answer so "what they enquired
+// about" shows up here too, same as the dedicated Leads page.
+const REDUNDANT_FIELD_KEYS = new Set(["name", "phone", "email", "score", "type"]);
+function firstEnquiry(customFields?: Record<string, unknown>): string | null {
+  if (!customFields) return null;
+  for (const [key, value] of Object.entries(customFields)) {
+    if (!REDUNDANT_FIELD_KEYS.has(key) && value !== undefined && value !== null && value !== "") {
+      return String(value);
+    }
+  }
+  return null;
 }
 
 export function DashboardOverview({ role }: OverviewProps) {
@@ -164,10 +155,10 @@ export function DashboardOverview({ role }: OverviewProps) {
       {/* ── Welcome ─────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-[#1E1B3A]">
-            {greet()}, {session?.user?.name?.split(" ")[0] ?? "there"} 👋
+          <h1 className="font-display text-2xl font-semibold text-[#15140F]">
+            {greet()}, {session?.user?.name?.split(" ")[0] ?? "there"}
           </h1>
-          <p className="text-[#9A96B0] text-sm mt-1">
+          <p className="text-[#9A988D] text-sm mt-1.5">
             {allDone
               ? "Your chatbot is live and generating leads. Here's today's overview."
               : `Complete setup to get your chatbot running — ${setupDone} of ${setupSteps.length} steps done.`}
@@ -175,12 +166,12 @@ export function DashboardOverview({ role }: OverviewProps) {
         </div>
         {role !== "AGENT" && (
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" className="h-9 border-[#EEEDF5]" asChild>
+            <Button size="sm" variant="outline" className="h-9 border-[#ECEBE6] rounded-full" asChild>
               <Link href="/dashboard/conversations">
                 <Inbox className="w-3.5 h-3.5 mr-1.5" /> Inbox
               </Link>
             </Button>
-            <Button size="sm" className="h-9 bg-[#5843D9] hover:bg-[#4735BD] shadow-sm shadow-indigo-200" asChild>
+            <Button size="sm" className="h-9 bg-[#15140F] hover:bg-[#2A281F] rounded-full" asChild>
               <Link href="/dashboard/chatbot?tab=install">
                 <Code2 className="w-3.5 h-3.5 mr-1.5" /> Install Widget
               </Link>
@@ -189,40 +180,42 @@ export function DashboardOverview({ role }: OverviewProps) {
         )}
       </div>
 
-      {/* ── Live Stats — hero gradient cards + compact chips ──────────── */}
+      {/* ── Live Stats — dark hero card + 3 compact cards ──────────────── */}
       {liveStatsLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-[104px] rounded-2xl" />
+            <Skeleton key={i} className="h-[108px] rounded-[22px]" />
           ))}
         </div>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <HeroStat
-            label="Active Chats" value={liveStats?.totalActive ?? "—"} sublabel="Live right now"
-            gradient="linear-gradient(135deg,#1FA8A0,#0E7A76)" href="/dashboard/conversations"
-          />
-          <HeroStat
-            label="Resolved Today" value={liveStats?.resolvedToday ?? "—"} sublabel="Closed out today"
-            gradient="linear-gradient(135deg,#5843D9,#3A2C9E)"
-          />
-          <div className="rounded-2xl bg-[#F7F7FB] p-4 h-[104px] flex flex-col justify-center">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shrink-0">
-                <Users className="w-3.5 h-3.5 text-[#5843D9]" />
-              </div>
-              <span className="text-[10px] font-semibold text-[#9A96B0] uppercase tracking-wide">Online Agents</span>
-            </div>
-            <p className="text-xl font-bold text-[#1E1B3A] tabular-nums">{liveStats?.onlineAgents ?? "—"}</p>
+          <Link href="/dashboard/conversations" className="block rounded-[22px] bg-[#15140F] p-5 h-[108px]">
+            <p className="text-[13px] text-white/60">Active Chats</p>
+            <p className="font-display text-[28px] font-bold text-white mt-2 tabular-nums leading-none">{liveStats?.totalActive ?? "—"}</p>
+            <p className="text-[11px] text-white/45 mt-1.5">Live right now</p>
+          </Link>
+          <div className="rounded-[22px] bg-white p-5 h-[108px]">
+            <p className="text-[13px] text-[#9A988D]">Resolved Today</p>
+            <p className="font-display text-[28px] font-bold text-[#15140F] mt-2 tabular-nums leading-none">{liveStats?.resolvedToday ?? "—"}</p>
+            <p className="text-[11px] text-[#B3B1A6] mt-1.5">Closed out today</p>
           </div>
-          <div className="rounded-2xl bg-[#F7F7FB] p-4 h-[104px] flex flex-col justify-center">
+          <div className="rounded-[22px] bg-white p-5 h-[108px] flex flex-col justify-center">
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shrink-0">
-                <Timer className="w-3.5 h-3.5 text-[#F2A93B]" />
+              <div className="w-7 h-7 rounded-lg bg-[#F3F2EE] flex items-center justify-center shrink-0">
+                <Users className="w-3.5 h-3.5 text-[#15140F]" />
               </div>
-              <span className="text-[10px] font-semibold text-[#9A96B0] uppercase tracking-wide">Avg Wait</span>
+              <span className="text-[11px] font-semibold text-[#9A988D]">Online Agents</span>
             </div>
-            <p className="text-xl font-bold text-[#1E1B3A] tabular-nums">{liveStats ? `${liveStats.avgWaitMinutes}m` : "—"}</p>
+            <p className="font-display text-xl font-bold text-[#15140F] tabular-nums">{liveStats?.onlineAgents ?? "—"}</p>
+          </div>
+          <div className="rounded-[22px] bg-white p-5 h-[108px] flex flex-col justify-center">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-7 h-7 rounded-lg bg-[#F3F2EE] flex items-center justify-center shrink-0">
+                <Timer className="w-3.5 h-3.5 text-[#15140F]" />
+              </div>
+              <span className="text-[11px] font-semibold text-[#9A988D]">Avg Wait</span>
+            </div>
+            <p className="font-display text-xl font-bold text-[#15140F] tabular-nums">{liveStats ? `${liveStats.avgWaitMinutes}m` : "—"}</p>
           </div>
         </div>
       )}
@@ -233,22 +226,22 @@ export function DashboardOverview({ role }: OverviewProps) {
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: "Chats Today",       value: todayChats,   icon: MessageSquare, color: "text-[#5843D9]", bg: "bg-[#F0EEFC]",  href: "/dashboard/conversations" },
-            { label: "Leads Captured",    value: todayLeads,   icon: Tag,           color: "text-[#2FBF9F]", bg: "bg-[#E8F8F5]",  href: "/dashboard/leads"         },
-            { label: "Open Tickets",      value: todayTickets, icon: TicketIcon,    color: "text-[#F2A93B]", bg: "bg-[#FCEFE0]",  href: "/dashboard/tickets"       },
-            { label: "Avg Response Time", value: `${overview?.avgResponseTime ?? 0}m`, icon: Clock, color: "text-[#E0577C]", bg: "bg-[#FCE9EF]", href: null },
-          ].map(({ label, value, icon: Icon, color, bg, href }) => (
-            <Card key={label} className="border-0 shadow-none bg-[#F7F7FB] rounded-2xl group">
+            { label: "Chats Today",       value: todayChats,   icon: MessageSquare, href: "/dashboard/conversations" },
+            { label: "Leads Captured",    value: todayLeads,   icon: Tag,           href: "/dashboard/leads"         },
+            { label: "Open Tickets",      value: todayTickets, icon: TicketIcon,    href: "/dashboard/tickets"       },
+            { label: "Avg Response Time", value: `${overview?.avgResponseTime ?? 0}m`, icon: Clock, href: null },
+          ].map(({ label, value, icon: Icon, href }) => (
+            <Card key={label} className="border-0 shadow-none bg-white rounded-[22px] group">
               <CardContent className="p-5">
-                <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center mb-3`}>
-                  <Icon className={`w-5 h-5 ${color}`} />
+                <div className="w-10 h-10 rounded-xl bg-[#F3F2EE] flex items-center justify-center mb-3">
+                  <Icon className="w-5 h-5 text-[#15140F]" />
                 </div>
-                <p className="text-3xl font-bold text-[#1E1B3A] tabular-nums">{value}</p>
+                <p className="font-display text-2xl font-bold text-[#15140F] tabular-nums">{value}</p>
                 <div className="flex items-center justify-between mt-1">
-                  <p className="text-sm text-[#9A96B0]">{label}</p>
+                  <p className="text-sm text-[#9A988D]">{label}</p>
                   {href && (
                     <Link href={href} className="opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ArrowUpRight className="w-3.5 h-3.5 text-[#9A96B0]" />
+                      <ArrowUpRight className="w-3.5 h-3.5 text-[#9A988D]" />
                     </Link>
                   )}
                 </div>
@@ -263,16 +256,16 @@ export function DashboardOverview({ role }: OverviewProps) {
 
         {/* Activity Chart */}
         <div className="lg:col-span-2 space-y-5">
-          <Card className="border-0 shadow-none bg-[#F7F7FB] rounded-2xl">
+          <Card className="border-0 shadow-none bg-white rounded-[22px]">
             <CardContent className="p-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="font-semibold text-[#1E1B3A] text-sm">Chat &amp; Lead Activity</p>
-                  <p className="text-xs text-[#9A96B0] mt-0.5">Last 14 days</p>
+                  <p className="font-semibold text-[#15140F] text-sm">Chat &amp; Lead Activity</p>
+                  <p className="text-xs text-[#9A988D] mt-0.5">Last 14 days</p>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-[#9A96B0]">
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-[#5843D9] inline-block rounded" />Chats</span>
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-[#2FBF9F] inline-block rounded" />Leads</span>
+                <div className="flex items-center gap-3 text-xs text-[#9A988D]">
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-[#15140F] inline-block rounded" />Chats</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-[#3B7A4A] inline-block rounded" />Leads</span>
                 </div>
               </div>
               {analyticsLoading ? (
@@ -282,24 +275,24 @@ export function DashboardOverview({ role }: OverviewProps) {
                   <AreaChart data={chartData}>
                     <defs>
                       <linearGradient id="gChats" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#5843D9" stopOpacity={0.15} />
-                        <stop offset="95%" stopColor="#5843D9" stopOpacity={0} />
+                        <stop offset="5%" stopColor="#15140F" stopOpacity={0.12} />
+                        <stop offset="95%" stopColor="#15140F" stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="gLeads" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#2FBF9F" stopOpacity={0.15} />
-                        <stop offset="95%" stopColor="#2FBF9F" stopOpacity={0} />
+                        <stop offset="5%" stopColor="#3B7A4A" stopOpacity={0.15} />
+                        <stop offset="95%" stopColor="#3B7A4A" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#EEEDF5" vertical={false} />
-                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#9A96B0" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 10, fill: "#9A96B0" }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: 12, boxShadow: "0 8px 24px rgba(30,20,70,0.12)" }} />
-                    <Area type="monotone" dataKey="Chats" stroke="#5843D9" fill="url(#gChats)" strokeWidth={2} dot={false} />
-                    <Area type="monotone" dataKey="Leads" stroke="#2FBF9F" fill="url(#gLeads)" strokeWidth={2} dot={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F0EFE9" vertical={false} />
+                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#9A988D" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: "#9A988D" }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: 12, boxShadow: "0 8px 24px rgba(21,20,15,0.12)" }} />
+                    <Area type="monotone" dataKey="Chats" stroke="#15140F" fill="url(#gChats)" strokeWidth={2} dot={false} />
+                    <Area type="monotone" dataKey="Leads" stroke="#3B7A4A" fill="url(#gLeads)" strokeWidth={2} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-50 flex flex-col items-center justify-center text-[#D8D6E8] gap-2">
+                <div className="h-50 flex flex-col items-center justify-center text-[#D9D7CC] gap-2">
                   <TrendingUp className="w-8 h-8" />
                   <p className="text-sm">Activity will appear once chats start</p>
                 </div>
@@ -309,39 +302,44 @@ export function DashboardOverview({ role }: OverviewProps) {
 
           {/* Recent Leads */}
           {role !== "AGENT" && (
-            <Card className="border-0 shadow-none bg-[#F7F7FB] rounded-2xl">
+            <Card className="border-0 shadow-none bg-white rounded-[22px]">
               <CardContent className="p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <p className="font-semibold text-[#1E1B3A] text-sm">Recent Leads</p>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs text-[#5843D9] hover:text-[#4735BD] hover:bg-white px-2" asChild>
+                  <p className="font-semibold text-[#15140F] text-sm">Recent Leads</p>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs text-[#15140F] hover:bg-[#F3F2EE] px-2" asChild>
                     <Link href="/dashboard/leads">View all <ArrowUpRight className="w-3 h-3 ml-1" /></Link>
                   </Button>
                 </div>
                 {recentLeadsLoading ? (
                   <ListRowsSkeleton rows={5} />
                 ) : recentLeads?.length ? (
-                  <div className="space-y-3">
-                    {recentLeads.slice(0, 5).map((lead: { _id: string; name: string; phone?: string; stage: string }) => (
-                      <div key={lead._id} className="flex items-center gap-3 bg-white rounded-xl p-2.5">
-                        <div className="w-9 h-9 rounded-full bg-[#F0EEFC] flex items-center justify-center text-xs font-bold text-[#5843D9] shrink-0">
-                          {lead.name?.charAt(0)?.toUpperCase() ?? "?"}
+                  <div className="space-y-2">
+                    {recentLeads.slice(0, 5).map((lead: { _id: string; name: string; phone?: string; stage: string; customFields?: Record<string, unknown> }) => {
+                      const enquiry = firstEnquiry(lead.customFields);
+                      return (
+                        <div key={lead._id} className="flex items-center gap-3 bg-[#FAFAF8] rounded-xl p-2.5">
+                          <div className="w-9 h-9 rounded-full bg-[#F3F2EE] flex items-center justify-center text-xs font-bold text-[#15140F] shrink-0">
+                            {lead.name?.charAt(0)?.toUpperCase() ?? "?"}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-[#15140F] truncate">{lead.name}</p>
+                            {enquiry ? (
+                              <p className="text-xs text-[#9A988D] truncate mt-0.5">{enquiry}</p>
+                            ) : lead.phone ? (
+                              <p className="text-xs text-[#9A988D] flex items-center gap-1 mt-0.5">
+                                <Phone className="w-2.5 h-2.5" />{lead.phone}
+                              </p>
+                            ) : null}
+                          </div>
+                          <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#15140F] text-white shrink-0">
+                            {lead.stage}
+                          </span>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-[#1E1B3A] truncate">{lead.name}</p>
-                          {lead.phone && (
-                            <p className="text-xs text-[#9A96B0] flex items-center gap-1 mt-0.5">
-                              <Phone className="w-2.5 h-2.5" />{lead.phone}
-                            </p>
-                          )}
-                        </div>
-                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#EEEDF5] text-[#4A4665] shrink-0">
-                          {lead.stage}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
-                  <div className="text-center py-6 text-[#D8D6E8]">
+                  <div className="text-center py-6 text-[#D9D7CC]">
                     <UserPlus className="w-7 h-7 mx-auto mb-2" />
                     <p className="text-sm">Leads captured by the chatbot appear here</p>
                   </div>
@@ -356,30 +354,30 @@ export function DashboardOverview({ role }: OverviewProps) {
 
           {/* Setup Guide */}
           {role !== "AGENT" && !allDone && (
-            <Card className="border-0 shadow-none bg-[#F7F7FB] rounded-2xl">
+            <Card className="border-0 shadow-none bg-white rounded-[22px]">
               <CardContent className="p-5">
                 <div className="flex items-center gap-3 mb-4">
                   <ProgressRing percent={setupPercent} />
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <Zap className="w-3.5 h-3.5 text-[#5843D9]" />
-                      <p className="font-semibold text-[#1E1B3A] text-sm">Getting Started</p>
+                      <Zap className="w-3.5 h-3.5 text-[#15140F]" />
+                      <p className="font-semibold text-[#15140F] text-sm">Getting Started</p>
                     </div>
-                    <p className="text-xs text-[#9A96B0] mt-0.5">{setupDone} of {setupSteps.length} steps · {setupPercent}%</p>
+                    <p className="text-xs text-[#9A988D] mt-0.5">{setupDone} of {setupSteps.length} steps · {setupPercent}%</p>
                   </div>
                 </div>
                 <div className="space-y-2.5">
                   {setupSteps.map((step) => (
                     <div key={step.label} className="flex items-center gap-2.5">
                       {step.done
-                        ? <CheckCircle2 className="w-4 h-4 text-[#2FBF9F] shrink-0" />
-                        : <Circle className="w-4 h-4 text-[#D8D6E8] shrink-0" />}
+                        ? <CheckCircle2 className="w-4 h-4 text-[#3B7A4A] shrink-0" />
+                        : <Circle className="w-4 h-4 text-[#D9D7CC] shrink-0" />}
                       {step.done || !step.link ? (
-                        <span className={`text-sm ${step.done ? "text-[#B0AEC4] line-through" : "text-[#4A4665] font-medium"}`}>
+                        <span className={`text-sm ${step.done ? "text-[#B3B1A6] line-through" : "text-[#454337] font-medium"}`}>
                           {step.label}
                         </span>
                       ) : (
-                        <Link href={step.link} className="text-sm text-[#5843D9] font-medium hover:underline">
+                        <Link href={step.link} className="text-sm text-[#15140F] font-semibold hover:underline">
                           {step.label} →
                         </Link>
                       )}
@@ -392,25 +390,25 @@ export function DashboardOverview({ role }: OverviewProps) {
 
           {/* Widget Embed Code */}
           {role !== "AGENT" && embedSnippet && (
-            <Card className="border-0 shadow-none bg-[#F7F7FB] rounded-2xl">
+            <Card className="border-0 shadow-none bg-white rounded-[22px]">
               <CardContent className="p-5">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <Bot className="w-4 h-4 text-[#5843D9]" />
-                    <p className="font-semibold text-[#1E1B3A] text-sm">Embed Widget</p>
+                    <Bot className="w-4 h-4 text-[#15140F]" />
+                    <p className="font-semibold text-[#15140F] text-sm">Embed Widget</p>
                   </div>
                   <button
                     onClick={copyEmbed}
-                    className="flex items-center gap-1 text-xs font-medium text-[#5843D9] hover:text-[#4735BD] transition-colors"
+                    className="flex items-center gap-1 text-xs font-medium text-[#15140F] hover:opacity-70 transition-opacity"
                   >
                     {copied ? <><CheckCircle2 className="w-3.5 h-3.5" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
                   </button>
                 </div>
-                <pre className="bg-[#1E1B3A] text-[#7EE6C8] text-[10px] leading-relaxed p-3 rounded-xl overflow-x-auto font-mono whitespace-pre-wrap break-all">
+                <pre className="bg-[#15140F] text-[#9FE6B4] text-[10px] leading-relaxed p-3 rounded-xl overflow-x-auto font-mono whitespace-pre-wrap break-all">
                   {embedSnippet}
                 </pre>
-                <p className="text-[11px] text-[#9A96B0] mt-2">
-                  Paste this before <code className="bg-white px-1 rounded">&lt;/body&gt;</code> on your website.
+                <p className="text-[11px] text-[#9A988D] mt-2">
+                  Paste this before <code className="bg-[#F3F2EE] px-1 rounded">&lt;/body&gt;</code> on your website.
                 </p>
               </CardContent>
             </Card>
@@ -418,7 +416,7 @@ export function DashboardOverview({ role }: OverviewProps) {
 
           {/* Usage */}
           {role !== "AGENT" && usageLoading && (
-            <Card className="border-0 shadow-none bg-[#F7F7FB] rounded-2xl">
+            <Card className="border-0 shadow-none bg-white rounded-[22px]">
               <CardContent className="p-5">
                 <Skeleton className="h-3.5 w-24 mb-4" />
                 <ListRowsSkeleton rows={4} withAvatar={false} />
@@ -426,11 +424,11 @@ export function DashboardOverview({ role }: OverviewProps) {
             </Card>
           )}
           {usageData && role !== "AGENT" && (
-            <Card className="border-0 shadow-none bg-[#F7F7FB] rounded-2xl">
+            <Card className="border-0 shadow-none bg-white rounded-[22px]">
               <CardContent className="p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <p className="font-semibold text-[#1E1B3A] text-sm">Plan Usage</p>
-                  <span className="text-xs font-semibold text-[#5843D9] bg-[#F0EEFC] px-2 py-0.5 rounded-full">
+                  <p className="font-semibold text-[#15140F] text-sm">Plan Usage</p>
+                  <span className="text-xs font-semibold text-white bg-[#15140F] px-2.5 py-0.5 rounded-full">
                     {usageData.plan?.name ?? "Free"}
                   </span>
                 </div>
@@ -441,22 +439,22 @@ export function DashboardOverview({ role }: OverviewProps) {
                   }) => (
                     <div key={m.resource}>
                       <div className="flex items-center justify-between text-xs mb-1">
-                        <span className="text-[#4A4665]">{m.label}</span>
-                        <span className="font-medium text-[#1E1B3A]">
+                        <span className="text-[#454337]">{m.label}</span>
+                        <span className="font-medium text-[#15140F]">
                           {m.isUnlimited ? `${m.used} / ∞` : `${m.used} / ${m.limit}`}
                         </span>
                       </div>
                       {!m.isUnlimited && (
                         <Progress
                           value={m.percentage}
-                          className={`h-1.5 bg-white ${m.percentage >= 90 ? "[&>div]:bg-[#E0577C]" : m.percentage >= 70 ? "[&>div]:bg-[#F2A93B]" : "[&>div]:bg-[#5843D9]"}`}
+                          className={`h-1.5 bg-[#F3F2EE] ${m.percentage >= 90 ? "[&>div]:bg-[#C24A3D]" : m.percentage >= 70 ? "[&>div]:bg-[#C99A3B]" : "[&>div]:bg-[#15140F]"}`}
                         />
                       )}
                     </div>
                   ))}
                 </div>
                 <Link href="/dashboard/billing">
-                  <Button size="sm" variant="outline" className="w-full mt-4 h-8 text-xs border-[#EEEDF5] bg-white hover:border-[#5843D9]/30 hover:text-[#5843D9] hover:bg-[#F0EEFC]">
+                  <Button size="sm" variant="outline" className="w-full mt-4 h-8 text-xs border-[#ECEBE6] bg-white hover:bg-[#F3F2EE] rounded-full">
                     Upgrade Plan <ArrowUpRight className="w-3 h-3 ml-1" />
                   </Button>
                 </Link>
@@ -465,9 +463,9 @@ export function DashboardOverview({ role }: OverviewProps) {
           )}
 
           {/* Quick Links */}
-          <Card className="border-0 shadow-none bg-[#F7F7FB] rounded-2xl">
+          <Card className="border-0 shadow-none bg-white rounded-[22px]">
             <CardContent className="p-5">
-              <p className="font-semibold text-[#1E1B3A] text-sm mb-3">Quick Links</p>
+              <p className="font-semibold text-[#15140F] text-sm mb-3">Quick Links</p>
               <div className="space-y-1">
                 {[
                   { label: "Live Inbox",        href: "/dashboard/conversations", icon: Inbox        },
@@ -479,11 +477,11 @@ export function DashboardOverview({ role }: OverviewProps) {
                   <Link
                     key={href}
                     href={href}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-[#4A4665] hover:bg-white hover:text-[#1E1B3A] transition-colors group"
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-[#454337] hover:bg-[#F3F2EE] hover:text-[#15140F] transition-colors group"
                   >
-                    <Icon className="w-4 h-4 text-[#9A96B0] group-hover:text-[#5843D9] transition-colors" />
+                    <Icon className="w-4 h-4 text-[#9A988D] group-hover:text-[#15140F] transition-colors" />
                     {label}
-                    <ArrowUpRight className="w-3 h-3 ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-[#9A96B0]" />
+                    <ArrowUpRight className="w-3 h-3 ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-[#9A988D]" />
                   </Link>
                 ))}
               </div>
