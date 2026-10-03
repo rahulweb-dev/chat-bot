@@ -103,10 +103,11 @@
 
       // Launcher
       "#sf-launch{position:fixed;" + SIDE + ":24px;bottom:24px;z-index:2147483646}" +
-      "#sf-btn{position:relative;width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg," + COLOR + " 0%," + COLOR + "cc 100%);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 32px " + C60 + ";transition:transform .2s,box-shadow .2s}" +
+      "#sf-btn{position:relative;overflow:hidden;width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg," + COLOR + " 0%," + COLOR + "cc 100%);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 32px " + C60 + ";transition:transform .2s,box-shadow .2s}" +
       "#sf-btn:hover{transform:scale(1.1);box-shadow:0 12px 40px " + C60 + "}" +
       "#sf-btn svg,#sf-btn img{transition:all .2s}" +
-      "#sf-btn img.chat-icon{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover}" +
+      "#sf-btn img.chat-icon{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover;animation:sfLogoPulse 2.6s ease-in-out infinite}" +
+      "@keyframes sfLogoPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}" +
       "#sf-btn.open img.chat-icon{display:none}" +
       "#sf-btn.open svg.close-icon{display:block!important}" +
       "#sf-dot{position:absolute;top:-3px;right:-3px;min-width:20px;height:20px;background:#ef4444;border-radius:10px;border:2px solid white;display:none;font-size:11px;font-weight:700;color:white;padding:0 4px;line-height:16px;text-align:center;animation:sfP 2s infinite}" +
