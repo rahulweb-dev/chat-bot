@@ -19,6 +19,8 @@ import {
   Zap, ExternalLink, CheckCircle2, Circle, Copy, Reply, Palette,
   GitBranch, ChevronDown, ChevronRight, ChevronUp, Ticket, UserCheck, ArrowRight, RotateCcw, Eye,
 } from "lucide-react";
+import type { CustomFlowStep, CustomFlowBranch, CustomFlowItem, CustomFlow } from "@/components/chatbot/flow-types";
+import { FlowCanvas } from "@/components/chatbot/flow-canvas";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface FAQ      { _id?: string; question: string; answer: string; isActive: boolean }
@@ -26,23 +28,6 @@ interface Offer    { _id?: string; title: string; description: string; validUnti
 interface Vehicle  { _id?: string; name: string; category: string; payload: string; priceRange: string; description: string; isActive: boolean }
 interface BizHour  { day: string; open: string; close: string; isClosed: boolean }
 interface Training { _id?: string; trigger: string; keywords: string[]; response: string; isActive: boolean }
-interface CustomFlowStep {
-  question: string; type: "choice" | "text"; options: string[]; saveAs: string;
-  validate?: "none" | "phone" | "email" | "number";
-  optionsSource?: "manual" | "vehicles" | "offers";
-}
-interface CustomFlowBranch {
-  whenSaveAs: string; equals: string;
-  outcome: "NONE" | "CREATE_LEAD" | "CREATE_TICKET" | "ASSIGN_AGENT";
-  closingMessage: string; leadType?: string; leadScore?: number; ticketSubject?: string;
-}
-interface CustomFlowItem {
-  key: string; label: string; steps: CustomFlowStep[];
-  outcome: "NONE" | "CREATE_LEAD" | "CREATE_TICKET" | "ASSIGN_AGENT";
-  closingMessage: string; leadType?: string; leadScore?: number; ticketSubject?: string;
-  branches?: CustomFlowBranch[];
-}
-interface CustomFlow { enabled: boolean; menuIntro: string; flows: CustomFlowItem[] }
 interface AiFallback { enabled: boolean }
 interface Config   {
   faqs: FAQ[]; offers: Offer[]; vehicles: Vehicle[];
@@ -1249,6 +1234,7 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true, onTestOption }
   const [mode, setMode] = useState<"builder" | "json">("builder");
   const [jsonText, setJsonText] = useState("");
   const [jsonError, setJsonError] = useState("");
+  const [view, setView] = useState<"canvas" | "list">("canvas");
 
   const { data: flowStats } = useQuery({
     queryKey: ["chatbot-flow-stats"],
@@ -1392,30 +1378,50 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true, onTestOption }
         <DefaultFlowReference expandedFlow={expandedFlow} setExpandedFlow={setExpandedFlow} />
       ) : (
         <>
-          <Card>
-            <CardContent className="p-4 space-y-2">
-              <label className="text-sm font-medium">Menu intro text</label>
-              <p className="text-xs text-gray-400">Shown above the menu buttons, right after the welcome message.</p>
-              <Input value={menuIntro} onChange={(e) => setMenuIntro(e.target.value)} />
-            </CardContent>
-          </Card>
+          {view === "list" && (
+            <Card>
+              <CardContent className="p-4 space-y-2">
+                <label className="text-sm font-medium">Menu intro text</label>
+                <p className="text-xs text-gray-400">Shown above the menu buttons, right after the welcome message.</p>
+                <Input value={menuIntro} onChange={(e) => setMenuIntro(e.target.value)} />
+              </CardContent>
+            </Card>
+          )}
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setMode("builder")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${mode === "builder" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
-            >
-              <Plus className="w-3.5 h-3.5" /> Manual Add
-            </button>
-            <button
-              onClick={() => setMode("json")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${mode === "json" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
-            >
-              <Code className="w-3.5 h-3.5" /> Paste JSON
-            </button>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setView("canvas")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${view === "canvas" ? "bg-[#15140F] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+              >
+                <GitBranch className="w-3.5 h-3.5" /> Canvas
+              </button>
+              <button
+                onClick={() => setView("list")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${view === "list" ? "bg-[#15140F] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+              >
+                <ChevronRight className="w-3.5 h-3.5" /> List
+              </button>
+            </div>
+            {view === "list" && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setMode("builder")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${mode === "builder" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                >
+                  <Plus className="w-3.5 h-3.5" /> Manual Add
+                </button>
+                <button
+                  onClick={() => setMode("json")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${mode === "json" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                >
+                  <Code className="w-3.5 h-3.5" /> Paste JSON
+                </button>
+              </div>
+            )}
           </div>
 
-          {mode === "json" && (
+          {view === "list" && mode === "json" && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">Paste JSON Menu Options</CardTitle>
@@ -1464,6 +1470,23 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true, onTestOption }
             </Card>
           )}
 
+          {view === "canvas" ? (
+            <FlowCanvas
+              menuIntro={menuIntro}
+              setMenuIntro={setMenuIntro}
+              flows={flows}
+              updateFlow={updateFlow}
+              removeFlow={removeFlow}
+              addFlow={addFlow}
+              addStep={addStep}
+              updateStep={updateStep}
+              removeStep={removeStep}
+              addBranch={addBranch}
+              updateBranch={updateBranch}
+              removeBranch={removeBranch}
+              onTestOption={onTestOption}
+            />
+          ) : (
           <div className="space-y-2">
             {flows.length === 0 && (
               <div className="text-center py-10 text-gray-400 border-2 border-dashed rounded-xl">
@@ -1648,9 +1671,10 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true, onTestOption }
               );
             })}
           </div>
+          )}
 
           <div className="flex items-center justify-between">
-            {mode === "builder" ? (
+            {view === "list" && mode === "builder" ? (
               <Button variant="outline" onClick={addFlow}><Plus className="w-4 h-4 mr-2" />Add Menu Option</Button>
             ) : <span />}
             <Button onClick={() => save()} disabled={saving} className="bg-indigo-600 hover:bg-indigo-700">

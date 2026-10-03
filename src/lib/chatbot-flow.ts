@@ -26,6 +26,8 @@ export interface CustomFlowStep {
   saveAs: string;
   validate?: "none" | "phone" | "email" | "number";
   optionsSource?: "manual" | "vehicles" | "offers";
+  // Flow Builder canvas node position — cosmetic only, never read by the bot engine below.
+  position?: { x: number; y: number };
 }
 
 export interface CustomFlowBranch {
@@ -48,6 +50,7 @@ export interface CustomFlowItem {
   leadScore?: number;
   ticketSubject?: string;
   branches?: CustomFlowBranch[];
+  position?: { x: number; y: number };
 }
 
 export interface CustomFlow {

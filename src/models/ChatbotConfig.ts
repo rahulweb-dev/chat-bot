@@ -14,6 +14,11 @@ export interface ICustomFlowStep {
   saveAs: string;
   validate?: "none" | "phone" | "email" | "number";
   optionsSource?: "manual" | "vehicles" | "offers";
+  // Canvas-only metadata (Flow Builder's node position) — the bot engine in
+  // chatbot-flow.ts never reads this, it's purely for the visual editor to
+  // remember where a dragged node was left instead of resetting to the
+  // auto-layout on every reload.
+  position?: { x: number; y: number };
 }
 
 export interface ICustomFlowBranch {
@@ -36,6 +41,7 @@ export interface ICustomFlowItem {
   leadScore: number;
   ticketSubject: string;
   branches?: ICustomFlowBranch[];
+  position?: { x: number; y: number };
 }
 
 export interface ICustomFlow {
@@ -115,12 +121,14 @@ const ChatbotConfigSchema = new Schema<IChatbotConfig>(
           saveAs:        { type: String, default: "" },
           validate:      { type: String, enum: ["none", "phone", "email", "number"], default: "none" },
           optionsSource: { type: String, enum: ["manual", "vehicles", "offers"], default: "manual" },
+          position:      { type: { x: Number, y: Number }, required: false, _id: false },
         }],
         outcome:        { type: String, enum: ["NONE", "CREATE_LEAD", "CREATE_TICKET", "ASSIGN_AGENT"], default: "NONE" },
         closingMessage: { type: String, default: "" },
         leadType:       { type: String, default: "" },
         leadScore:      { type: Number, default: 60 },
         ticketSubject:  { type: String, default: "" },
+        position:       { type: { x: Number, y: Number }, required: false, _id: false },
         branches: [{
           whenSaveAs:     { type: String, default: "" },
           equals:         { type: String, default: "" },
