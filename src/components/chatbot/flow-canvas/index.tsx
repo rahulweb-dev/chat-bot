@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState, useCallback, useEffect } from "react";
 import {
-  ReactFlow, ReactFlowProvider, Background, BackgroundVariant, Controls,
+  ReactFlow, ReactFlowProvider, Background, BackgroundVariant, Controls, MiniMap,
   useNodesState, useEdgesState, type Node, type NodeMouseHandler, type OnNodeDrag,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -24,6 +24,10 @@ interface FlowCanvasProps {
   updateBranch: (i: number, bi: number, patch: Partial<CustomFlowBranch>) => void;
   removeBranch: (i: number, bi: number) => void;
   onTestOption?: (label: string) => void;
+  // True on the dedicated full-screen Menu Flow page, where there's no rail/
+  // live-preview column competing for space and the canvas should claim the
+  // whole viewport below the page header instead of the capped embedded size.
+  fullHeight?: boolean;
 }
 
 function parseId(id: string): Selection {
@@ -70,42 +74,54 @@ function FlowCanvasInner(props: FlowCanvasProps) {
   }, [props.updateFlow, props.updateStep]);
 
   return (
-    <div className="flex h-[calc(100vh-260px)] min-h-[600px] max-h-[900px] rounded-2xl border border-[#ECEBE6] overflow-hidden bg-[#FAFAF8]">
-      <div className="flex-1 min-w-0">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onNodeClick={handleNodeClick}
-          onNodeDragStop={handleNodeDragStop}
-          nodeTypes={nodeTypes}
-          fitView
-          fitViewOptions={{ padding: 0.25 }}
-          minZoom={0.3}
-          maxZoom={1.5}
-          proOptions={{ hideAttribution: true }}
-        >
-          <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="#E4E2D8" />
-          <Controls showInteractive={false} />
-        </ReactFlow>
-      </div>
-      <NodeEditorPanel
-        selection={selection}
-        onClose={() => setSelection(null)}
-        menuIntro={props.menuIntro}
-        setMenuIntro={props.setMenuIntro}
-        flows={props.flows}
-        updateFlow={props.updateFlow}
-        removeFlow={props.removeFlow}
-        addStep={props.addStep}
-        updateStep={props.updateStep}
-        removeStep={props.removeStep}
-        addBranch={props.addBranch}
-        updateBranch={props.updateBranch}
-        removeBranch={props.removeBranch}
-        onTestOption={props.onTestOption}
-      />
+    <div className={props.fullHeight
+      ? "relative h-[calc(100vh-190px)] min-h-[600px] rounded-[24px] border border-[#F0EAD9] overflow-hidden bg-[#FAF6EC]"
+      : "relative h-[calc(100vh-260px)] min-h-[600px] max-h-[900px] rounded-[24px] border border-[#F0EAD9] overflow-hidden bg-[#FAF6EC]"
+    }>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onNodeClick={handleNodeClick}
+        onNodeDragStop={handleNodeDragStop}
+        nodeTypes={nodeTypes}
+        fitView
+        fitViewOptions={{ padding: 0.25 }}
+        minZoom={0.3}
+        maxZoom={1.5}
+        proOptions={{ hideAttribution: true }}
+      >
+        <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} color="#EFE7D4" />
+        <Controls showInteractive={false} />
+        <MiniMap
+          pannable
+          zoomable
+          nodeColor="#fff"
+          nodeStrokeColor="#E7DFC9"
+          nodeStrokeWidth={2}
+          maskColor="rgba(250,246,236,0.75)"
+          className="!bg-white !border !border-[#F0EAD9] !rounded-xl !shadow-[0_4px_14px_rgba(80,65,30,0.08)] !bottom-4 !right-4"
+        />
+      </ReactFlow>
+      {selection && (
+        <NodeEditorPanel
+          selection={selection}
+          onClose={() => setSelection(null)}
+          menuIntro={props.menuIntro}
+          setMenuIntro={props.setMenuIntro}
+          flows={props.flows}
+          updateFlow={props.updateFlow}
+          removeFlow={props.removeFlow}
+          addStep={props.addStep}
+          updateStep={props.updateStep}
+          removeStep={props.removeStep}
+          addBranch={props.addBranch}
+          updateBranch={props.updateBranch}
+          removeBranch={props.removeBranch}
+          onTestOption={props.onTestOption}
+        />
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 import { Suspense, useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,7 +30,7 @@ interface Vehicle  { _id?: string; name: string; category: string; payload: stri
 interface BizHour  { day: string; open: string; close: string; isClosed: boolean }
 interface Training { _id?: string; trigger: string; keywords: string[]; response: string; isActive: boolean }
 interface AiFallback { enabled: boolean }
-interface Config   {
+export interface Config   {
   faqs: FAQ[]; offers: Offer[]; vehicles: Vehicle[];
   businessHours: BizHour[]; training: Training[]; customFlow?: CustomFlow; aiFallback?: AiFallback;
   welcomeMessage: string; agentOnlineMessage: string; agentOfflineMessage: string;
@@ -43,7 +44,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   EV:  "bg-emerald-100 text-emerald-700",
 };
 
-async function patchConfig(body: Partial<Config>): Promise<{ success: true; data: Config } | { success: false; error: string }> {
+export async function patchConfig(body: Partial<Config>): Promise<{ success: true; data: Config } | { success: false; error: string }> {
   const res = await fetch("/api/chatbot-config", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const d = await res.json().catch(() => ({}));
   if (!res.ok || d?.success === false) return { success: false, error: d?.error || "Failed to save" };
@@ -51,13 +52,16 @@ async function patchConfig(body: Partial<Config>): Promise<{ success: true; data
 }
 
 // ── Settings rail (grouped left nav replacing the old horizontal tab strip) ────
-interface RailItem { value: string; label: string; icon: React.ComponentType<{ className?: string }> }
+// `href` items navigate to their own dedicated page instead of switching the
+// in-page tab — used by Menu Flow, which outgrew sharing this layout's rail +
+// live-preview columns and needed the full page to itself.
+interface RailItem { value: string; label: string; icon: React.ComponentType<{ className?: string }>; href?: string }
 interface RailGroup { label: string; items: RailItem[] }
 const RAIL_GROUPS: RailGroup[] = [
   { label: "", items: [{ value: "overview", label: "Overview", icon: Sparkles }] },
   { label: "Setup", items: [
     { value: "welcome",  label: "Welcome Message", icon: MessageSquare },
-    { value: "flow",     label: "Menu Flow",        icon: GitBranch },
+    { value: "flow",     label: "Menu Flow",        icon: GitBranch, href: "/dashboard/chatbot/menu-flow" },
     { value: "faqs",     label: "FAQs",             icon: HelpCircle },
     { value: "training", label: "Training",         icon: Brain },
     { value: "catalog",  label: "Catalog",          icon: Tag },
@@ -82,12 +86,21 @@ function SettingsRail({ tab, setTab }: { tab: string; setTab: (v: string) => voi
           {group.items.map((item) => {
             const active = tab === item.value;
             const Icon = item.icon;
+            const className = `w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-[11px] text-[13px] transition-colors text-left ${active ? "bg-[#15140F] text-white font-semibold" : "text-[#716F66] font-medium hover:bg-[#F3F2EE] hover:text-[#15140F]"}`;
+            if (item.href) {
+              return (
+                <Link key={item.value} href={item.href} className={className}>
+                  <Icon className="w-4 h-4 shrink-0" />
+                  {item.label}
+                </Link>
+              );
+            }
             return (
               <button
                 key={item.value}
                 type="button"
                 onClick={() => setTab(item.value)}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-[11px] text-[13px] transition-colors text-left ${active ? "bg-[#15140F] text-white font-semibold" : "text-[#716F66] font-medium hover:bg-[#F3F2EE] hover:text-[#15140F]"}`}
+                className={className}
               >
                 <Icon className="w-4 h-4 shrink-0" />
                 {item.label}
@@ -168,7 +181,7 @@ function OverviewSkeleton() {
   );
 }
 
-function FlowBuilderSkeleton() {
+export function FlowBuilderSkeleton() {
   return (
     <div className="space-y-4">
       <div className="rounded-xl border p-4 flex items-center justify-between gap-4">
@@ -1273,7 +1286,7 @@ function DefaultFlowReference({ expandedFlow, setExpandedFlow }: { expandedFlow:
 }
 
 // ── Menu Flow Builder Tab ───────────────────────────────────────────────────────
-function FlowBuilderTab({ config, refetch, showStepBanner = true, onTestOption }: { config: Config; refetch: () => void; showStepBanner?: boolean; onTestOption?: (label: string) => void }) {
+export function FlowBuilderTab({ config, refetch, showStepBanner = true, onTestOption, fullHeight = false }: { config: Config; refetch: () => void; showStepBanner?: boolean; onTestOption?: (label: string) => void; fullHeight?: boolean }) {
   const seed: CustomFlow = config.customFlow ?? { enabled: false, menuIntro: "How can we help you today? Please select an option:", flows: [] };
   const [enabled, setEnabled] = useState(seed.enabled);
   const [menuIntro, setMenuIntro] = useState(seed.menuIntro);
@@ -1439,16 +1452,16 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true, onTestOption }
           )}
 
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-0.5 bg-[#F0EEE3] rounded-full p-[3px]">
               <button
                 onClick={() => setView("canvas")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${view === "canvas" ? "bg-[#15140F] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-colors ${view === "canvas" ? "bg-white text-[#15140F] shadow-sm" : "bg-transparent text-[#716F66] hover:text-[#15140F]"}`}
               >
                 <GitBranch className="w-3.5 h-3.5" /> Canvas
               </button>
               <button
                 onClick={() => setView("list")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${view === "list" ? "bg-[#15140F] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-colors ${view === "list" ? "bg-white text-[#15140F] shadow-sm" : "bg-transparent text-[#716F66] hover:text-[#15140F]"}`}
               >
                 <ChevronRight className="w-3.5 h-3.5" /> List
               </button>
@@ -1535,6 +1548,7 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true, onTestOption }
               updateBranch={updateBranch}
               removeBranch={removeBranch}
               onTestOption={onTestOption}
+              fullHeight={fullHeight}
             />
           ) : (
           <div className="space-y-2">
@@ -1727,7 +1741,7 @@ function FlowBuilderTab({ config, refetch, showStepBanner = true, onTestOption }
             {view === "list" && mode === "builder" ? (
               <Button variant="outline" onClick={addFlow}><Plus className="w-4 h-4 mr-2" />Add Menu Option</Button>
             ) : <span />}
-            <Button onClick={() => save()} disabled={saving} className="bg-indigo-600 hover:bg-indigo-700">
+            <Button onClick={() => save()} disabled={saving} className="bg-[#15140F] hover:bg-[#15140F]/90 rounded-full">
               {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
               Save Menu
             </Button>
@@ -1821,12 +1835,28 @@ function OverviewTab({ config, refetch }: { config: Config; refetch: () => void 
       <div className="space-y-3">
         <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5"><Pencil className="w-4 h-4" />Manage everything from here</p>
         {[
-          { key: "flow",     label: "Menu Flow", count: config.customFlow?.flows.length ?? 0, icon: GitBranch, render: () => <FlowBuilderTab config={config} refetch={refetch} showStepBanner={false} /> },
+          { key: "flow",     label: "Menu Flow", count: config.customFlow?.flows.length ?? 0, icon: GitBranch, href: "/dashboard/chatbot/menu-flow" },
           { key: "faqs",     label: "FAQs",     count: config.faqs.length,             icon: HelpCircle, render: () => <FAQTab config={config} refetch={refetch} showStepBanner={false} /> },
           { key: "training", label: "Training", count: (config.training ?? []).length, icon: Brain,      render: () => <TrainingTab config={config} refetch={refetch} showStepBanner={false} /> },
           { key: "catalog",  label: "Catalog (Offers & Vehicles)", count: config.offers.length + config.vehicles.length, icon: Tag, render: () => <CatalogTab config={config} refetch={refetch} showStepBanner={false} /> },
         ].map((section) => {
           const isOpen = openSection === section.key;
+          if (section.href) {
+            return (
+              <Link
+                key={section.key}
+                href={section.href}
+                className="rounded-2xl border overflow-hidden shadow-sm flex items-center justify-between p-3.5 bg-gray-50 hover:bg-gray-100 transition-colors"
+              >
+                <span className="font-semibold text-sm text-gray-800 flex items-center gap-2">
+                  <section.icon className="w-4 h-4 text-indigo-600" />
+                  {section.label}
+                  <span className="text-xs font-normal text-gray-400 bg-white border rounded-full px-2 py-0.5">{section.count}</span>
+                </span>
+                <ArrowRight className="w-4 h-4 shrink-0 text-gray-400" />
+              </Link>
+            );
+          }
           return (
             <div key={section.key} className="rounded-2xl border overflow-hidden shadow-sm">
               <button
@@ -1840,7 +1870,7 @@ function OverviewTab({ config, refetch }: { config: Config; refetch: () => void 
                 </span>
                 {isOpen ? <ChevronDown className="w-4 h-4 shrink-0 text-gray-400" /> : <ChevronRight className="w-4 h-4 shrink-0 text-gray-400" />}
               </button>
-              {isOpen && (
+              {isOpen && section.render && (
                 <div className="bg-white p-4 border-t">
                   {section.render()}
                 </div>
@@ -2281,9 +2311,17 @@ function ChatbotPageInner() {
               </Button>
             </TabsContent>
 
-            {/* Menu Flow */}
+            {/* Menu Flow now lives on its own full-screen page (see the rail link) —
+                this only exists so an old bookmarked ?tab=flow link still goes
+                somewhere useful instead of a blank tab. */}
             <TabsContent value="flow" className="mt-4">
-              {configLoading || !config ? <FlowBuilderSkeleton /> : <FlowBuilderTab config={config} refetch={refetchConfig} onTestOption={(text) => setTestTrigger({ text, nonce: Date.now() })} />}
+              <div className="rounded-2xl border-2 border-dashed p-10 text-center text-gray-400">
+                <GitBranch className="w-8 h-8 mx-auto mb-3 opacity-30" />
+                <p className="text-sm">Menu Flow moved to its own full-screen page.</p>
+                <Link href="/dashboard/chatbot/menu-flow" className="inline-flex items-center gap-1.5 mt-3 text-sm font-medium text-indigo-600 hover:text-indigo-700">
+                  Open Menu Flow <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
             </TabsContent>
 
             <TabsContent value="faqs" className="mt-4">

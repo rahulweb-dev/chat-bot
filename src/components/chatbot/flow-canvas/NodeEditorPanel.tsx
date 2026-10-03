@@ -36,43 +36,42 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+// Floats over the canvas rather than sitting in the layout as a persistent
+// column — it only exists while something is selected, so the canvas gets
+// the full width back the instant you close it.
+function PanelShell({ title, onClose, children, footer }: { title: string; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode }) {
+  return (
+    <div className="absolute top-5 right-5 bottom-5 w-[300px] bg-white rounded-[18px] border border-[#F0EAD9] shadow-[0_18px_44px_rgba(80,65,30,0.14)] flex flex-col overflow-hidden z-10">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-[#F0EAD9] shrink-0">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-[#B3B1A6]">{title}</p>
+        <button onClick={onClose} aria-label="Close" className="text-[#9A988D] hover:text-[#15140F]">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="p-5 space-y-4 overflow-y-auto flex-1">{children}</div>
+      {footer && <div className="p-4 border-t border-[#F0EAD9] shrink-0">{footer}</div>}
+    </div>
+  );
+}
+
 export function NodeEditorPanel(props: Props) {
   const { selection, onClose, menuIntro, setMenuIntro, flows } = props;
 
-  if (!selection) {
-    return (
-      <div className="w-[300px] shrink-0 border-l border-[#ECEBE6] bg-white p-5 flex flex-col items-center justify-center text-center gap-2">
-        <p className="text-sm font-semibold text-[#15140F]">No selection</p>
-        <p className="text-xs text-[#9A988D]">Click any box on the canvas to edit it here — a question, a menu option, or a branch.</p>
-      </div>
-    );
-  }
-
-  const header = (title: string) => (
-    <div className="flex items-center justify-between px-5 py-4 border-b border-[#ECEBE6]">
-      <p className="text-sm font-bold text-[#15140F]">{title}</p>
-      <button onClick={onClose} aria-label="Close" className="text-[#9A988D] hover:text-[#15140F]">
-        <X className="w-4 h-4" />
-      </button>
-    </div>
-  );
+  if (!selection) return null;
 
   if (selection.kind === "menu") {
     return (
-      <div className="w-[300px] shrink-0 border-l border-[#ECEBE6] bg-white flex flex-col">
-        {header("Main Menu")}
-        <div className="p-5 space-y-4 overflow-y-auto">
-          <Field label="Intro message">
-            <textarea
-              className="w-full border border-[#ECEBE6] rounded-lg px-3 py-2 text-sm min-h-24 resize-none"
-              value={menuIntro}
-              onChange={(e) => setMenuIntro(e.target.value)}
-              placeholder="How can we help you today?"
-            />
-          </Field>
-          <p className="text-[11px] text-[#9A988D]">Shown above the menu buttons, right after the welcome message. Every option below becomes one of those buttons.</p>
-        </div>
-      </div>
+      <PanelShell title="Main Menu" onClose={onClose}>
+        <Field label="Intro message">
+          <textarea
+            className="w-full border border-[#ECEBE6] rounded-lg px-3 py-2 text-sm min-h-24 resize-none"
+            value={menuIntro}
+            onChange={(e) => setMenuIntro(e.target.value)}
+            placeholder="How can we help you today?"
+          />
+        </Field>
+        <p className="text-[11px] text-[#9A988D]">Shown above the menu buttons, right after the welcome message. Every option below becomes one of those buttons.</p>
+      </PanelShell>
     );
   }
 
@@ -81,9 +80,15 @@ export function NodeEditorPanel(props: Props) {
     if (!f) return null;
     const i = selection.flowIndex;
     return (
-      <div className="w-[300px] shrink-0 border-l border-[#ECEBE6] bg-white flex flex-col">
-        {header("Menu Option")}
-        <div className="p-5 space-y-4 overflow-y-auto flex-1">
+      <PanelShell
+        title="Menu Option"
+        onClose={onClose}
+        footer={
+          <button onClick={() => { props.removeFlow(i); onClose(); }} className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1.5">
+            <Trash2 className="w-3.5 h-3.5" />Delete this option
+          </button>
+        }
+      >
           <Field label="Button label">
             <Input value={f.label} onChange={(e) => props.updateFlow(i, { label: e.target.value })} placeholder="e.g. 🏠 Book a Viewing" />
           </Field>
@@ -118,13 +123,7 @@ export function NodeEditorPanel(props: Props) {
           {props.onTestOption && (
             <Button size="sm" variant="outline" className="w-full" onClick={() => props.onTestOption?.(f.label)}><Eye className="w-3.5 h-3.5 mr-1.5" />Test in Live Preview</Button>
           )}
-        </div>
-        <div className="p-4 border-t border-[#ECEBE6]">
-          <button onClick={() => { props.removeFlow(i); onClose(); }} className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1.5">
-            <Trash2 className="w-3.5 h-3.5" />Delete this option
-          </button>
-        </div>
-      </div>
+      </PanelShell>
     );
   }
 
@@ -133,9 +132,15 @@ export function NodeEditorPanel(props: Props) {
     const st = flows[i]?.steps[si];
     if (!st) return null;
     return (
-      <div className="w-[300px] shrink-0 border-l border-[#ECEBE6] bg-white flex flex-col">
-        {header(`Question ${si + 1}`)}
-        <div className="p-5 space-y-4 overflow-y-auto flex-1">
+      <PanelShell
+        title={`Question ${si + 1}`}
+        onClose={onClose}
+        footer={
+          <button onClick={() => { props.removeStep(i, si); onClose(); }} className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1.5">
+            <Trash2 className="w-3.5 h-3.5" />Delete this question
+          </button>
+        }
+      >
           <Field label="Question text">
             <textarea className="w-full border border-[#ECEBE6] rounded-lg px-3 py-2 text-sm min-h-16 resize-none" value={st.question} onChange={(e) => props.updateStep(i, si, { question: e.target.value })} placeholder="e.g. Which city are you in?" />
           </Field>
@@ -180,13 +185,7 @@ export function NodeEditorPanel(props: Props) {
               )}
             </>
           )}
-        </div>
-        <div className="p-4 border-t border-[#ECEBE6]">
-          <button onClick={() => { props.removeStep(i, si); onClose(); }} className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1.5">
-            <Trash2 className="w-3.5 h-3.5" />Delete this question
-          </button>
-        </div>
-      </div>
+      </PanelShell>
     );
   }
 
@@ -195,9 +194,15 @@ export function NodeEditorPanel(props: Props) {
   const b = flows[i]?.branches?.[bi];
   if (!b) return null;
   return (
-    <div className="w-[300px] shrink-0 border-l border-[#ECEBE6] bg-white flex flex-col">
-      {header("Branch condition")}
-      <div className="p-5 space-y-4 overflow-y-auto flex-1">
+    <PanelShell
+      title="Branch condition"
+      onClose={onClose}
+      footer={
+        <button onClick={() => { props.removeBranch(i, bi); onClose(); }} className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1.5">
+          <Trash2 className="w-3.5 h-3.5" />Delete this branch
+        </button>
+      }
+    >
         <p className="text-[11px] text-[#9A988D]">Give a different outcome depending on one earlier answer. First matching branch wins.</p>
         <Field label="When saveAs field">
           <Input className="text-xs font-mono" placeholder="e.g. interest" value={b.whenSaveAs} onChange={(e) => props.updateBranch(i, bi, { whenSaveAs: e.target.value.replace(/\s+/g, "_") })} />
@@ -225,12 +230,6 @@ export function NodeEditorPanel(props: Props) {
         <Field label="Closing message">
           <textarea className="w-full border border-[#ECEBE6] rounded-lg px-3 py-2 text-xs min-h-20 resize-none" value={b.closingMessage} onChange={(e) => props.updateBranch(i, bi, { closingMessage: e.target.value })} placeholder="Closing message for this branch…" />
         </Field>
-      </div>
-      <div className="p-4 border-t border-[#ECEBE6]">
-        <button onClick={() => { props.removeBranch(i, bi); onClose(); }} className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1.5">
-          <Trash2 className="w-3.5 h-3.5" />Delete this branch
-        </button>
-      </div>
-    </div>
+    </PanelShell>
   );
 }
