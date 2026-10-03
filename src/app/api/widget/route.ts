@@ -66,6 +66,7 @@ export async function GET(request: NextRequest) {
         primaryColor: settings?.widget?.primaryColor || company.settings.brandColor,
         theme: settings?.widget?.theme || "LIGHT",
         position: settings?.widget?.position || "BOTTOM_RIGHT",
+        launcherText: settings?.widget?.launcherText || "Chat with us",
         welcomeMessage: settings?.widget?.welcomeMessage || company.settings.welcomeMessage,
         offlineMessage: settings?.widget?.offlineMessage || company.settings.offlineMessage,
         showAgentAvatar: settings?.widget?.showAgentAvatar ?? true,

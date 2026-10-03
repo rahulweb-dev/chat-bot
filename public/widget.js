@@ -102,7 +102,8 @@
       "#sf-root *{scrollbar-width:thin;scrollbar-color:" + BORD + " transparent}" +
 
       // Launcher
-      "#sf-launch{position:fixed;" + SIDE + ":24px;bottom:24px;z-index:2147483646}" +
+      "#sf-launch{position:fixed;" + SIDE + ":24px;bottom:24px;z-index:2147483646;display:flex;align-items:center;gap:10px}" +
+      "#sf-btnwrap{position:relative;flex-shrink:0}" +
       "#sf-btn{position:relative;overflow:hidden;width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg," + COLOR + " 0%," + COLOR + "cc 100%);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 32px " + C60 + ";transition:transform .2s,box-shadow .2s}" +
       "#sf-btn:hover{transform:scale(1.1);box-shadow:0 12px 40px " + C60 + "}" +
       "#sf-btn svg,#sf-btn img{transition:all .2s}" +
@@ -112,6 +113,9 @@
       "#sf-btn.open svg.close-icon{display:block!important}" +
       "#sf-dot{position:absolute;top:-3px;right:-3px;min-width:20px;height:20px;background:#ef4444;border-radius:10px;border:2px solid white;display:none;font-size:11px;font-weight:700;color:white;padding:0 4px;line-height:16px;text-align:center;animation:sfP 2s infinite}" +
       "@keyframes sfP{0%,100%{box-shadow:0 0 0 0 #ef444466}60%{box-shadow:0 0 0 8px #ef444400}}" +
+      "#sf-label{background:#fff;color:#1f2937;font:600 13.5px/1.3 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:12px 16px;border-radius:14px;border:none;box-shadow:0 8px 24px rgba(0,0,0,.14);cursor:pointer;white-space:nowrap;opacity:0;transform:translateY(6px);pointer-events:none;transition:opacity .3s ease,transform .3s ease}" +
+      "#sf-label.show{opacity:1;transform:translateY(0);pointer-events:auto}" +
+      "@media(max-width:480px){#sf-label{display:none}}" +
 
       // Window
       "#sf-win{position:fixed;" + SIDE + ":24px;bottom:100px;width:400px;height:620px;max-height:calc(100vh - 120px);display:flex;flex-direction:column;background:" + BG + ";border-radius:24px;box-shadow:0 20px 80px rgba(0,0,0,.22),0 4px 16px rgba(0,0,0,.1);z-index:2147483645;overflow:hidden;border:1px solid " + BORD + ";opacity:0;pointer-events:none;transform:translateY(24px) scale(.94);transition:opacity .28s cubic-bezier(.4,0,.2,1),transform .28s cubic-bezier(.4,0,.2,1)}" +
@@ -236,14 +240,19 @@
   function buildWidget() {
     var root = document.createElement("div");
     root.id = "sf-root";
-    root.innerHTML =
-      '<div id="sf-launch">' +
+
+    var btnWrapHtml =
+      '<div id="sf-btnwrap">' +
         '<button id="sf-btn" aria-label="Open chat">' +
           '<img class="chat-icon" src="' + BASE + '/app_icon.png" alt="" />' +
           '<svg class="close-icon" style="display:none" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>' +
         '</button>' +
         '<div id="sf-dot"></div>' +
-      '</div>' +
+      '</div>';
+    var labelHtml = '<button id="sf-label" type="button">Chat with us</button>';
+
+    root.innerHTML =
+      '<div id="sf-launch">' + (SIDE === "left" ? btnWrapHtml + labelHtml : labelHtml + btnWrapHtml) + '</div>' +
       '<div id="sf-win" role="dialog" aria-label="Chat">' +
         '<div id="sf-head">' +
           '<div id="sf-handle"></div>' +
@@ -274,8 +283,19 @@
     document.body.appendChild(root);
 
     document.getElementById("sf-btn").addEventListener("click", toggle);
+    document.getElementById("sf-label").addEventListener("click", toggle);
     document.getElementById("sf-hx").addEventListener("click", toggle);
     document.getElementById("sf-send").addEventListener("click", sendText);
+
+    // Greet with the launcher label a beat after load rather than instantly —
+    // reads as a deliberate nudge, not a layout flash. Guarded by !isOpen so
+    // a visitor who opens the chat before the delay elapses doesn't get the
+    // label popping in behind the now-open window.
+    setTimeout(function() {
+      if (isOpen) return;
+      var lbl = document.getElementById("sf-label");
+      if (lbl) lbl.classList.add("show");
+    }, 1200);
 
     var inp = document.getElementById("sf-inp");
     inp.addEventListener("input", function() {
@@ -302,6 +322,8 @@
     isOpen = !isOpen;
     var win = document.getElementById("sf-win");
     var btn = document.getElementById("sf-btn");
+    var lbl = document.getElementById("sf-label");
+    if (lbl) lbl.classList.toggle("show", !isOpen);
     win.classList.toggle("open", isOpen);
     btn.classList.toggle("open", isOpen);
 
@@ -795,6 +817,10 @@
         if (!d.success || !d.data) return;
         var logoUrl = (d.data.settings && d.data.settings.logo) || d.data.logo;
         applyCompanyInfo(d.data.name, logoUrl, true);
+        if (d.data.settings && d.data.settings.launcherText) {
+          var lbl = document.getElementById("sf-label");
+          if (lbl) lbl.textContent = d.data.settings.launcherText;
+        }
         if (d.data.name || logoUrl) {
           try { localStorage.setItem("sf_company", JSON.stringify({ key: KEY, name: d.data.name || "", logo: logoUrl || "" })); } catch (_) {}
         }

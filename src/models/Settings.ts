@@ -64,6 +64,7 @@ export interface ISettings extends Document {
     position: "BOTTOM_RIGHT" | "BOTTOM_LEFT";
     showLauncher: boolean;
     launcherIcon?: string;
+    launcherText?: string;
     welcomeMessage: string;
     offlineMessage: string;
     logo?: string;
@@ -140,6 +141,7 @@ const SettingsSchema = new Schema<ISettings>(
       position: { type: String, enum: ["BOTTOM_RIGHT", "BOTTOM_LEFT"], default: "BOTTOM_RIGHT" },
       showLauncher: { type: Boolean, default: true },
       launcherIcon: String,
+      launcherText: { type: String, default: "Chat with us" },
       welcomeMessage: { type: String, default: "Hi! How can we help you today?" },
       offlineMessage: { type: String, default: "We're offline. Leave a message!" },
       logo: String,
