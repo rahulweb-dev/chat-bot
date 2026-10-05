@@ -182,17 +182,18 @@
       "@keyframes sfDot{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-7px);opacity:1}}" +
 
       // Quick replies — compact solid pills capped at a max width, so a long
-      // option wraps to two lines inside a narrower chip instead of
-      // stretching full-bleed into a slab. Several short options then sit
-      // side by side like a real grid instead of stacking one per row.
-      "#sf-qr{position:relative;padding:12px 14px 16px;background:" + BG + ";border-top:1px solid " + BORD + ";display:flex;flex-wrap:wrap;gap:7px;flex-shrink:0;max-height:240px;overflow-y:auto}" +
+      // option wraps inside a narrower chip instead of stretching full-bleed
+      // into a slab. Sized to still clear a comfortable ~40px tap target —
+      // the first pass at this was too tight (small font, thin padding),
+      // which read as cramped rather than compact.
+      "#sf-qr{position:relative;padding:12px 14px 16px;background:" + BG + ";border-top:1px solid " + BORD + ";display:flex;flex-wrap:wrap;gap:8px;flex-shrink:0;max-height:240px;overflow-y:auto}" +
       "#sf-qr::-webkit-scrollbar{width:3px}" +
       "#sf-qr::-webkit-scrollbar-thumb{background:" + BORD + ";border-radius:3px}" +
       "#sf-qr.sf-qr-scroll{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent 100%);mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent 100%)}" +
-      ".sf-qb{max-width:160px;box-sizing:border-box;overflow-wrap:break-word;padding:8px 13px;border-radius:14px;border:none;background:" + COLOR + ";color:#fff;font-size:11.5px;font-weight:700;cursor:pointer;transition:transform .15s,box-shadow .15s,filter .15s;line-height:1.3;text-align:left}" +
+      ".sf-qb{max-width:185px;box-sizing:border-box;overflow-wrap:break-word;padding:11px 16px;border-radius:14px;border:none;background:" + COLOR + ";color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;transition:transform .15s,box-shadow .15s,filter .15s;line-height:1.35;text-align:left}" +
       ".sf-qb:hover{filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 4px 12px " + C60 + "}" +
       ".sf-qb:active{transform:translateY(0) scale(.98);filter:brightness(.97)}" +
-      ".sf-qb.back{max-width:none;background:transparent;border:1.5px solid " + BORD + ";color:" + MUTED + ";font-size:11px;font-weight:600;border-radius:999px;padding:7px 14px}" +
+      ".sf-qb.back{max-width:none;background:transparent;border:1.5px solid " + BORD + ";color:" + MUTED + ";font-size:11.5px;font-weight:600;border-radius:999px;padding:9px 16px}" +
       ".sf-qb.back:hover{background:" + BORD + ";color:" + TXT + ";transform:none;box-shadow:none;filter:none}" +
 
       // Input

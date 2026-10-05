@@ -2093,7 +2093,7 @@ function ChatbotFlowPreview({ color, theme, companyName, logo, triggerMessage }:
       )}
 
       {qrs.length > 0 && !typing && (
-        <div style={{ padding: "10px 12px 12px", background: BG2, borderTop: `1px solid ${BORD}`, display: "flex", flexWrap: "wrap", gap: 7, flexShrink: 0, maxHeight: 200, overflowY: "auto" }}>
+        <div style={{ padding: "10px 12px 12px", background: BG2, borderTop: `1px solid ${BORD}`, display: "flex", flexWrap: "wrap", gap: 8, flexShrink: 0, maxHeight: 200, overflowY: "auto" }}>
           {qrs.map((opt) => {
             const isBack = /Main Menu|Go Back/i.test(opt);
             return (
@@ -2101,8 +2101,8 @@ function ChatbotFlowPreview({ color, theme, companyName, logo, triggerMessage }:
                 key={opt}
                 onClick={() => send(opt)}
                 style={isBack
-                  ? { padding: "7px 14px", borderRadius: 999, border: `1.5px solid ${BORD}`, background: "transparent", color: MUTED, fontSize: 11, fontWeight: 600, cursor: "pointer", lineHeight: 1.3 }
-                  : { maxWidth: 160, boxSizing: "border-box", padding: "8px 13px", borderRadius: 14, border: "none", background: color, color: "#fff", fontSize: 11.5, fontWeight: 700, cursor: "pointer", textAlign: "left", lineHeight: 1.3, overflowWrap: "break-word" }}
+                  ? { padding: "9px 16px", borderRadius: 999, border: `1.5px solid ${BORD}`, background: "transparent", color: MUTED, fontSize: 11.5, fontWeight: 600, cursor: "pointer", lineHeight: 1.3 }
+                  : { maxWidth: 185, boxSizing: "border-box", padding: "11px 16px", borderRadius: 14, border: "none", background: color, color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", textAlign: "left", lineHeight: 1.35, overflowWrap: "break-word" }}
               >
                 {opt}
               </button>
