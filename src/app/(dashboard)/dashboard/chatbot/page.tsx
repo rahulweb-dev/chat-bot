@@ -2101,8 +2101,8 @@ function ChatbotFlowPreview({ color, theme, companyName, logo, triggerMessage }:
                 key={opt}
                 onClick={() => send(opt)}
                 style={isBack
-                  ? { padding: "9px 16px", borderRadius: 999, border: `1.5px solid ${BORD}`, background: "transparent", color: MUTED, fontSize: 11.5, fontWeight: 600, cursor: "pointer", lineHeight: 1.3 }
-                  : { padding: "10px 18px", borderRadius: 999, border: "none", background: color, color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", textAlign: "center", lineHeight: 1.3, boxShadow: `0 2px 6px ${color}33` }}
+                  ? { padding: "7px 14px", borderRadius: 999, border: `1.5px solid ${BORD}`, background: "transparent", color: MUTED, fontSize: 11, fontWeight: 600, cursor: "pointer", lineHeight: 1.3 }
+                  : { maxWidth: 160, boxSizing: "border-box", padding: "8px 13px", borderRadius: 14, border: "none", background: color, color: "#fff", fontSize: 11.5, fontWeight: 700, cursor: "pointer", textAlign: "left", lineHeight: 1.3, overflowWrap: "break-word" }}
               >
                 {opt}
               </button>

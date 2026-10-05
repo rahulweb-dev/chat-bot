@@ -181,18 +181,19 @@
       ".sf-typing span:nth-child(3){animation-delay:.4s}" +
       "@keyframes sfDot{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-7px);opacity:1}}" +
 
-      // Quick replies — solid filled pills (not outline-until-hover), to read
-      // as clearly tappable buttons rather than tags.
-      "#sf-qr{position:relative;padding:12px 14px 16px;background:" + BG + ";border-top:1px solid " + BORD + ";display:flex;flex-wrap:wrap;gap:9px;flex-shrink:0;max-height:240px;overflow-y:auto}" +
+      // Quick replies — compact solid pills capped at a max width, so a long
+      // option wraps to two lines inside a narrower chip instead of
+      // stretching full-bleed into a slab. Several short options then sit
+      // side by side like a real grid instead of stacking one per row.
+      "#sf-qr{position:relative;padding:12px 14px 16px;background:" + BG + ";border-top:1px solid " + BORD + ";display:flex;flex-wrap:wrap;gap:7px;flex-shrink:0;max-height:240px;overflow-y:auto}" +
       "#sf-qr::-webkit-scrollbar{width:3px}" +
       "#sf-qr::-webkit-scrollbar-thumb{background:" + BORD + ";border-radius:3px}" +
       "#sf-qr.sf-qr-scroll{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent 100%);mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent 100%)}" +
-      ".sf-qb{max-width:100%;box-sizing:border-box;overflow-wrap:break-word;padding:12px 22px;border-radius:999px;border:none;background:" + COLOR + ";color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;transition:transform .15s,box-shadow .15s,filter .15s;line-height:1.3;text-align:center;box-shadow:0 2px 6px " + C20 + "}" +
-      ".sf-qb:hover{filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 6px 18px " + C60 + "}" +
+      ".sf-qb{max-width:160px;box-sizing:border-box;overflow-wrap:break-word;padding:8px 13px;border-radius:14px;border:none;background:" + COLOR + ";color:#fff;font-size:11.5px;font-weight:700;cursor:pointer;transition:transform .15s,box-shadow .15s,filter .15s;line-height:1.3;text-align:left}" +
+      ".sf-qb:hover{filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 4px 12px " + C60 + "}" +
       ".sf-qb:active{transform:translateY(0) scale(.98);filter:brightness(.97)}" +
-      ".sf-qb.back{background:transparent;border:1.5px solid " + BORD + ";color:" + MUTED + ";font-size:12px;font-weight:600;box-shadow:none}" +
+      ".sf-qb.back{max-width:none;background:transparent;border:1.5px solid " + BORD + ";color:" + MUTED + ";font-size:11px;font-weight:600;border-radius:999px;padding:7px 14px}" +
       ".sf-qb.back:hover{background:" + BORD + ";color:" + TXT + ";transform:none;box-shadow:none;filter:none}" +
-      ".sf-qb.full{width:100%;border-radius:14px;text-align:left}" +
 
       // Input
       "#sf-foot{padding:10px 14px 14px;border-top:1px solid " + BORD + ";display:flex;align-items:flex-end;gap:8px;background:" + BG + ";flex-shrink:0}" +
@@ -721,19 +722,14 @@
     if (!show || !opts || !opts.length) { el.style.display = "none"; return; }
     el.style.display = "flex";
 
-    // A single long option mixed in with short ones used to be judged by the
-    // AVERAGE length of the whole set, so it kept its shrink-to-fit single-line
-    // width and overflowed its row instead of wrapping — the pill's rounded
-    // right edge got clipped by the widget window. Decide per-option instead:
-    // anything individually long, or any option once the list itself is long,
-    // goes full-width so it wraps properly inside the pill's own background.
-    var manyOptions = opts.length > 5;
-
+    // Every pill is capped at max-width (see .sf-qb) and wraps its own text
+    // internally, so — unlike the old shrink-to-fit single-line pills — a
+    // long option never needs a separate full-width escape hatch; it just
+    // wraps to two lines inside its own chip like any other option.
     opts.forEach(function(opt) {
       var isBack = /Main Menu|Go Back/i.test(opt);
-      var isLong = opt.length > 20;
       var btn = document.createElement("button");
-      btn.className = "sf-qb" + (isBack ? " back" : "") + ((isLong || manyOptions) ? " full" : "");
+      btn.className = "sf-qb" + (isBack ? " back" : "");
       btn.textContent = opt;
       btn.addEventListener("click", function() { sendOption(opt); });
       el.appendChild(btn);
