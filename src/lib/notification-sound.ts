@@ -53,6 +53,6 @@ export function showBrowserNotification(title: string, body: string) {
   if (typeof window === "undefined") return;
   if (Notification.permission !== "granted") return;
   try {
-    new Notification(title, { body, icon: "/favicon.ico", tag: "supportflow-chat" });
+    new Notification(title, { body, icon: "/app_icon.png", tag: "convo360-chat" });
   } catch { /* not supported */ }
 }

@@ -11,7 +11,6 @@ export const metadata: Metadata = {
     template: "%s | Convo360",
   },
   description: "Enterprise-grade live chat, helpdesk, and CRM platform for modern businesses",
-  icons: { icon: "/app_icon.png" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
