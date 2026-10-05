@@ -181,17 +181,18 @@
       ".sf-typing span:nth-child(3){animation-delay:.4s}" +
       "@keyframes sfDot{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-7px);opacity:1}}" +
 
-      // Quick replies
-      "#sf-qr{position:relative;padding:10px 14px 14px;background:" + BG + ";border-top:1px solid " + BORD + ";display:flex;flex-wrap:wrap;gap:6px;flex-shrink:0;max-height:240px;overflow-y:auto}" +
+      // Quick replies — solid filled pills (not outline-until-hover), to read
+      // as clearly tappable buttons rather than tags.
+      "#sf-qr{position:relative;padding:12px 14px 16px;background:" + BG + ";border-top:1px solid " + BORD + ";display:flex;flex-wrap:wrap;gap:9px;flex-shrink:0;max-height:240px;overflow-y:auto}" +
       "#sf-qr::-webkit-scrollbar{width:3px}" +
       "#sf-qr::-webkit-scrollbar-thumb{background:" + BORD + ";border-radius:3px}" +
       "#sf-qr.sf-qr-scroll{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent 100%);mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent 100%)}" +
-      ".sf-qb{max-width:100%;box-sizing:border-box;overflow-wrap:break-word;padding:9px 16px;border-radius:20px;border:1.5px solid " + COLOR + "55;background:" + C20 + ";color:" + COLOR + ";font-size:13px;font-weight:600;cursor:pointer;transition:transform .15s,box-shadow .15s,background .15s;line-height:1.35;text-align:left}" +
-      ".sf-qb:hover{background:" + COLOR + ";color:white;border-color:" + COLOR + ";transform:translateY(-1px);box-shadow:0 4px 12px " + C60 + "}" +
-      ".sf-qb:active{transform:translateY(0) scale(.98)}" +
-      ".sf-qb.back{border-color:" + BORD + ";background:transparent;color:" + MUTED + ";font-size:12px;font-weight:500}" +
-      ".sf-qb.back:hover{background:" + BORD + ";color:" + TXT + ";transform:none;box-shadow:none}" +
-      ".sf-qb.full{width:100%;border-radius:12px}" +
+      ".sf-qb{max-width:100%;box-sizing:border-box;overflow-wrap:break-word;padding:12px 22px;border-radius:999px;border:none;background:" + COLOR + ";color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;transition:transform .15s,box-shadow .15s,filter .15s;line-height:1.3;text-align:center;box-shadow:0 2px 6px " + C20 + "}" +
+      ".sf-qb:hover{filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 6px 18px " + C60 + "}" +
+      ".sf-qb:active{transform:translateY(0) scale(.98);filter:brightness(.97)}" +
+      ".sf-qb.back{background:transparent;border:1.5px solid " + BORD + ";color:" + MUTED + ";font-size:12px;font-weight:600;box-shadow:none}" +
+      ".sf-qb.back:hover{background:" + BORD + ";color:" + TXT + ";transform:none;box-shadow:none;filter:none}" +
+      ".sf-qb.full{width:100%;border-radius:14px;text-align:left}" +
 
       // Input
       "#sf-foot{padding:10px 14px 14px;border-top:1px solid " + BORD + ";display:flex;align-items:flex-end;gap:8px;background:" + BG + ";flex-shrink:0}" +

@@ -2093,18 +2093,21 @@ function ChatbotFlowPreview({ color, theme, companyName, logo, triggerMessage }:
       )}
 
       {qrs.length > 0 && !typing && (
-        <div style={{ padding: "8px 12px 10px", background: BG2, borderTop: `1px solid ${BORD}`, display: "flex", flexDirection: "column", gap: 5, flexShrink: 0, maxHeight: 200, overflowY: "auto" }}>
-          {qrs.map((opt) => (
-            <button
-              key={opt}
-              onClick={() => send(opt)}
-              style={{ width: "100%", padding: "9px 13px", borderRadius: 10, border: `1.5px solid ${color}`, background: "transparent", color: color, fontSize: 13, fontWeight: 500, cursor: "pointer", textAlign: "left", lineHeight: 1.3 }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = color + "14")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            >
-              {opt}
-            </button>
-          ))}
+        <div style={{ padding: "10px 12px 12px", background: BG2, borderTop: `1px solid ${BORD}`, display: "flex", flexWrap: "wrap", gap: 7, flexShrink: 0, maxHeight: 200, overflowY: "auto" }}>
+          {qrs.map((opt) => {
+            const isBack = /Main Menu|Go Back/i.test(opt);
+            return (
+              <button
+                key={opt}
+                onClick={() => send(opt)}
+                style={isBack
+                  ? { padding: "9px 16px", borderRadius: 999, border: `1.5px solid ${BORD}`, background: "transparent", color: MUTED, fontSize: 11.5, fontWeight: 600, cursor: "pointer", lineHeight: 1.3 }
+                  : { padding: "10px 18px", borderRadius: 999, border: "none", background: color, color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", textAlign: "center", lineHeight: 1.3, boxShadow: `0 2px 6px ${color}33` }}
+              >
+                {opt}
+              </button>
+            );
+          })}
         </div>
       )}
 
