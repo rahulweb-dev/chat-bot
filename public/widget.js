@@ -50,15 +50,18 @@
   }
   setLook(cachedLook ? cachedLook.color : cfg.primaryColor, cachedLook ? cachedLook.theme : cfg.theme);
 
-  // Position decides the launcher's HTML order, so it can only change on the next
-  // page load (from the cache), not live.
-  var POS   = String((cachedLook && cachedLook.position) || cfg.position || "bottom-right").toLowerCase().replace("_", "-");
-  var SIDE  = POS === "bottom-left" ? "left" : "right";
+  // Server sends "BOTTOM_LEFT"/"BOTTOM_RIGHT"; snippets send "bottom-left"/"bottom-right".
+  function sideFor(p) { return String(p || "").toLowerCase().replace("_", "-") === "bottom-left" ? "left" : "right"; }
+  // Position is pure CSS (side offset + launcher flex direction), so it can be
+  // switched live like color and theme.
+  var SIDE  = sideFor((cachedLook && cachedLook.position) || cfg.position);
 
   function applyServerLook(st) {
     if (!st) return;
     try { localStorage.setItem("sf_look", JSON.stringify({ key: KEY, color: st.primaryColor, theme: st.theme, position: st.position })); } catch (_) {}
-    if (normColor(st.primaryColor) === COLOR && normTheme(st.theme) === THEME) return;
+    var side = st.position ? sideFor(st.position) : SIDE;
+    if (normColor(st.primaryColor) === COLOR && normTheme(st.theme) === THEME && side === SIDE) return;
+    SIDE = side;
     setLook(st.primaryColor, st.theme);
     injectCSS();
   }
@@ -148,7 +151,9 @@
       "#sf-root *{scrollbar-width:thin;scrollbar-color:" + BORD + " transparent}" +
 
       // Launcher
-      "#sf-launch{position:fixed;" + SIDE + ":24px;bottom:24px;z-index:2147483646;display:flex;align-items:center;gap:10px}" +
+      // HTML is always label-then-button; on the left side the row is reversed so
+      // the button stays against the screen edge.
+      "#sf-launch{position:fixed;" + SIDE + ":24px;bottom:24px;z-index:2147483646;display:flex;flex-direction:" + (SIDE === "left" ? "row-reverse" : "row") + ";align-items:center;gap:10px}" +
       "#sf-btnwrap{position:relative;flex-shrink:0}" +
       "#sf-btn{position:relative;overflow:hidden;width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg," + COLOR + " 0%," + COLOR + "cc 100%);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 32px " + C60 + ";transition:transform .2s,box-shadow .2s}" +
       "#sf-btn:hover{transform:scale(1.1);box-shadow:0 12px 40px " + C60 + "}" +
@@ -301,7 +306,7 @@
     var labelHtml = '<button id="sf-label" type="button">Chat with us</button>';
 
     root.innerHTML =
-      '<div id="sf-launch">' + (SIDE === "left" ? btnWrapHtml + labelHtml : labelHtml + btnWrapHtml) + '</div>' +
+      '<div id="sf-launch">' + labelHtml + btnWrapHtml + '</div>' +
       '<div id="sf-win" role="dialog" aria-label="Chat">' +
         '<div id="sf-head">' +
           '<div id="sf-handle"></div>' +
