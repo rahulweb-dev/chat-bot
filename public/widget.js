@@ -87,6 +87,39 @@
   var labelPinned   = false; // true once the greeting label is showing persistently (not just on hover)
   var lastQR        = [];
   var limitReached  = false; // company's plan is out of chats this month
+
+  // ── Lead source ──────────────────────────────────────────────────────────────
+  // Remembers how this visitor arrived (ad click, campaign link, referring site)
+  // from the page they landed on, so a lead captured three pages later is still
+  // credited to the right ad. A new campaign link replaces it; browsing between
+  // the site's own pages never does. Kept for 30 days.
+  function captureAttribution() {
+    var stored = null;
+    try { stored = JSON.parse(localStorage.getItem("sf_attr") || "null"); } catch (_) {}
+    if (stored && (!stored.capturedAt || Date.now() - new Date(stored.capturedAt).getTime() > 30 * 864e5)) stored = null;
+
+    var q = null;
+    try { q = new URLSearchParams(window.location.search); } catch (_) {}
+    function p(k) { return (q && q.get(k)) || ""; }
+    var clickId = p("gclid") ? "gclid" : p("fbclid") ? "fbclid" : p("msclkid") ? "msclkid" : "";
+    var hasCampaign = !!(p("utm_source") || p("utm_medium") || p("utm_campaign") || clickId);
+    if (stored && !hasCampaign) return stored;
+
+    var ref = document.referrer || "";
+    var external = false;
+    try { external = !!ref && new URL(ref).hostname !== window.location.hostname; } catch (_) {}
+    var attr = {
+      source: p("utm_source"), medium: p("utm_medium"), campaign: p("utm_campaign"),
+      term: p("utm_term"), content: p("utm_content"), clickId: clickId || undefined,
+      // Path only: query strings can carry click IDs and personal data.
+      landingPage: window.location.origin + window.location.pathname,
+      referrer: external ? ref : "",
+      capturedAt: new Date().toISOString(),
+    };
+    try { localStorage.setItem("sf_attr", JSON.stringify(attr)); } catch (_) {}
+    return attr;
+  }
+  var attribution = captureAttribution();
   var renderedIds   = new Set(); // prevent duplicate messages from double-polling
   var pusherKey     = cfg.pusherKey     || null;
   var pusherCluster = cfg.pusherCluster || "ap2";
@@ -167,6 +200,8 @@
       "#sf-label{background:#fff;color:#1f2937;font:600 13.5px/1.3 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:12px 16px;border-radius:14px;border:none;box-shadow:0 8px 24px rgba(0,0,0,.14);cursor:pointer;white-space:nowrap;opacity:0;transform:translateY(6px);pointer-events:none;transition:opacity .3s ease,transform .3s ease}" +
       "#sf-label.show{opacity:1;transform:translateY(0);pointer-events:auto}" +
       "@media(max-width:480px){#sf-label{display:none}}" +
+      // Proactive message: wraps, and shows on phones too (the plain label doesn't).
+      "#sf-label.sf-pro{display:block;white-space:normal;max-width:250px;text-align:left;line-height:1.45}" +
 
       // Window
       "#sf-win{position:fixed;" + SIDE + ":24px;bottom:100px;width:400px;height:620px;max-height:calc(100vh - 120px);display:flex;flex-direction:column;background:" + BG + ";border-radius:24px;box-shadow:0 20px 80px rgba(0,0,0,.22),0 4px 16px rgba(0,0,0,.1);z-index:2147483645;overflow:hidden;border:1px solid " + BORD + ";opacity:0;pointer-events:none;transform:translateY(24px) scale(.94);transition:opacity .28s cubic-bezier(.4,0,.2,1),transform .28s cubic-bezier(.4,0,.2,1)}" +
@@ -212,9 +247,14 @@
       "#sf-root .sf-bub{padding:10px 14px;border-radius:18px;font-size:13.5px;line-height:1.65;word-break:break-word;white-space:pre-wrap;position:relative}" +
       "#sf-root .sf-row.bot .sf-bub{background:" + BG + ";color:" + TXT + ";border:1px solid " + BORD + ";border-bottom-left-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.07)}" +
       "#sf-root .sf-row.you .sf-bub{background:" + COLOR + ";color:white;border-bottom-right-radius:4px;box-shadow:0 2px 8px " + C60 + "}" +
+      "#sf-root .sf-bub a{color:inherit;text-decoration:underline;text-underline-offset:2px;font-weight:600;word-break:break-word}" +
 
       // Time
       "#sf-root .sf-time{font-size:10px;color:" + MUTED + ";padding:0 4px;display:flex;align-items:center;gap:3px}" +
+      // Earlier messages in a same-sender run: no time, avatar kept as a spacer, tighter gap.
+      "#sf-root .sf-row.sf-grp .sf-time{display:none}" +
+      "#sf-root .sf-row.sf-grp .sf-av{visibility:hidden}" +
+      "#sf-root .sf-row.sf-grp{margin-bottom:-9px}" +
 
       // System notices (offline hours, connecting-to-agent, errors) — visually
       // distinct from a conversational turn so they read as status, not chat
@@ -387,12 +427,48 @@
     });
   }
 
+  // ── Proactive message ────────────────────────────────────────────────────────
+  // After the visitor has spent a while on a matching page, the launcher label
+  // turns into a speech bubble with the company's message (e.g. "Want the price
+  // list for 3 BHK?") plus an unread badge. Once per browser session, and never
+  // while the chat is open.
+  var launcherText = "Chat with us";
+  var proactiveTimer = null;
+  function scheduleProactive(rules) {
+    if (proactiveTimer || !rules || !rules.length) return;
+    try { if (sessionStorage.getItem("sf_pro_shown")) return; } catch (_) {}
+    var href = String(window.location.href).toLowerCase();
+    var rule = null;
+    for (var i = 0; i < rules.length; i++) {
+      var needle = String(rules[i].urlContains || "").toLowerCase();
+      if (!needle || href.indexOf(needle) !== -1) { rule = rules[i]; break; }
+    }
+    if (!rule) return;
+    var delay = Math.max(0, Math.min(600, Number(rule.delaySeconds) || 0)) * 1000;
+    proactiveTimer = setTimeout(function() {
+      if (isOpen || chatStarted) return;
+      var lbl = document.getElementById("sf-label");
+      if (!lbl) return;
+      lbl.textContent = rule.message;
+      lbl.classList.add("sf-pro", "show");
+      labelPinned = true;
+      if (unreadCount === 0) { unreadCount = 1; showDot(); }
+      try { sessionStorage.setItem("sf_pro_shown", "1"); } catch (_) {}
+    }, delay);
+  }
+
   // ── Toggle ───────────────────────────────────────────────────────────────────
   function toggle() {
     isOpen = !isOpen;
     var win = document.getElementById("sf-win");
     var btn = document.getElementById("sf-btn");
     var lbl = document.getElementById("sf-label");
+    // A proactive bubble has done its job once the chat is opened; the label
+    // goes back to the normal launcher text.
+    if (lbl && isOpen && lbl.classList.contains("sf-pro")) {
+      lbl.classList.remove("sf-pro");
+      lbl.textContent = launcherText;
+    }
     if (lbl) lbl.classList.toggle("show", !isOpen);
     labelPinned = !isOpen;
     win.classList.toggle("open", isOpen);
@@ -566,6 +642,7 @@
         currentPage: window.location.href,
         referrer: document.referrer,
         userAgent: navigator.userAgent,
+        attribution: attribution,
       },
     }).then(function(r) {
       if (r && r.error === "LIMIT_REACHED") { showLimitReached(); return; }
@@ -710,6 +787,35 @@
     return null;
   }
 
+  // Message text with http(s) links made clickable. Built from text nodes and
+  // <a> elements (never innerHTML), so message content can't inject markup.
+  // Long links show as a short label: "Google Calendar" or the site's name.
+  function setLinkedText(el, text) {
+    var parts = String(text).split(/(https?:\/\/[^\s<>"]+)/g);
+    for (var i = 0; i < parts.length; i++) {
+      var part = parts[i];
+      if (!part) continue;
+      if (i % 2 === 1) {
+        var url = part.replace(/[.,!?)]+$/, "");
+        var trail = part.slice(url.length);
+        var a = document.createElement("a");
+        a.href = url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        var label = url;
+        try {
+          var u = new URL(url);
+          label = /calendar\.google\.com$/.test(u.hostname) ? "Google Calendar" : u.hostname.replace(/^www\./, "") + (u.pathname.length > 1 ? u.pathname.slice(0, 24) + (u.pathname.length > 24 ? "…" : "") : "");
+        } catch (_) {}
+        a.textContent = label;
+        el.appendChild(a);
+        if (trail) el.appendChild(document.createTextNode(trail));
+      } else {
+        el.appendChild(document.createTextNode(part));
+      }
+    }
+  }
+
   function addBubble(text, side, ts, senderLabel) {
     var msgs = document.getElementById("sf-msgs");
     var isBot = side === "bot";
@@ -748,7 +854,7 @@
 
     var bub = document.createElement("div");
     bub.className = "sf-bub";
-    bub.textContent = text;
+    setLinkedText(bub, text);
     wrap.appendChild(bub);
 
     var timeEl = document.createElement("div");
@@ -762,6 +868,18 @@
     }
     wrap.appendChild(timeEl);
     row.appendChild(wrap);
+
+    // Group consecutive messages from the same sender within 2 minutes: only the
+    // last one in a run keeps its time and avatar, like any messaging app.
+    var when = new Date(ts || Date.now()).getTime();
+    row.setAttribute("data-ts", String(when));
+    row.setAttribute("data-from", side + "|" + (senderLabel || ""));
+    var prev = msgs.lastElementChild;
+    if (prev && prev.classList.contains("sf-row") &&
+        prev.getAttribute("data-from") === row.getAttribute("data-from") &&
+        Math.abs(when - Number(prev.getAttribute("data-ts"))) < 120000) {
+      prev.classList.add("sf-grp");
+    }
 
     msgs.appendChild(row);
     msgs.scrollTop = msgs.scrollHeight;
@@ -911,9 +1029,11 @@
         var logoUrl = (d.data.settings && d.data.settings.logo) || d.data.logo;
         applyCompanyInfo(d.data.name, logoUrl, true);
         if (d.data.settings && d.data.settings.launcherText) {
+          launcherText = d.data.settings.launcherText;
           var lbl = document.getElementById("sf-label");
-          if (lbl) lbl.textContent = d.data.settings.launcherText;
+          if (lbl && !lbl.classList.contains("sf-pro")) lbl.textContent = launcherText;
         }
+        scheduleProactive(d.data.proactive);
         if (d.data.name || logoUrl) {
           try { localStorage.setItem("sf_company", JSON.stringify({ key: KEY, name: d.data.name || "", logo: logoUrl || "" })); } catch (_) {}
         }

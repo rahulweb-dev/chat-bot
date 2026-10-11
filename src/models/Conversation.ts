@@ -23,6 +23,7 @@ export interface IConversation extends Document {
     isLoggedIn: boolean;
     visitorId: string;
     customAttributes?: Record<string, unknown>;
+    attribution?: import("@/lib/attribution").Attribution; // where the visitor came from
   };
   tags: string[];
   notes: {
@@ -85,6 +86,7 @@ const ConversationSchema = new Schema<IConversation>(
       isLoggedIn: { type: Boolean, default: false },
       visitorId: { type: String, required: true },
       customAttributes: { type: Schema.Types.Mixed },
+      attribution: { type: Schema.Types.Mixed },
     },
     tags: [{ type: String }],
     notes: [

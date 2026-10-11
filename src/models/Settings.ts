@@ -38,6 +38,11 @@ export interface ISettings extends Document {
     browserNotifications: boolean;
     slackWebhook?: string;
     webhookUrl?: string;
+    // New leads / agent requests sent to the owner's WhatsApp from the company's own
+    // connected WhatsApp number. templateName = an approved template with 4 body
+    // variables (name, phone, interest, source); without it a plain text is tried,
+    // which WhatsApp only delivers within 24h of the owner messaging that number.
+    whatsappAlerts?: { enabled: boolean; phones: string[]; templateName?: string; templateLanguage?: string };
   };
   security: {
     twoFactorEnabled: boolean;
@@ -115,6 +120,12 @@ const SettingsSchema = new Schema<ISettings>(
       browserNotifications: { type: Boolean, default: true },
       slackWebhook: String,
       webhookUrl: String,
+      whatsappAlerts: {
+        enabled: { type: Boolean, default: false },
+        phones: [{ type: String }],
+        templateName: { type: String, default: "" },
+        templateLanguage: { type: String, default: "en" },
+      },
     },
     security: {
       twoFactorEnabled: { type: Boolean, default: false },

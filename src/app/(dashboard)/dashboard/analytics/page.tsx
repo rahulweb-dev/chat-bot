@@ -273,6 +273,43 @@ export default function AnalyticsPage() {
         </Card>
       </div>
 
+      {/* Where leads come from — ads, campaigns, search, referrals (captured by the widget) */}
+      {!!data?.leadsByChannel?.length && (
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-indigo-500" /> Where your leads come from
+            </CardTitle>
+            <p className="text-xs text-gray-500">Ad, campaign or website that brought each lead, in this period.</p>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {(() => {
+                const rows = data.leadsByChannel as { channel: string; leads: number; won: number }[];
+                const max = Math.max(...rows.map((r) => r.leads), 1);
+                return rows.map((r) => (
+                  <div key={r.channel} className="grid grid-cols-[minmax(0,10rem)_1fr_auto] items-center gap-3">
+                    <span className={`text-sm truncate ${r.channel === "Not tracked" ? "text-gray-400" : "text-gray-800 font-medium"}`} title={r.channel}>
+                      {r.channel}
+                    </span>
+                    <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${r.channel === "Not tracked" ? "bg-gray-300" : "bg-indigo-500"}`}
+                        style={{ width: `${Math.max(4, (r.leads / max) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-sm tabular-nums text-gray-700 whitespace-nowrap">
+                      <b>{r.leads}</b> lead{r.leads === 1 ? "" : "s"}
+                      {r.won > 0 && <span className="text-green-600"> · {r.won} won</span>}
+                    </span>
+                  </div>
+                ));
+              })()}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Chatbot & Lead Analytics */}
       {leadsBreakdown && leadsBreakdown.total > 0 && (
         <div className="space-y-3">

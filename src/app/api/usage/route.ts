@@ -2,8 +2,7 @@ import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess } from "@/lib/api-helpers";
 import Usage from "@/models/Usage";
-import Company from "@/models/Company";
-import Plan from "@/models/Plan";
+import { getEffectivePlan } from "@/lib/plan-limits";
 import User from "@/models/User";
 import KnowledgeBase from "@/models/KnowledgeBase";
 import Chatbot from "@/models/Chatbot";
@@ -18,8 +17,8 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const period = searchParams.get("period") || new Date().toISOString().slice(0, 7);
 
-  const [company, usage, liveAgents, liveDepts, liveKBFiles, liveChatbots] = await Promise.all([
-    Company.findById(ctx.companyId).populate({ path: "planId", model: Plan }),
+  const [plan, usage, liveAgents, liveDepts, liveKBFiles, liveChatbots] = await Promise.all([
+    getEffectivePlan(ctx.companyId),
     Usage.findOne({ companyId: ctx.companyId, period }),
     // Live counts — source of truth, not the Usage counter
     User.countDocuments({ companyId: ctx.companyId, role: { $in: ["AGENT", "MANAGER", "TEAM_LEADER", "VIEWER"] } }),
@@ -28,8 +27,7 @@ export async function GET(request: NextRequest) {
     Chatbot.countDocuments({ companyId: ctx.companyId }),
   ]);
 
-  if (!company) return apiError("Company not found", 404);
-  const plan = company.planId as unknown as InstanceType<typeof Plan>;
+  if (!plan) return apiError("Company not found", 404);
 
   const current = usage || {
     chats: 0, aiMessages: 0, leads: 0, tickets: 0, apiRequests: 0, storage: 0, workflows: 0,
@@ -64,7 +62,10 @@ export async function GET(request: NextRequest) {
 
   return apiSuccess({
     period,
-    plan: { name: plan.name, type: plan.type },
+    plan: {
+      name: plan.name, type: plan.type, expired: plan.expired, periodEnd: plan.periodEnd,
+      daysLeft: plan.periodEnd ? Math.ceil((new Date(plan.periodEnd).getTime() - Date.now()) / 86400000) : null,
+    },
     metrics,
   });
 }

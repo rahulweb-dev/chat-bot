@@ -15,6 +15,7 @@ import { toast } from "@/components/ui/use-toast";
 import { Loader2, Save, Bell, Shield, MessageSquare, Globe, Palette, ImageIcon, Trash2, Building2 } from "lucide-react";
 import { uploadToImageKit } from "@/lib/imagekitUpload";
 import { FormSkeleton } from "@/components/ui/page-skeletons";
+import { WhatsAppAlertsCard } from "@/components/settings/whatsapp-alerts-card";
 
 function LogoUploadField({ value, onChange }: { value: string; onChange: (url: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -367,6 +368,7 @@ export default function SettingsPage() {
               </form>
             </CardContent>
           </Card>
+          <WhatsAppAlertsCard initial={s.notifications?.whatsappAlerts} />
         </TabsContent>
 
         <TabsContent value="security">

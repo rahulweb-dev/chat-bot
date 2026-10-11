@@ -8,7 +8,7 @@ import {
   MessageSquare, TicketIcon, Users, Building2, BarChart3,
   Settings, Bell, Key, Bot, Workflow, CreditCard,
   LayoutDashboard, BookOpen, Tag, Globe, Shield,
-  Inbox, MessageCircle, Trophy, Mail, X, LogOut, ChevronLeft, ChevronRight,
+  Inbox, MessageCircle, Trophy, Mail, X, LogOut, ChevronLeft, ChevronRight, CalendarCheck,
 } from "lucide-react";
 import { getInitials } from "@/lib/utils";
 import { useUIStore } from "@/store/ui-store";
@@ -47,6 +47,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Tickets",   href: "/dashboard/tickets", icon: TicketIcon },
       { label: "Leads & CRM", href: "/dashboard/leads", icon: Tag },
+      { label: "Bookings",  href: "/dashboard/bookings", icon: CalendarCheck },
     ],
   },
   {

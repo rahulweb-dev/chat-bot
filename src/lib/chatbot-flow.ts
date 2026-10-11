@@ -2,6 +2,11 @@ import ChatbotConfig from "@/models/ChatbotConfig";
 import KnowledgeBase from "@/models/KnowledgeBase";
 import { checkUsageLimit, incrementUsage } from "@/lib/api-helpers";
 import { getChatModel } from "@/lib/ai";
+import { normalizePhone } from "@/lib/phone";
+import { retrieve, formatContext } from "@/lib/rag";
+import { DEFAULT_BOOKING, type BookingConfig } from "@/lib/booking";
+import { handleBookingFlow, isBookingTrigger, bookingButton } from "@/lib/booking-flow";
+export { normalizePhone };
 
 export interface SessionData {
   flow: string;
@@ -16,6 +21,9 @@ export interface BotResponse {
   action: "NONE" | "CREATE_LEAD" | "CREATE_TICKET" | "ASSIGN_AGENT";
   leadData?: Record<string, string>;
   ticketData?: Record<string, string>;
+  // Set when the visitor just booked a slot (src/lib/booking-flow.ts); the
+  // widget chat route saves it as a Booking. held = slot place already reserved.
+  booking?: { startAt: string; endAt: string; label: string; held: boolean };
 }
 
 // ── Per-company custom menu flow (built in the Chatbot Overview tab) ───────────
@@ -135,9 +143,17 @@ function match(input: string, keyword: string): boolean {
   return input.toLowerCase().includes(keyword.toLowerCase());
 }
 
-function isPhone(s: string): boolean {
-  return /^[\+]?[\d\s\-]{9,14}$/.test(s.replace(/[\s\-]/g, ""));
+// "rahul kumar" -> "Rahul" for greetings; the full name as typed is still saved.
+function firstName(name?: string): string {
+  const w = String(name || "").trim().split(/\s+/)[0] || "there";
+  return w.charAt(0).toUpperCase() + w.slice(1);
 }
+
+function isPhone(s: string): boolean {
+  return normalizePhone(s) !== null;
+}
+
+const PHONE_RETRY = "⚠️ That number doesn't look right. Please enter your 10-digit mobile number (for example 98765 43210):";
 
 function isEmail(s: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
@@ -174,7 +190,7 @@ function offlineNoticeLines(ctx?: BotContext): string[] {
 function validateStepInput(step: CustomFlowStep, inp: string): string | null {
   if (step.type !== "text" || !step.validate || step.validate === "none") return null;
   const trimmed = inp.trim();
-  if (step.validate === "phone" && !isPhone(trimmed)) return "⚠️ That doesn't look like a valid phone number. Please enter a valid mobile number:";
+  if (step.validate === "phone" && !isPhone(trimmed)) return PHONE_RETRY;
   if (step.validate === "email" && !isEmail(trimmed)) return "⚠️ That doesn't look like a valid email address. Please enter a valid email:";
   if (step.validate === "number" && (trimmed === "" || Number.isNaN(Number(trimmed)))) return "⚠️ Please enter a valid number:";
   return null;
@@ -329,30 +345,39 @@ export async function matchTraining(message: string, companyId: string, collecte
 async function getAIFallbackReply(message: string, companyId: string, collected: Record<string, string>): Promise<BotResponse | null> {
   if (!process.env.GEMINI_API_KEY) return null;
 
-  // AGENTS-only knowledge base entries are internal notes — never expose them to
-  // the public-facing bot. BOT_ONLY and ALL are fair game.
-  const kbItems = await KnowledgeBase.find({
-    companyId,
-    status: "READY",
-    accessibleBy: { $in: ["ALL", "BOT_ONLY"] },
-  }).select("content").lean();
-  const contextContent = kbItems.map((kb) => kb.content).filter(Boolean).join("\n\n---\n\n").slice(0, 8000);
-  if (!contextContent) return null; // nothing trained — don't let the model improvise
-
   const usageCheck = await checkUsageLimit(companyId, "aiMessages");
   if (!usageCheck.allowed) return null; // degrade quietly to the normal menu, not an error shown to the visitor
 
+  // Only the passages relevant to this question (src/lib/rag.ts). "bot"
+  // audience excludes AGENTS-only entries, which are internal notes.
+  const passages = await retrieve(companyId, message, { k: 5, audience: "bot" }).catch(() => []);
+  if (!passages.length) return null; // nothing relevant trained — don't let the model improvise
+
   try {
     const model = getChatModel();
-    const systemPrompt = `You are a helpful customer support assistant. Use ONLY the following knowledge base to answer the visitor's question — do not use outside knowledge. Keep the answer under 80 words, friendly and concise. If the knowledge base doesn't cover this, say so plainly and suggest talking to a human instead of guessing.\n\n${contextContent}`;
-    const chat = model.startChat({ systemInstruction: systemPrompt });
+    const systemPrompt =
+      `You are the website assistant for this business. Answer the visitor using ONLY the numbered passages below; never use outside knowledge or invent prices, dates or facts.\n` +
+      `Reply as JSON: {"answer": string, "sources": number[]}.\n` +
+      `- answer: friendly, under 80 words, in the visitor's language. Plain text, no markdown.\n` +
+      `- sources: the passage numbers you actually used.\n` +
+      `- If the passages don't answer the question, set answer to "" and sources to [].\n\n` +
+      formatContext(passages);
+    const chat = model.startChat({ systemInstruction: systemPrompt, generationConfig: { responseMimeType: "application/json" } });
     const result = await chat.sendMessage(message);
-    const answer = result.response.text()?.trim();
-    if (!answer) return null;
-
+    let parsed: { answer?: string; sources?: number[] } = {};
+    try { parsed = JSON.parse(result.response.text()); } catch { parsed = { answer: result.response.text() }; }
+    const answer = parsed.answer?.trim();
     await incrementUsage(companyId, "aiMessages");
+    if (!answer) return null; // not covered: fall through to the menu / human handoff
+
+    // Name where the answer came from, so visitors (and the owner reading the
+    // transcript) can trust and check it.
+    const used = (parsed.sources ?? []).map((n) => passages[n - 1]).filter(Boolean);
+    const names = [...new Set((used.length ? used : passages.slice(0, 1)).map((p) => p.sourceName))].slice(0, 2);
+    KnowledgeBase.updateMany({ _id: { $in: [...new Set(used.map((p) => p.kbId))] } }, { $inc: { usageCount: 1 } }).catch(() => {});
+
     return {
-      messages: [answer],
+      messages: [`${answer}\n\n📄 Source: ${names.join(", ")}`],
       quickReplies: ["💬 Talk to a Human", "🔙 Main Menu"],
       action: "NONE",
       sessionData: { flow: "INITIAL", step: "", collected },
@@ -380,15 +405,23 @@ function identifyThenMenu(
         return { messages: ["Please enter your name (at least 2 characters):"], quickReplies: [], sessionData: { flow: "IDENTIFY", step: "ask_name", collected: col }, action: "NONE" };
       }
       col.name = inp;
-      return { messages: [`Nice to meet you, ${col.name}! 😊\n\nCould you share your mobile number?`], quickReplies: [], sessionData: { flow: "IDENTIFY", step: "ask_phone", collected: col }, action: "NONE" };
+      return { messages: [`Nice to meet you, ${firstName(col.name)}! 😊 Could you share your mobile number?`], quickReplies: [], sessionData: { flow: "IDENTIFY", step: "ask_phone", collected: col }, action: "NONE" };
     }
     if (s.step === "ask_phone") {
       if (!isPhone(inp)) {
-        return { messages: ["⚠️ Please enter a valid 10-digit mobile number:"], quickReplies: [], sessionData: { flow: "IDENTIFY", step: "ask_phone", collected: col }, action: "NONE" };
+        return { messages: [PHONE_RETRY], quickReplies: [], sessionData: { flow: "IDENTIFY", step: "ask_phone", collected: col }, action: "NONE" };
       }
-      col.phone = inp;
+      col.phone = normalizePhone(inp) ?? inp;
       const menuResp = showMenu(col);
-      return { ...menuResp, messages: [`Thank you, ${col.name}! ✅`, `${greeting}\n\nHow can I help you today?`, ...offlineNoticeLines(ctx)] };
+      // One natural reply instead of "thank you" + a repeat of the opening
+      // greeting + a generic "leave your details" offline notice (the visitor
+      // just left them). Offline: say who'll call and on which number.
+      const first = firstName(col.name);
+      const within = !ctx || isWithinBusinessHours(ctx.businessHours, ctx.timezone);
+      const reply = within
+        ? `Thanks, ${first}! ✅ How can I help you today?`
+        : `Thanks, ${first}! ✅ Our team is offline right now, so we'll call you on ${col.phone} as soon as we're back.\n\nMeanwhile, what would you like to know?`;
+      return { ...menuResp, messages: [reply] };
     }
   }
 
@@ -539,7 +572,8 @@ function runCustomFlow(input: string, session: SessionData, cf: CustomFlow, gree
       };
     }
 
-    col[currentStep.saveAs || `field_${stepIndex}`] = inp;
+    col[currentStep.saveAs || `field_${stepIndex}`] =
+      currentStep.validate === "phone" ? (normalizePhone(inp) ?? inp) : inp;
     const nextIndex = stepIndex + 1;
     if (nextIndex < target.steps.length) return askCustomStep(target, nextIndex, col, ctx);
     return finalizeCustomFlow(target, col, ctx);
@@ -553,11 +587,11 @@ function runCustomFlow(input: string, session: SessionData, cf: CustomFlow, gree
 // is enabled, then falls back to the built-in Ashok Leyland demo flow. Also fetches
 // business hours and catalog data in the same query so custom flows can gate
 // agent handoffs on hours and pull live options from Vehicles/Offers.
-export async function getBotReply(message: string, session: SessionData, companyId: string, welcomeMessage?: string, timezone?: string): Promise<BotResponse> {
+async function getBotReplyInner(message: string, session: SessionData, companyId: string, welcomeMessage?: string, timezone?: string, opts: { dryRun?: boolean } = {}): Promise<BotResponse> {
   const greeting = welcomeMessage?.trim() || "👋 Hi! Welcome!";
 
   const config = await ChatbotConfig.findOne({ companyId })
-    .select("customFlow aiFallback businessHours agentOnlineMessage agentOfflineMessage vehicles offers")
+    .select("customFlow aiFallback businessHours agentOnlineMessage agentOfflineMessage vehicles offers booking")
     .lean() as {
       customFlow?: CustomFlow;
       aiFallback?: { enabled?: boolean };
@@ -566,6 +600,7 @@ export async function getBotReply(message: string, session: SessionData, company
       agentOfflineMessage?: string;
       vehicles?: { name: string; isActive: boolean }[];
       offers?: { title: string; isActive: boolean }[];
+      booking?: Partial<BookingConfig>;
     } | null;
 
   const ctx: BotContext = {
@@ -592,6 +627,14 @@ export async function getBotReply(message: string, session: SessionData, company
     return cf?.enabled && cf.flows?.length ? customMenu(cf, col, greeting) : mainMenu(col, greeting);
   }
 
+  // Booking runs ahead of training and the custom flow so its own menu labels
+  // (e.g. "Plan a Walkthrough") open the real slot picker.
+  const bookingCfg = { ...DEFAULT_BOOKING, ...(config?.booking ?? {}) };
+  if (bookingCfg.enabled && session.flow !== "IDENTIFY") {
+    const booked = await handleBookingFlow(message, session, companyId, bookingCfg, ctx.businessHours ?? [], timezone, opts);
+    if (booked) return booked;
+  }
+
   if (session.flow === "INITIAL" && message !== "__INIT__") {
     const trained = await matchTraining(message, companyId, session.collected);
     if (trained) return trained;
@@ -611,6 +654,25 @@ export async function getBotReply(message: string, session: SessionData, company
   }
 
   return processFlow(message, session, welcomeMessage, ctx);
+}
+
+// Public entry point. Same as before, plus: when booking is on, every menu the
+// visitor sees gets a "📅 Book a …" button, unless one of the company's own menu
+// items already starts booking. opts.dryRun (dashboard previews) never reserves
+// a real slot.
+export async function getBotReply(message: string, session: SessionData, companyId: string, welcomeMessage?: string, timezone?: string, opts: { dryRun?: boolean } = {}): Promise<BotResponse> {
+  const res = await getBotReplyInner(message, session, companyId, welcomeMessage, timezone, opts);
+  if (res.sessionData.flow !== "INITIAL" || res.quickReplies.length < 2 || res.booking) return res;
+
+  const cfg = await ChatbotConfig.findOne({ companyId }).select("booking").lean<{ booking?: Partial<BookingConfig> }>();
+  const booking = { ...DEFAULT_BOOKING, ...(cfg?.booking ?? {}) };
+  if (!booking.enabled || res.quickReplies.some((q) => isBookingTrigger(q, booking))) return res;
+
+  const btn = bookingButton(booking);
+  const menuIdx = res.quickReplies.findIndex((q) => /Main Menu/i.test(q));
+  const quickReplies = [...res.quickReplies];
+  quickReplies.splice(menuIdx === -1 ? quickReplies.length : menuIdx, 0, btn);
+  return { ...res, quickReplies };
 }
 
 export function processFlow(input: string, session: SessionData, welcomeMessage?: string, ctx?: BotContext): BotResponse {
@@ -729,8 +791,8 @@ export function processFlow(input: string, session: SessionData, welcomeMessage?
       return ask("BROCHURE", "ask_phone", col, "Your mobile number:", []);
     }
     if (s.step === "ask_phone") {
-      if (!isPhone(inp)) return ask("BROCHURE", "ask_phone", col, "⚠️ Please enter a valid 10-digit mobile number:", []);
-      col.phone = inp;  return ask("BROCHURE", "ask_email", col, "Your email address:", []);
+      if (!isPhone(inp)) return ask("BROCHURE", "ask_phone", col, PHONE_RETRY, []);
+      col.phone = normalizePhone(inp) ?? inp;  return ask("BROCHURE", "ask_email", col, "Your email address:", []);
     }
     if (s.step === "ask_email") { col.email = inp; return ask("BROCHURE", "ask_city", col, "Your city:", CITIES); }
     if (s.step === "ask_city") {
@@ -762,8 +824,8 @@ export function processFlow(input: string, session: SessionData, welcomeMessage?
       return ask("TEST_DRIVE", "ask_phone", col, "Your mobile number:", []);
     }
     if (s.step === "ask_phone") {
-      if (!isPhone(inp)) return ask("TEST_DRIVE", "ask_phone", col, "⚠️ Please enter a valid 10-digit mobile number:", []);
-      col.phone = inp;  return ask("TEST_DRIVE", "ask_email", col, "Your email address:", []);
+      if (!isPhone(inp)) return ask("TEST_DRIVE", "ask_phone", col, PHONE_RETRY, []);
+      col.phone = normalizePhone(inp) ?? inp;  return ask("TEST_DRIVE", "ask_email", col, "Your email address:", []);
     }
     if (s.step === "ask_email") {
       col.email = inp;
@@ -848,8 +910,8 @@ export function processFlow(input: string, session: SessionData, welcomeMessage?
       return ask("SPARE_PARTS", "ask_phone", col, "Your mobile number:", []);
     }
     if (s.step === "ask_phone") {
-      if (!isPhone(inp)) return ask("SPARE_PARTS", "ask_phone", col, "⚠️ Please enter a valid mobile number:", []);
-      col.phone = inp;
+      if (!isPhone(inp)) return ask("SPARE_PARTS", "ask_phone", col, PHONE_RETRY, []);
+      col.phone = normalizePhone(inp) ?? inp;
       return {
         messages: [`✅ Spare Parts Enquiry Submitted!\n\n👤 ${col.name}\n📞 ${col.phone}\n🚛 ${col.vehicle}\n🔩 ${col.partCategory}\n\nOur parts team will contact you within 4 hours. 🙏`],
         quickReplies: ["🛠️ Book Service", "💬 Chat with Agent", "🔙 Main Menu"],
@@ -913,8 +975,8 @@ export function processFlow(input: string, session: SessionData, welcomeMessage?
       return ask("CALLBACK", "ask_phone", col, "Your mobile number:", []);
     }
     if (s.step === "ask_phone") {
-      if (!isPhone(inp)) return ask("CALLBACK", "ask_phone", col, "⚠️ Please enter a valid 10-digit mobile number:", []);
-      col.phone = inp;  return ask("CALLBACK", "ask_time", col, "Preferred callback time:", [...TIMES, "Anytime"]);
+      if (!isPhone(inp)) return ask("CALLBACK", "ask_phone", col, PHONE_RETRY, []);
+      col.phone = normalizePhone(inp) ?? inp;  return ask("CALLBACK", "ask_time", col, "Preferred callback time:", [...TIMES, "Anytime"]);
     }
     if (s.step === "ask_time") {
       col.preferredTime = inp;
@@ -943,8 +1005,8 @@ export function processFlow(input: string, session: SessionData, welcomeMessage?
       return ask("CHAT_AGENT", "ask_phone", col, "Your mobile number:", []);
     }
     if (s.step === "ask_phone") {
-      if (!isPhone(inp)) return ask("CHAT_AGENT", "ask_phone", col, "⚠️ Please enter a valid mobile number:", []);
-      col.phone = inp;
+      if (!isPhone(inp)) return ask("CHAT_AGENT", "ask_phone", col, PHONE_RETRY, []);
+      col.phone = normalizePhone(inp) ?? inp;
       return ask("CHAT_AGENT", "ask_city", col, "Your city:", CITIES);
     }
     if (s.step === "ask_city") { col.city = inp; return escalate(col, col.category, ctx); }

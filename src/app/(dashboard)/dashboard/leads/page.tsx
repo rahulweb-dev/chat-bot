@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Search, IndianRupee, Mail, Phone, Bot, Zap, Download, ClipboardList } from "lucide-react";
+import { Plus, Search, IndianRupee, Mail, Phone, Bot, Zap, Download, ClipboardList, TrendingUp } from "lucide-react";
 import { timeAgo } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -389,12 +389,30 @@ export default function LeadsPage() {
                       <Bot className="w-3 h-3" /> From chatbot
                     </span>
                   )}
+                  {detailLead.attribution?.channel && (
+                    <span className="text-xs px-2 py-1 rounded-full font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                      <TrendingUp className="w-3 h-3" /> {detailLead.attribution.channel}
+                    </span>
+                  )}
                   {typeof detailLead.score === "number" && (
                     <span className="text-xs px-2 py-1 rounded-full font-medium bg-gray-100 text-gray-600">
                       Score: {detailLead.score}
                     </span>
                   )}
                 </div>
+
+                {detailLead.attribution && (detailLead.attribution.campaign || detailLead.attribution.landingPage || detailLead.attribution.referrer) && (
+                  <div className="rounded-lg border bg-gray-50 p-3 text-xs space-y-1">
+                    <p className="font-semibold text-gray-700">Where this lead came from</p>
+                    {detailLead.attribution.campaign && <p><span className="text-gray-500">Campaign:</span> {detailLead.attribution.campaign}</p>}
+                    {(detailLead.attribution.source || detailLead.attribution.medium) && (
+                      <p><span className="text-gray-500">Source / medium:</span> {[detailLead.attribution.source, detailLead.attribution.medium].filter(Boolean).join(" / ")}</p>
+                    )}
+                    {detailLead.attribution.term && <p><span className="text-gray-500">Keyword:</span> {detailLead.attribution.term}</p>}
+                    {detailLead.attribution.referrer && <p className="truncate"><span className="text-gray-500">Referred by:</span> {detailLead.attribution.referrer}</p>}
+                    {detailLead.attribution.landingPage && <p className="truncate"><span className="text-gray-500">Landing page:</span> {detailLead.attribution.landingPage}</p>}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   {detailLead.phone && (
@@ -465,4 +483,5 @@ interface Lead {
   createdAt: string;
   assignedTo?: { name: string };
   customFields?: Record<string, unknown>;
+  attribution?: { channel: string; source?: string; medium?: string; campaign?: string; term?: string; landingPage?: string; referrer?: string };
 }

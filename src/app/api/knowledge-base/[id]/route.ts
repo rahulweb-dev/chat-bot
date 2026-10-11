@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess } from "@/lib/api-helpers";
 import KnowledgeBase from "@/models/KnowledgeBase";
+import { indexKnowledgeBase, invalidateKnowledgeCache } from "@/lib/rag";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -37,6 +38,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   );
   if (!doc) return apiError("Not found", 404);
 
+  // Edited text must be re-chunked and re-embedded, or AI answers keep using
+  // the old version. Other edits (name, tags, access) only need a cache reset.
+  if (typeof update.content === "string") await indexKnowledgeBase(id, update.content);
+  else invalidateKnowledgeCache();
+
   return apiSuccess(doc, "Document updated");
 }
 
@@ -51,6 +57,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   await connectDB();
   const doc = await KnowledgeBase.findOneAndDelete({ _id: id, companyId: ctx.companyId });
   if (!doc) return apiError("Not found", 404);
+  invalidateKnowledgeCache();
 
   return apiSuccess(null, "Document deleted");
 }

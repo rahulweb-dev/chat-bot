@@ -52,6 +52,8 @@ const { initEmailWorker } = require("./src/lib/queue/emailWorker") as typeof imp
 const { initEmailCampaignScheduler } = require("./src/lib/queue/emailCampaignScheduler") as typeof import("./src/lib/queue/emailCampaignScheduler");
 const { initRCSWorker } = require("./src/lib/queue/rcsWorker") as typeof import("./src/lib/queue/rcsWorker");
 const { initRCSCampaignScheduler } = require("./src/lib/queue/rcsCampaignScheduler") as typeof import("./src/lib/queue/rcsCampaignScheduler");
+const { initBillingLifecycleScheduler } = require("./src/lib/billing-lifecycle") as typeof import("./src/lib/billing-lifecycle");
+const { initBookingReminderScheduler } = require("./src/lib/booking-reminders") as typeof import("./src/lib/booking-reminders");
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const dev = process.env.NODE_ENV !== "production";
@@ -81,6 +83,8 @@ app.prepare().then(() => {
   initEmailCampaignScheduler();
   initRCSWorker();
   initRCSCampaignScheduler();
+  initBillingLifecycleScheduler();
+  initBookingReminderScheduler();
 
   httpServer.listen(port, () => {
     console.log(`> Ready on http://${hostname}:${port}`);
@@ -89,5 +93,6 @@ app.prepare().then(() => {
     console.log(`> Usage alert scheduler initialized`);
     console.log(`> Email worker + campaign scheduler initialized`);
     console.log(`> RCS worker + campaign scheduler initialized`);
+    console.log(`> Billing lifecycle + booking reminder schedulers initialized`);
   });
 });

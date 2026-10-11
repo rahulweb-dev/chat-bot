@@ -3,6 +3,8 @@ import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess, paginatedResponse, paginate, incrementUsage } from "@/lib/api-helpers";
 import KnowledgeBase from "@/models/KnowledgeBase";
 import { safeFetch } from "@/lib/safe-fetch";
+import { crawlSite, extractFileText } from "@/lib/kb-ingest";
+import { indexKnowledgeBase } from "@/lib/rag";
 
 export async function GET(request: NextRequest) {
   const ctx = await getRequestContext(request);
@@ -41,7 +43,7 @@ export async function POST(request: NextRequest) {
   }
 
   await connectDB();
-  const body = await request.json();
+  const { crawl, ...body } = await request.json();
 
   const kb = await KnowledgeBase.create({
     ...body,
@@ -53,13 +55,16 @@ export async function POST(request: NextRequest) {
   await incrementUsage(ctx.companyId, "knowledgeFiles");
 
   if (kb.fileUrl || kb.sourceUrl || kb.content) {
-    processKnowledgeBase(kb._id.toString()).catch(console.error);
+    processKnowledgeBase(kb._id.toString(), { crawl: !!crawl }).catch(console.error);
   }
 
   return apiSuccess(kb, "Knowledge base document created", 201);
 }
 
-async function processKnowledgeBase(kbId: string) {
+// Turns a new document into searchable chunks: fetches a website (optionally
+// the whole site), reads an uploaded PDF/DOCX/TXT, or uses pasted text, then
+// chunks + embeds it (src/lib/rag.ts) for AI answers.
+async function processKnowledgeBase(kbId: string, opts: { crawl?: boolean } = {}) {
   const { connectDB: db } = await import("@/lib/mongodb");
   await db();
 
@@ -70,61 +75,43 @@ async function processKnowledgeBase(kbId: string) {
     await KnowledgeBase.findByIdAndUpdate(kbId, { status: "PROCESSING" });
 
     let content = kb.content || "";
+    let description = kb.description;
 
     if (kb.type === "URL" && kb.sourceUrl) {
-      const response = await safeFetch(kb.sourceUrl, {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; Convo360Bot/1.0)" },
-        timeoutMs: 15000,
-      });
-      const html = await response.text();
-      // Strip scripts/styles first, then all tags
-      content = html
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
-        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
-        .replace(/<[^>]+>/g, " ")
-        .replace(/&nbsp;/g, " ")
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 100000); // cap at 100k chars
+      const site = await crawlSite(kb.sourceUrl, opts.crawl ? 25 : 1);
+      content = site.content;
+      if (opts.crawl && !description) description = `${site.pages.length} page${site.pages.length === 1 ? "" : "s"} read from this site`;
     }
 
-    // For TXT files hosted on Firebase — fetch and read content
-    if (["TXT", "CSV"].includes(kb.type) && kb.fileUrl && !content) {
-      try {
-        const r = await safeFetch(kb.fileUrl, { timeoutMs: 10000 });
-        content = await r.text();
-      } catch {}
-    }
-
+    // Files stored elsewhere (older uploads): download and read them here.
     if (!content && kb.fileUrl) {
-      // File uploaded but content not extractable (e.g. PDF without parser)
-      // Mark as READY with placeholder so it's usable
-      content = `[Uploaded document: ${kb.name}. File URL: ${kb.fileUrl}]`;
+      const r = await safeFetch(kb.fileUrl, { timeoutMs: 20000 });
+      const buf = Buffer.from(await r.arrayBuffer());
+      const ext = (kb.fileName || kb.fileUrl).split("?")[0].split(".").pop() || kb.type.toLowerCase();
+      content = await extractFileText(buf, ext);
     }
 
-    const chunks = chunkText(content, 500);
+    if (!content.trim()) {
+      throw new Error(
+        kb.type === "PDF"
+          ? "No text found in this PDF. It may be a scanned image; paste the text with 'Write Manually' instead."
+          : "No readable text found."
+      );
+    }
+
+    const chunkCount = await indexKnowledgeBase(kbId, content);
     await KnowledgeBase.findByIdAndUpdate(kbId, {
       status: "READY",
       content,
-      chunks: chunks.map((c) => ({ content: c })),
+      description,
       processedAt: new Date(),
+      $unset: { errorMessage: 1 },
     });
+    console.log(`[knowledge-base] ${kbId} ready: ${content.length} chars, ${chunkCount} chunks`);
   } catch (error) {
     await KnowledgeBase.findByIdAndUpdate(kbId, {
       status: "FAILED",
       errorMessage: error instanceof Error ? error.message : "Processing failed",
     });
   }
-}
-
-function chunkText(text: string, chunkSize: number): string[] {
-  const words = text.split(" ");
-  const chunks: string[] = [];
-  for (let i = 0; i < words.length; i += chunkSize) {
-    chunks.push(words.slice(i, i + chunkSize).join(" "));
-  }
-  return chunks;
 }

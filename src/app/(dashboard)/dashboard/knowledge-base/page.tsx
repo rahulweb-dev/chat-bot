@@ -13,7 +13,6 @@ import {
 import { Plus, Search, FileText, Globe, Upload, Check, Trash2, Loader2, Link2 } from "lucide-react";
 import { timeAgo, formatBytes } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { uploadFile } from "@/lib/firebase";
 import { CardGridSkeleton } from "@/components/ui/page-skeletons";
 
 const typeConfig: Record<string, { color: string; icon: string }> = {
@@ -38,7 +37,7 @@ type DialogMode = "url" | "file" | "manual" | null;
 interface KBItem {
   _id: string; name: string; type: string; status: string;
   description?: string; fileSize?: number; createdAt: string;
-  usageCount: number; tags: string[]; sourceUrl?: string;
+  usageCount: number; tags: string[]; sourceUrl?: string; errorMessage?: string;
 }
 
 export default function KnowledgeBasePage() {
@@ -51,16 +50,15 @@ export default function KnowledgeBasePage() {
   const [urlName, setUrlName]     = useState("");
   const [urlDesc, setUrlDesc]     = useState("");
   const [urlTags, setUrlTags]     = useState("");
+  const [crawl, setCrawl]         = useState(true);
   const [fetchingTitle, setFetchingTitle] = useState(false);
 
   // File mode state
   const [file, setFile]           = useState<File | null>(null);
-  const [fileType, setFileType]   = useState<"PDF" | "DOCX" | "TXT" | "CSV">("PDF");
   const [fileName2, setFileName2] = useState("");
   const [fileDesc, setFileDesc]   = useState("");
   const [fileTags, setFileTags]   = useState("");
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
 
   // Manual mode state
   const [manName, setManName]     = useState("");
@@ -116,7 +114,7 @@ export default function KnowledgeBasePage() {
 
   function resetAll() {
     setUrl(""); setUrlName(""); setUrlDesc(""); setUrlTags("");
-    setFile(null); setFileName2(""); setFileDesc(""); setFileTags(""); setUploadProgress(0);
+    setFile(null); setFileName2(""); setFileDesc(""); setFileTags("");
     setManName(""); setManContent(""); setManDesc(""); setManTags("");
   }
 
@@ -142,49 +140,33 @@ export default function KnowledgeBasePage() {
     if (!url) { toast({ title: "Please enter a URL", variant: "destructive" }); return; }
     const name = urlName || new URL(url).hostname.replace("www.", "");
     createMutation.mutate({
-      name, description: urlDesc, type: "URL", sourceUrl: url,
+      name, description: urlDesc, type: "URL", sourceUrl: url, crawl,
       tags: urlTags ? urlTags.split(",").map((t) => t.trim()) : ["website"],
     });
   }
 
-  // Submit file document — tries server-side text extraction first, falls back to Firebase
+  // Submit file document — the server reads the text out of TXT/CSV/PDF/DOCX
+  // (/api/upload), so only the text is stored; no file storage needed.
   async function submitFile() {
     if (!file) { toast({ title: "Please select a file", variant: "destructive" }); return; }
     const name = fileName2 || file.name.replace(/\.[^/.]+$/, "");
     const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    const type = ext === "pdf" ? "PDF" : ext === "docx" ? "DOCX" : ext === "csv" ? "CSV" : "TXT";
     setUploading(true);
     try {
-      // TXT / CSV — use server-side text reader, no Firebase needed
-      if (["txt", "csv", "md"].includes(ext)) {
-        const fd = new FormData();
-        fd.append("file", file);
-        const r = await fetch("/api/upload", { method: "POST", body: fd });
-        const d = await r.json();
-        if (d.success && d.data.content) {
-          createMutation.mutate({
-            name, description: fileDesc, type: fileType === "CSV" ? "CSV" : "TXT",
-            content: d.data.content, fileSize: file.size,
-            tags: fileTags ? fileTags.split(",").map((t) => t.trim()) : [],
-          });
-          return;
-        }
+      const fd = new FormData();
+      fd.append("file", file);
+      const r = await fetch("/api/upload", { method: "POST", body: fd });
+      const d = await r.json().catch(() => ({}));
+      if (!d.success || !d.data?.content) {
+        toast({ title: "Couldn't read this file", description: d.error || "Try another file, or paste the text with 'Write Manually'.", variant: "destructive" });
+        return;
       }
-
-      // PDF / DOCX — try Firebase
-      try {
-        const result = await uploadFile(file, `knowledge-base/${Date.now()}-${file.name}`, setUploadProgress);
-        createMutation.mutate({
-          name, description: fileDesc, type: fileType,
-          fileUrl: result.url, fileName: result.name, fileSize: result.size,
-          tags: fileTags ? fileTags.split(",").map((t) => t.trim()) : [],
-        });
-      } catch {
-        toast({
-          title: "Firebase not configured",
-          description: "PDF/DOCX upload requires Firebase. Use the 'Write Manually' option to paste the content instead.",
-          variant: "destructive",
-        });
-      }
+      createMutation.mutate({
+        name, description: fileDesc, type,
+        content: d.data.content, fileName: file.name, fileSize: file.size,
+        tags: fileTags ? fileTags.split(",").map((t) => t.trim()) : [],
+      });
     } finally {
       setUploading(false);
     }
@@ -337,6 +319,10 @@ export default function KnowledgeBasePage() {
                   </div>
                 )}
 
+                {item.status === "FAILED" && item.errorMessage && (
+                  <p className="mt-2 text-xs text-red-600 bg-red-50 rounded px-2 py-1">{item.errorMessage}</p>
+                )}
+
                 {item.status === "PROCESSING" && (
                   <div className="mt-2 w-full bg-blue-100 rounded-full h-1">
                     <div className="bg-blue-500 h-1 rounded-full animate-pulse w-2/3" />
@@ -416,11 +402,28 @@ export default function KnowledgeBasePage() {
               />
             </div>
 
+            <label htmlFor="kb-crawl" className="flex items-start gap-3 rounded-xl border p-3 cursor-pointer hover:bg-gray-50">
+              <input
+                id="kb-crawl"
+                type="checkbox"
+                checked={crawl}
+                onChange={(e) => setCrawl(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-purple-600"
+              />
+              <span>
+                <span className="block text-sm font-medium text-gray-800">Read the whole website</span>
+                <span className="block text-xs text-gray-500">
+                  Also reads up to 25 other pages of this site (from its sitemap or menu links), so the AI can answer about
+                  pricing, projects, amenities and contact details in one go.
+                </span>
+              </span>
+            </label>
+
             {/* Info box */}
             <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-xs text-purple-800">
               <p className="font-semibold mb-1">ℹ️ How it works</p>
               <ul className="space-y-0.5 list-disc list-inside">
-                <li>We fetch the page and strip HTML to plain text</li>
+                <li>We fetch the page{crawl ? "s" : ""} and strip HTML to plain text</li>
                 <li>Content is split into searchable chunks</li>
                 <li>Status changes to <strong>Ready</strong> when processing is complete</li>
                 <li>The chatbot uses this content to answer visitor questions</li>
@@ -497,24 +500,6 @@ export default function KnowledgeBasePage() {
           </DialogHeader>
 
           <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-gray-700">File Type</label>
-              <div className="grid grid-cols-4 gap-2 mt-1">
-                {(["PDF", "DOCX", "TXT", "CSV"] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setFileType(t)}
-                    className={`p-2 rounded-lg border-2 text-xs font-medium transition-all ${
-                      fileType === t ? "border-green-400 bg-green-50 text-green-700" : "border-gray-200 text-gray-600 hover:border-gray-300"
-                    }`}
-                  >
-                    {typeConfig[t].icon} {t}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* Drop zone */}
             <div>
               <label className="text-sm font-medium text-gray-700">File *</label>
@@ -530,11 +515,11 @@ export default function KnowledgeBasePage() {
                   <label className="cursor-pointer block">
                     <Upload className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                     <p className="text-sm text-gray-500 font-medium">Click to upload or drag & drop</p>
-                    <p className="text-xs text-gray-400 mt-0.5">PDF, DOCX, TXT, CSV supported</p>
+                    <p className="text-xs text-gray-400 mt-0.5">PDF, Word (.docx), TXT or CSV · up to 10 MB</p>
                     <input
                       type="file"
                       className="hidden"
-                      accept=".pdf,.docx,.doc,.txt,.csv"
+                      accept=".pdf,.docx,.txt,.csv,.md"
                       onChange={(e) => {
                         const f = e.target.files?.[0];
                         if (f) { setFile(f); if (!fileName2) setFileName2(f.name.replace(/\.[^/.]+$/, "")); }
@@ -543,12 +528,9 @@ export default function KnowledgeBasePage() {
                   </label>
                 )}
                 {uploading && (
-                  <div className="mt-3">
-                    <div className="w-full bg-gray-100 rounded-full h-1.5">
-                      <div className="bg-green-500 h-1.5 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
-                    </div>
-                    <p className="text-xs text-gray-400 mt-1">Uploading {uploadProgress}%…</p>
-                  </div>
+                  <p className="mt-3 text-xs text-gray-500 flex items-center justify-center gap-1.5">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Reading the file…
+                  </p>
                 )}
               </div>
             </div>

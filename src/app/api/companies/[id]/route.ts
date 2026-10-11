@@ -73,8 +73,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // Reject empty update
   if (Object.keys(parsed.data).length === 0) return apiError("No valid fields to update", 422);
 
-  const company = await Company.findByIdAndUpdate(id, parsed.data, { new: true });
+  // A plan set by hand here is managed manually: detach the company from its
+  // trial/paid subscription so the expiry rules (src/lib/plan-limits.ts) don't
+  // drop it to the free tier when that old subscription's period ends.
+  // Only when the plan actually changes — edit forms resend the current planId.
+  const newPlanId = isSuperAdmin && "planId" in parsed.data ? parsed.data.planId : undefined;
+  const before = newPlanId ? await Company.findById(id).select("planId").lean<{ planId?: unknown }>() : null;
+  const manualPlan = !!newPlanId && !!before && String(before.planId) !== String(newPlanId);
+  const company = await Company.findByIdAndUpdate(
+    id,
+    manualPlan ? { ...parsed.data, $unset: { subscriptionId: 1 } } : parsed.data,
+    { new: true }
+  );
   if (!company) return apiError("Company not found", 404);
+  if (manualPlan) {
+    await Subscription.updateMany({ companyId: id, status: { $in: ["ACTIVE", "TRIALING", "PAST_DUE"] } }, { status: "INACTIVE" });
+  }
 
   await AuditLog.create({
     companyId: id,

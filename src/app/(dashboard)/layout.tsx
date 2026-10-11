@@ -1,6 +1,7 @@
 import { Fraunces, Work_Sans } from "next/font/google";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { PlanBanner } from "@/components/layout/plan-banner";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Sidebar />
       <div className="flex flex-col flex-1 overflow-hidden min-w-0">
         <Header />
+        <PlanBanner />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           {children}
         </main>

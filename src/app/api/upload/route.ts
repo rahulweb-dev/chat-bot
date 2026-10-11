@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext, apiError } from "@/lib/api-helpers";
+import { extractFileText } from "@/lib/kb-ingest";
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
 
@@ -31,14 +32,29 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // For PDF/DOCX — we need Firebase Storage; inform the caller
-  if (["pdf", "docx", "doc"].includes(ext)) {
-    return NextResponse.json({
-      success: false,
-      requiresFirebase: true,
-      error: "PDF/DOCX upload requires Firebase Storage. Configure NEXT_PUBLIC_FIREBASE_* variables or paste the content manually.",
-    });
+  // PDF / DOCX: read the text here, so the knowledge base gets real content
+  // instead of a placeholder (and no file storage is needed).
+  if (["pdf", "docx"].includes(ext)) {
+    try {
+      const content = await extractFileText(Buffer.from(await file.arrayBuffer()), ext);
+      if (!content) {
+        return apiError(
+          ext === "pdf"
+            ? "No text found in this PDF. It may be a scanned image; paste the text with 'Write Manually' instead."
+            : "No text found in this document.",
+          422
+        );
+      }
+      return NextResponse.json({
+        success: true,
+        data: { name, size: file.size, type: file.type, content, url: null, method: "extracted" },
+      });
+    } catch (e) {
+      console.error("[upload] extract failed:", e instanceof Error ? e.message : e);
+      return apiError("Couldn't read this file. If it's password-protected or damaged, paste the text with 'Write Manually'.", 422);
+    }
   }
+  if (ext === "doc") return apiError("Old .doc files aren't supported. Save it as .docx or PDF and upload again.", 400);
 
   return apiError("Unsupported file type. Use TXT, CSV, PDF or DOCX.", 400);
 }

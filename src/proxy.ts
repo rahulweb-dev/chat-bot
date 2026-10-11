@@ -25,7 +25,9 @@ const superAdminRoutes = ["/admin", "/api/admin"];
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (publicRoutes.some((r) => pathname.startsWith(r))) {
+  // "/" is the public landing page; it redirects signed-in users itself.
+  // Exact match only: a "/" prefix would make every route public.
+  if (pathname === "/" || publicRoutes.some((r) => pathname.startsWith(r))) {
     return NextResponse.next();
   }
 

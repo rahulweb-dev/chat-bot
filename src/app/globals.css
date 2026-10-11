@@ -109,3 +109,13 @@
 .animate-fade-in { animation: fade-in 0.2s ease-out; }
 
 .font-display { font-family: var(--font-fraunces), "Georgia", serif; }
+
+/* Landing page chat demo: each message slides up as it appears */
+@keyframes demo-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.demo-in { animation: demo-in 0.35s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .demo-in { animation: none; }
+}

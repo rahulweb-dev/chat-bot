@@ -18,10 +18,12 @@ import {
   HelpCircle, Tag, Truck, Clock, Plus, Trash2, Save, Loader2,
   Pencil, Check, X, Bot, MessageSquare, Brain, Code, Sparkles,
   Zap, ExternalLink, CheckCircle2, Circle, Copy, Reply, Palette,
-  GitBranch, ChevronDown, ChevronRight, ChevronUp, Ticket, UserCheck, ArrowRight, RotateCcw, Eye,
+  GitBranch, ChevronDown, ChevronRight, ChevronUp, Ticket, UserCheck, ArrowRight, RotateCcw, Eye, Megaphone, CalendarCheck,
 } from "lucide-react";
 import type { CustomFlowStep, CustomFlowBranch, CustomFlowItem, CustomFlow } from "@/components/chatbot/flow-types";
 import { FlowCanvas } from "@/components/chatbot/flow-canvas";
+import { ProactiveTab, type ProactiveRule } from "@/components/chatbot/proactive-tab";
+import { BookingTab, type BookingSettings } from "@/components/chatbot/booking-tab";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface FAQ      { _id?: string; question: string; answer: string; isActive: boolean }
@@ -34,6 +36,8 @@ export interface Config   {
   faqs: FAQ[]; offers: Offer[]; vehicles: Vehicle[];
   businessHours: BizHour[]; training: Training[]; customFlow?: CustomFlow; aiFallback?: AiFallback;
   welcomeMessage: string; agentOnlineMessage: string; agentOfflineMessage: string;
+  proactive?: ProactiveRule[];
+  booking?: Partial<BookingSettings>;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -66,10 +70,14 @@ const RAIL_GROUPS: RailGroup[] = [
     { value: "training", label: "Training",         icon: Brain },
     { value: "catalog",  label: "Catalog",          icon: Tag },
   ] },
-  { label: "Design", items: [{ value: "appearance", label: "Appearance", icon: Palette }] },
+  { label: "Design", items: [
+    { value: "appearance", label: "Appearance",         icon: Palette },
+    { value: "proactive",  label: "Proactive Messages", icon: Megaphone },
+  ] },
   { label: "Deploy", items: [
     { value: "install",  label: "Install Code",     icon: Code },
     { value: "hours",    label: "Business Hours",   icon: Clock },
+    { value: "bookings", label: "Bookings",         icon: CalendarCheck },
     { value: "canned",   label: "Canned Replies",   icon: Reply },
     { value: "realtime", label: "Live Chat Setup",  icon: Zap },
   ] },
@@ -2147,7 +2155,7 @@ function ChatbotFlowPreview({ color, theme, companyName, logo, triggerMessage }:
 }
 
 // ── Main page ──────────────────────────────────────────────────────────────────
-const VALID_TABS = ["overview", "welcome", "flow", "faqs", "training", "catalog", "hours", "appearance", "install", "canned", "realtime"];
+const VALID_TABS = ["overview", "welcome", "flow", "faqs", "training", "catalog", "hours", "appearance", "proactive", "bookings", "install", "canned", "realtime"];
 
 function ChatbotPageInner() {
   const qc = useQueryClient();
@@ -2438,6 +2446,36 @@ function ChatbotPageInner() {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Proactive messages */}
+            <TabsContent value="proactive" className="mt-4">
+              {configLoading || !config ? <HoursSkeleton /> : (
+                <ProactiveTab
+                  initial={config.proactive ?? []}
+                  save={async (rules) => {
+                    const r = await patchConfig({ proactive: rules });
+                    if (r.success) refetchConfig();
+                    return r.success ? { success: true } : { success: false, error: r.error };
+                  }}
+                />
+              )}
+            </TabsContent>
+
+            {/* Bookings */}
+            <TabsContent value="bookings" className="mt-4">
+              {configLoading || !config ? <HoursSkeleton /> : (
+                <BookingTab
+                  initial={config.booking}
+                  menuLabels={config.customFlow?.enabled ? (config.customFlow.flows ?? []).map((f) => f.label) : []}
+                  onOpenHours={() => setTab("hours")}
+                  save={async (booking) => {
+                    const r = await patchConfig({ booking });
+                    if (r.success) refetchConfig();
+                    return r.success ? { success: true } : { success: false, error: r.error };
+                  }}
+                />
+              )}
             </TabsContent>
 
             {/* Hours */}

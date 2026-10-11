@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { Types } from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess } from "@/lib/api-helpers";
 import Conversation from "@/models/Conversation";
@@ -17,6 +18,9 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const range = searchParams.get("range") || "30d";
   const startDate = getStartDate(range);
+  // Aggregation pipelines do not cast strings to ObjectId the way find/count do,
+  // so a string companyId silently matched nothing (empty charts, agent stats, CSAT).
+  const cid = new Types.ObjectId(ctx.companyId);
 
   const [
     totalChats, resolvedChats, openChats,
@@ -27,31 +31,31 @@ export async function GET(request: NextRequest) {
     agentPerformance,
     csatData,
   ] = await Promise.all([
-    Conversation.countDocuments({ companyId: ctx.companyId, createdAt: { $gte: startDate } }),
-    Conversation.countDocuments({ companyId: ctx.companyId, status: "RESOLVED", createdAt: { $gte: startDate } }),
-    Conversation.countDocuments({ companyId: ctx.companyId, status: "OPEN" }),
-    Ticket.countDocuments({ companyId: ctx.companyId, createdAt: { $gte: startDate } }),
-    Ticket.countDocuments({ companyId: ctx.companyId, status: "RESOLVED", createdAt: { $gte: startDate } }),
-    Lead.countDocuments({ companyId: ctx.companyId, createdAt: { $gte: startDate } }),
-    Lead.countDocuments({ companyId: ctx.companyId, stage: "WON", createdAt: { $gte: startDate } }),
-    Message.countDocuments({ companyId: ctx.companyId, createdAt: { $gte: startDate } }),
+    Conversation.countDocuments({ companyId: cid, createdAt: { $gte: startDate } }),
+    Conversation.countDocuments({ companyId: cid, status: "RESOLVED", createdAt: { $gte: startDate } }),
+    Conversation.countDocuments({ companyId: cid, status: "OPEN" }),
+    Ticket.countDocuments({ companyId: cid, createdAt: { $gte: startDate } }),
+    Ticket.countDocuments({ companyId: cid, status: "RESOLVED", createdAt: { $gte: startDate } }),
+    Lead.countDocuments({ companyId: cid, createdAt: { $gte: startDate } }),
+    Lead.countDocuments({ companyId: cid, stage: "WON", createdAt: { $gte: startDate } }),
+    Message.countDocuments({ companyId: cid, createdAt: { $gte: startDate } }),
     Conversation.aggregate([
-      { $match: { companyId: ctx.companyId, createdAt: { $gte: startDate } } },
+      { $match: { companyId: cid, createdAt: { $gte: startDate } } },
       { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
       { $sort: { _id: 1 } },
     ]),
     Ticket.aggregate([
-      { $match: { companyId: ctx.companyId, createdAt: { $gte: startDate } } },
+      { $match: { companyId: cid, createdAt: { $gte: startDate } } },
       { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
       { $sort: { _id: 1 } },
     ]),
     Lead.aggregate([
-      { $match: { companyId: ctx.companyId, createdAt: { $gte: startDate } } },
+      { $match: { companyId: cid, createdAt: { $gte: startDate } } },
       { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
       { $sort: { _id: 1 } },
     ]),
     Conversation.aggregate([
-      { $match: { companyId: ctx.companyId, assignedTo: { $exists: true }, createdAt: { $gte: startDate } } },
+      { $match: { companyId: cid, assignedTo: { $exists: true }, createdAt: { $gte: startDate } } },
       { $group: {
         _id: "$assignedTo",
         chatsHandled: { $sum: 1 },
@@ -63,14 +67,27 @@ export async function GET(request: NextRequest) {
       { $limit: 10 },
     ]),
     Conversation.aggregate([
-      { $match: { companyId: ctx.companyId, "csat.rating": { $exists: true }, createdAt: { $gte: startDate } } },
+      { $match: { companyId: cid, "csat.rating": { $exists: true }, createdAt: { $gte: startDate } } },
       { $group: { _id: null, avg: { $avg: "$csat.rating" }, total: { $sum: 1 } } },
     ]),
   ]);
 
   const avgResponseTime = await Conversation.aggregate([
-    { $match: { companyId: ctx.companyId, firstResponseAt: { $exists: true }, createdAt: { $gte: startDate } } },
+    { $match: { companyId: cid, firstResponseAt: { $exists: true }, createdAt: { $gte: startDate } } },
     { $group: { _id: null, avg: { $avg: { $subtract: ["$firstResponseAt", "$createdAt"] } } } },
+  ]);
+
+  // Which ads / campaigns / sites the period's leads came from. Leads from
+  // before source tracking, or added by hand, land in "Not tracked".
+  const leadsByChannel = await Lead.aggregate([
+    { $match: { companyId: cid, createdAt: { $gte: startDate } } },
+    { $group: {
+      _id: { $ifNull: ["$attribution.channel", "Not tracked"] },
+      leads: { $sum: 1 },
+      won: { $sum: { $cond: [{ $eq: ["$stage", "WON"] }, 1, 0] } },
+    }},
+    { $sort: { leads: -1 } },
+    { $limit: 12 },
   ]);
 
   return apiSuccess({
@@ -94,6 +111,7 @@ export async function GET(request: NextRequest) {
       tickets: ticketsByDay.map((d: { _id: string; count: number }) => ({ date: d._id, value: d.count })),
       leads: leadsByDay.map((d: { _id: string; count: number }) => ({ date: d._id, value: d.count })),
     },
+    leadsByChannel: leadsByChannel.map((c: { _id: string; leads: number; won: number }) => ({ channel: c._id, leads: c.leads, won: c.won })),
     agentPerformance: agentPerformance.map((a) => ({
       id: a._id,
       name: a.agent?.name || "Unknown",

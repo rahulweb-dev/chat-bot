@@ -14,7 +14,12 @@ import { rateLimit, rateLimitError } from "@/lib/rate-limit";
 import { sendEmail } from "@/lib/email";
 import User from "@/models/User";
 import { nextTicketNumber } from "@/lib/ticket-number";
+import { sendWhatsAppLeadAlert } from "@/lib/lead-alerts";
+import { releaseSlot } from "@/lib/booking";
+import Booking from "@/models/Booking";
 import { checkUsageLimit, incrementUsage } from "@/lib/api-helpers";
+import type { Attribution } from "@/lib/attribution";
+import type { Types } from "mongoose";
 
 async function resolveCompany(apiKey: string) {
   let company = await Company.findOne({ apiKey, isActive: true });
@@ -158,6 +163,9 @@ export async function POST(request: NextRequest) {
   let sideEffect: Record<string, unknown> = {};
   const ld = result.leadData;
   const td = result.ticketData;
+  // Lead source recorded on the conversation when it started (widget.js).
+  const attributionFor = async () =>
+    (await Conversation.findById(conversationId).select("visitor.attribution").lean<{ visitor?: { attribution?: Attribution } }>())?.visitor?.attribution;
 
   if (result.action === "CREATE_LEAD" && ld && conversationId) {
     try {
@@ -169,9 +177,12 @@ export async function POST(request: NextRequest) {
           source: "CHAT_WIDGET", stage: "NEW", score: Number(ld.score) || 50,
           currency: "INR", tags: [ld.type || "GENERAL", "AUTO_DEALERSHIP"],
           customFields: ld,
+          attribution: await attributionFor(),
           activities: [{ type: "CHAT", description: `Widget lead: ${ld.type}`, createdAt: new Date() }],
         });
         sideEffect = { type: "lead_created", leadId: lead._id };
+        // Bookings send their own, richer alert below.
+        if (!result.booking) sendWhatsAppLeadAlert(companyId, { kind: "lead", name: ld.name, phone: ld.phone, interest: ld.type, source: lead.attribution?.channel }).catch(() => {});
         // Counted but never blocked: dropping a captured lead loses the customer's sale.
         incrementUsage(companyId, "leads").catch(() => {});
         // Tag the conversation with the lead intent so it shows in sidebar
@@ -210,6 +221,37 @@ export async function POST(request: NextRequest) {
     } catch (e) { console.error("Lead:", e); }
   }
 
+  // A slot the visitor just booked (src/lib/booking-flow.ts): save it, link it to
+  // the lead, and alert the team. Without a conversation there's nothing to tie
+  // it to, so the held place is given back.
+  if (result.booking) {
+    const b = result.booking;
+    if (!conversationId) {
+      if (b.held) releaseSlot(companyId, new Date(b.startAt)).catch(() => {});
+    } else {
+      try {
+        const lead = await Lead.findOne({ companyId, conversationId }).sort({ createdAt: -1 }).select("_id attribution").lean<{ _id: Types.ObjectId; attribution?: Attribution }>();
+        const booking = await Booking.create({
+          companyId, conversationId, leadId: lead?._id, label: b.label,
+          name: ld?.name || "Visitor", phone: ld?.phone, email: ld?.email,
+          startAt: new Date(b.startAt), endAt: new Date(b.endAt),
+          attribution: lead?.attribution ?? (await attributionFor()),
+        });
+        sideEffect = { type: "booking_created", bookingId: booking._id, leadId: lead?._id };
+        await Conversation.findByIdAndUpdate(conversationId, { $addToSet: { tags: "BOOKING" } }).catch(() => {});
+        emitNotification(companyId, { type: "lead", conversationId, message: `New ${b.label} booked by ${ld?.name || "Visitor"} for ${ld?.bookingAt ?? b.startAt}`, name: ld?.name || "Visitor" });
+        sendWhatsAppLeadAlert(companyId, {
+          kind: "lead", name: ld?.name, phone: ld?.phone,
+          interest: `${b.label} on ${ld?.bookingAt ?? new Date(b.startAt).toISOString()}`,
+          source: lead?.attribution?.channel,
+        }).catch(() => {});
+      } catch (e) {
+        console.error("Booking:", e);
+        if (b.held) releaseSlot(companyId, new Date(b.startAt)).catch(() => {});
+      }
+    }
+  }
+
   if (result.action === "CREATE_TICKET" && td && conversationId) {
     try {
       const ticket = await Ticket.create({
@@ -225,8 +267,11 @@ export async function POST(request: NextRequest) {
       });
       incrementUsage(companyId, "tickets").catch(() => {});
       if (ld?.phone) {
-        const lead = await Lead.create({ companyId, conversationId, name: ld.name || "Visitor", phone: ld.phone, source: "CHAT_WIDGET", stage: "NEW", score: 50, currency: "INR", tags: ["SERVICE", "AUTO_DEALERSHIP"] }).catch(() => null);
-        if (lead) incrementUsage(companyId, "leads").catch(() => {});
+        const lead = await Lead.create({ companyId, conversationId, name: ld.name || "Visitor", phone: ld.phone, source: "CHAT_WIDGET", stage: "NEW", score: 50, currency: "INR", tags: ["SERVICE", "AUTO_DEALERSHIP"], attribution: await attributionFor() }).catch(() => null);
+        if (lead) {
+          incrementUsage(companyId, "leads").catch(() => {});
+          sendWhatsAppLeadAlert(companyId, { kind: "lead", name: ld.name, phone: ld.phone, interest: td.subject, source: lead.attribution?.channel }).catch(() => {});
+        }
       }
       sideEffect = { type: "ticket_created", ticketId: ticket._id, ticketNumber: ticket.ticketNumber };
       await Conversation.findByIdAndUpdate(conversationId, {
@@ -267,6 +312,7 @@ export async function POST(request: NextRequest) {
       $addToSet: { tags: "AGENT_REQUEST" },
     }).catch(() => {});
     sideEffect = { type: "agent_requested" };
+    sendWhatsAppLeadAlert(companyId, { kind: "agent_request", name: ld?.name || result.sessionData.collected.name, phone: ld?.phone || result.sessionData.collected.phone, interest: "wants to talk to a person" }).catch(() => {});
     emitNotification(companyId, {
       type: "agent_request",
       conversationId,

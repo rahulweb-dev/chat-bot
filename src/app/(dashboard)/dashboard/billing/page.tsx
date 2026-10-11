@@ -9,22 +9,14 @@ import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCardsSkeleton } from "@/components/ui/page-skeletons";
+import { PLAN_FEATURES, formatMoney } from "@/lib/plan-display";
 
 // Look of each plan card. Prices and features come from the Plan collection
 // (/api/plans) so the price shown is exactly the price charged at checkout.
 const PLAN_STYLE: Record<string, { icon: typeof Zap; color: string; bg: string; features: string[] }> = {
-  STARTER: {
-    icon: Zap, color: "text-blue-600", bg: "bg-blue-50",
-    features: ["2 Agents", "1,000 Chats/mo", "500 AI Messages/mo", "1 Chatbot", "Basic Analytics", "Email Support"],
-  },
-  PRO: {
-    icon: Crown, color: "text-indigo-600", bg: "bg-indigo-50",
-    features: ["10 Agents", "10,000 Chats/mo", "5,000 AI Messages/mo", "5 Chatbots", "Advanced Analytics", "CRM & Leads", "API Access", "Priority Support"],
-  },
-  ENTERPRISE: {
-    icon: Building, color: "text-purple-600", bg: "bg-purple-50",
-    features: ["Unlimited Agents", "Unlimited Chats", "Unlimited AI Messages", "Unlimited Chatbots", "White Labeling", "Custom Domain", "Dedicated Support", "SLA Guarantee"],
-  },
+  STARTER:    { icon: Zap,      color: "text-blue-600",   bg: "bg-blue-50",   features: PLAN_FEATURES.STARTER },
+  PRO:        { icon: Crown,    color: "text-indigo-600", bg: "bg-indigo-50", features: PLAN_FEATURES.PRO },
+  ENTERPRISE: { icon: Building, color: "text-purple-600", bg: "bg-purple-50", features: PLAN_FEATURES.ENTERPRISE },
 };
 
 type DbPlan = {
@@ -53,13 +45,7 @@ function loadRazorpay(): Promise<boolean> {
   });
 }
 
-function money(amount: number, currency = "INR") {
-  try {
-    return new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
-  } catch {
-    return `${currency} ${amount}`;
-  }
-}
+const money = formatMoney;
 
 export default function BillingPage() {
   const [billing, setBilling] = useState<"MONTHLY" | "ANNUALLY">("MONTHLY");

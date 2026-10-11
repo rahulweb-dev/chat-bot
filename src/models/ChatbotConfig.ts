@@ -58,7 +58,19 @@ export interface IAiFallback {
   enabled: boolean;
 }
 
+// A message the widget shows on its own (teaser bubble by the launcher) after a
+// visitor has spent `delaySeconds` on a page whose URL contains `urlContains`
+// (empty = any page). The first enabled matching rule wins; once per visit.
+export interface IProactiveRule {
+  enabled: boolean;
+  message: string;
+  urlContains: string;
+  delaySeconds: number;
+}
+
 export interface IChatbotConfig extends Document {
+  proactive: IProactiveRule[];
+  booking: import("@/lib/booking").BookingConfig;
   companyId: mongoose.Types.ObjectId;
   faqs: { question: string; answer: string; isActive: boolean }[];
   offers: { title: string; description: string; validUntil?: string; isActive: boolean }[];
@@ -143,6 +155,24 @@ const ChatbotConfigSchema = new Schema<IChatbotConfig>(
     aiFallback: {
       enabled: { type: Boolean, default: false },
     },
+    // Appointment / site-visit booking in the chat (src/lib/booking.ts).
+    booking: {
+      enabled:          { type: Boolean, default: false },
+      label:            { type: String, default: "appointment" },
+      slotMinutes:      { type: Number, default: 60, min: 15, max: 240 },
+      daysAhead:        { type: Number, default: 7, min: 1, max: 30 },
+      capacity:         { type: Number, default: 1, min: 1, max: 50 },
+      minNoticeHours:   { type: Number, default: 2, min: 0, max: 72 },
+      triggerLabels:    { type: String, default: "" },
+      reminderTemplate: { type: String, default: "" },
+      reminderLanguage: { type: String, default: "en" },
+    },
+    proactive: [{
+      enabled:      { type: Boolean, default: true },
+      message:      { type: String, required: true, maxlength: 160 },
+      urlContains:  { type: String, default: "" },
+      delaySeconds: { type: Number, default: 15, min: 0, max: 600 },
+    }],
     agentOnlineMessage:  { type: String, default: "💬 Connecting you to a live agent..." },
     agentOfflineMessage: { type: String, default: "We're offline. Leave your details and we'll call you back!" },
     welcomeMessage:      { type: String, default: "👋 Welcome to Ashok Leyland! How can we help you today?" },

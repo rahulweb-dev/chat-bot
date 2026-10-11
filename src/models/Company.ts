@@ -26,6 +26,9 @@ export interface ICompany extends Document {
   isSuspended: boolean;
   suspendReason?: string;
   trialEndsAt?: Date;
+  // Where the widget is actually running, recorded when widget.js loads its
+  // settings from a site other than this app. Drives the setup checklist.
+  widgetInstall?: { origin?: string; firstSeenAt?: Date; lastSeenAt?: Date };
   settings: {
     brandColor: string;
     accentColor: string;
@@ -80,6 +83,11 @@ const CompanySchema = new Schema<ICompany>(
     isSuspended: { type: Boolean, default: false },
     suspendReason: { type: String },
     trialEndsAt: { type: Date },
+    widgetInstall: {
+      origin: { type: String },
+      firstSeenAt: { type: Date },
+      lastSeenAt: { type: Date },
+    },
     settings: {
       brandColor: { type: String, default: "#6366f1" },
       accentColor: { type: String, default: "#8b5cf6" },

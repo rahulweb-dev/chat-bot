@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   // /api/widget/preview, so this test panel reflects what's configured elsewhere.
   await connectDB();
   const settings = await Settings.findOne({ companyId: ctx.companyId }).select("widget.welcomeMessage general.timezone").lean() as { widget?: { welcomeMessage?: string }; general?: { timezone?: string } } | null;
-  const result = await getBotReply(message, session, ctx.companyId, settings?.widget?.welcomeMessage, settings?.general?.timezone);
+  const result = await getBotReply(message, session, ctx.companyId, settings?.widget?.welcomeMessage, settings?.general?.timezone, { dryRun: true });
 
   return apiSuccess({
     messages: result.messages,

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Types } from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import Company from "@/models/Company";
 import ApiKey from "@/models/ApiKey";
@@ -12,6 +13,7 @@ import { autoAssignConversation } from "@/lib/auto-assign";
 import ChatbotConfig from "@/models/ChatbotConfig";
 import { isWithinBusinessHours } from "@/lib/chatbot-flow";
 import { checkUsageLimit, incrementUsage } from "@/lib/api-helpers";
+import { sanitizeAttribution } from "@/lib/attribution";
 
 // Resolves a widget API key to a company — supports both Company.apiKey and ApiKey model
 async function resolveCompany(apiKey: string) {
@@ -30,6 +32,34 @@ async function resolveCompany(apiKey: string) {
     }
   }
   return null;
+}
+
+// Notes which website the widget runs on (for the dashboard's "Install the
+// widget" step). Ignores loads from this app itself (dashboard previews), and
+// writes at most once an hour per company, not on every page view.
+function recordWidgetInstall(
+  request: NextRequest,
+  company: { _id: Types.ObjectId; widgetInstall?: { origin?: string; firstSeenAt?: Date; lastSeenAt?: Date } }
+) {
+  let origin = request.headers.get("origin") || "";
+  if (!origin) {
+    try { origin = new URL(request.headers.get("referer") || "").origin; } catch { origin = ""; }
+  }
+  if (!origin || origin === "null") return;
+  const appOrigins = [process.env.NEXT_PUBLIC_APP_URL, process.env.AUTH_URL, request.nextUrl.origin]
+    .filter(Boolean)
+    .map((u) => { try { return new URL(u as string).origin; } catch { return ""; } });
+  if (appOrigins.includes(origin)) return;
+
+  const prev = company.widgetInstall;
+  const fresh = prev?.lastSeenAt && Date.now() - new Date(prev.lastSeenAt).getTime() < 60 * 60 * 1000;
+  if (fresh && prev?.origin === origin) return;
+
+  const now = new Date();
+  Company.updateOne(
+    { _id: company._id },
+    { "widgetInstall.origin": origin, "widgetInstall.lastSeenAt": now, ...(prev?.firstSeenAt ? {} : { "widgetInstall.firstSeenAt": now }) }
+  ).catch(() => {});
 }
 
 const CORS = {
@@ -52,8 +82,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Invalid API key" }, { status: 401, headers: CORS });
   }
 
+  recordWidgetInstall(request, company);
+
   const settings = await Settings.findOne({ companyId: company._id });
-  const chatbotConfig = await ChatbotConfig.findOne({ companyId: company._id }).select("businessHours").lean() as { businessHours?: { day: string; open: string; close: string; isClosed: boolean }[] } | null;
+  const chatbotConfig = await ChatbotConfig.findOne({ companyId: company._id }).select("businessHours proactive").lean() as {
+    businessHours?: { day: string; open: string; close: string; isClosed: boolean }[];
+    proactive?: { enabled: boolean; message: string; urlContains?: string; delaySeconds?: number }[];
+  } | null;
   const isOnline = isWithinBusinessHours(chatbotConfig?.businessHours, settings?.general?.timezone);
 
   return NextResponse.json({
@@ -75,6 +110,10 @@ export async function GET(request: NextRequest) {
         logo: settings?.widget?.logo || company.logo,
         customCss: settings?.widget?.customCss,
       },
+      // Only what the widget needs to decide when to pop a teaser message.
+      proactive: (chatbotConfig?.proactive ?? [])
+        .filter((r) => r.enabled && r.message?.trim())
+        .map((r) => ({ message: r.message.trim(), urlContains: (r.urlContains || "").trim(), delaySeconds: r.delaySeconds ?? 15 })),
       pusherKey: pusherConfigured() ? (process.env.PUSHER_KEY ?? null) : null,
       pusherCluster: process.env.PUSHER_CLUSTER ?? "ap2",
       preChatForm: settings?.chat?.preChatForm ?? false,
@@ -121,6 +160,7 @@ export async function POST(request: NextRequest) {
         referrer: data.referrer,
         userAgent: data.userAgent,
         isLoggedIn: !!data.userId,
+        attribution: sanitizeAttribution(data.attribution),
       },
     });
 

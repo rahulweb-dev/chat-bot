@@ -4,7 +4,9 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
-  serverExternalPackages: ["mongoose", "bcryptjs", "nodemailer"],
+  // pdf-parse (pdf.js) and mammoth read knowledge-base uploads; they load worker
+  // and data files at runtime that bundling would break.
+  serverExternalPackages: ["mongoose", "bcryptjs", "nodemailer", "pdf-parse", "mammoth"],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "lh3.googleusercontent.com" },

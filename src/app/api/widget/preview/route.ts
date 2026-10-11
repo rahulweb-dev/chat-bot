@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
   // then the built-in demo flow — this is the exact same call the live widget makes,
   // so the preview always reflects whatever an admin configures.
   const settings = await Settings.findOne({ companyId: ctx.companyId }).select("widget.welcomeMessage general.timezone").lean() as { widget?: { welcomeMessage?: string }; general?: { timezone?: string } } | null;
-  const result = await getBotReply(message, session, ctx.companyId, settings?.widget?.welcomeMessage, settings?.general?.timezone);
+  const result = await getBotReply(message, session, ctx.companyId, settings?.widget?.welcomeMessage, settings?.general?.timezone, { dryRun: true });
 
   return NextResponse.json({
     success: true,

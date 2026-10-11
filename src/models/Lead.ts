@@ -28,6 +28,7 @@ export interface ILead extends Document {
     createdAt: Date;
   }[];
   customFields?: Record<string, unknown>;
+  attribution?: import("@/lib/attribution").Attribution; // ad / campaign / site that brought this lead
   conversationId?: mongoose.Types.ObjectId;
   lostReason?: string;
   expectedCloseDate?: Date;
@@ -73,6 +74,7 @@ const LeadSchema = new Schema<ILead>(
       },
     ],
     customFields: { type: Schema.Types.Mixed },
+    attribution: { type: Schema.Types.Mixed },
     conversationId: { type: Schema.Types.ObjectId, ref: "Conversation" },
     lostReason: { type: String },
     expectedCloseDate: { type: Date },
@@ -86,6 +88,7 @@ LeadSchema.index({ companyId: 1, stage: 1 });
 LeadSchema.index({ companyId: 1, assignedTo: 1 });
 LeadSchema.index({ companyId: 1, email: 1 });
 LeadSchema.index({ companyId: 1, createdAt: -1 });
+LeadSchema.index({ companyId: 1, "attribution.channel": 1 });
 
 const Lead: Model<ILead> = mongoose.models.Lead || mongoose.model<ILead>("Lead", LeadSchema);
 export default Lead;

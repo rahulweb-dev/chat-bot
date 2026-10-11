@@ -85,6 +85,14 @@ export function DashboardOverview({ role }: OverviewProps) {
     enabled: role !== "AGENT",
   });
 
+  const { data: onboarding } = useQuery({
+    queryKey: ["onboarding"],
+    queryFn: () => fetch("/api/onboarding").then(r => r.json()).then(d => d.data as {
+      brandDone: boolean; knowledgeDone: boolean; install: { origin: string; lastSeenAt?: string } | null;
+    }),
+    enabled: role !== "AGENT",
+  });
+
   const { data: liveStats, isLoading: liveStatsLoading } = useQuery({
     queryKey: ["live-stats"],
     queryFn: () => fetch("/api/chat/stats").then(r => r.json()).then(d => d.data),
@@ -110,16 +118,21 @@ export function DashboardOverview({ role }: OverviewProps) {
 
   // Setup checklist
   const hasConversations = (overview?.totalChats ?? 0) > 0;
-  const hasWidget        = !!widgetKey;
   const hasCustomFlow    = !!(chatbotCfg?.customFlow?.enabled && chatbotCfg?.customFlow?.flows?.length);
   const hasLeads         = (overview?.totalLeads ?? 0) > 0;
+  // "Installed" means widget.js has actually loaded on the customer's own site
+  // (recorded by GET /api/widget), not just that an API key exists.
+  const installedHost = onboarding?.install?.origin ? onboarding.install.origin.replace(/^https?:\/\//, "") : null;
 
   const setupSteps = [
-    { label: "Create your account",             done: true,             link: null },
-    { label: "Get your API key & embed widget", done: hasWidget,        link: "/dashboard/chatbot?tab=install" },
-    { label: "Configure your chatbot flow",     done: hasCustomFlow,    link: "/dashboard/chatbot?tab=flow" },
-    { label: "Start your first conversation",   done: hasConversations, link: "/dashboard/conversations" },
-    { label: "Capture your first lead",         done: hasLeads,         link: "/dashboard/leads" },
+    { label: "Create your account",              done: true,                        link: null },
+    { label: "Add your logo and brand color",    done: !!onboarding?.brandDone,     link: "/dashboard/chatbot?tab=appearance" },
+    { label: "Set up your chatbot menu",         done: hasCustomFlow,               link: "/dashboard/chatbot?tab=flow" },
+    { label: "Teach the AI about your business", done: !!onboarding?.knowledgeDone, link: "/dashboard/knowledge-base" },
+    { label: installedHost ? `Widget live on ${installedHost}` : "Install the widget on your website",
+                                                 done: !!installedHost,             link: "/dashboard/chatbot?tab=install" },
+    { label: "Get your first conversation",      done: hasConversations,            link: "/dashboard/conversations" },
+    { label: "Capture your first lead",          done: hasLeads,                    link: "/dashboard/leads" },
   ];
   const setupDone    = setupSteps.filter(s => s.done).length;
   const setupPercent = Math.round((setupDone / setupSteps.length) * 100);

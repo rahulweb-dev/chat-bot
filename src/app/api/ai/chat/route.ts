@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess, checkUsageLimit, incrementUsage } from "@/lib/api-helpers";
-import KnowledgeBase from "@/models/KnowledgeBase";
+import { retrieve, formatContext } from "@/lib/rag";
 import { getChatModel } from "@/lib/ai";
 
 export async function POST(request: NextRequest) {
@@ -21,14 +21,16 @@ export async function POST(request: NextRequest) {
 
   await connectDB();
 
+  // Passages relevant to this message (src/lib/rag.ts), from the chosen
+  // documents or, if none were chosen, everything agents may see.
   let contextContent = "";
-  if (knowledgeBaseIds.length > 0) {
-    const kbItems = await KnowledgeBase.find({
-      _id: { $in: knowledgeBaseIds },
-      companyId: ctx.companyId,
-      status: "READY",
-    });
-    contextContent = kbItems.map((kb) => kb.content).filter(Boolean).join("\n\n---\n\n").slice(0, 8000);
+  if (mode === "chat" || mode === "suggest_replies") {
+    const passages = await retrieve(ctx.companyId, message, {
+      k: 6,
+      audience: "agent",
+      kbIds: Array.isArray(knowledgeBaseIds) && knowledgeBaseIds.length ? knowledgeBaseIds.map(String) : undefined,
+    }).catch(() => []);
+    contextContent = formatContext(passages);
   }
 
   const model = getChatModel();
@@ -41,7 +43,8 @@ export async function POST(request: NextRequest) {
   } else if (mode === "intent") {
     systemPrompt = "Detect the intent of the following message. Respond with JSON: {intent: string, confidence: 0-1, entities: object}";
   } else if (mode === "suggest_replies") {
-    systemPrompt = "Based on the conversation, suggest 3 short, professional reply options for the agent. Return as JSON array of strings.";
+    systemPrompt = "Based on the conversation, suggest 3 short, professional reply options for the agent. Return as JSON array of strings." +
+      (contextContent ? `\nWhere it helps, use facts from these company documents (never invent facts):\n\n${contextContent}` : "");
   } else {
     systemPrompt = contextContent
       ? `You are a helpful customer support AI assistant. Use the following knowledge base to answer questions:\n\n${contextContent}\n\nIf you don't know the answer from the knowledge base, say so politely and offer to connect them with a human agent.`

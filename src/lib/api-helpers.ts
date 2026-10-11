@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "./auth";
 import { connectDB } from "./mongodb";
-import Company from "@/models/Company";
 import Usage from "@/models/Usage";
-import Plan from "@/models/Plan";
+import { getEffectivePlan } from "./plan-limits";
 
 export type UserRole = "SUPER_ADMIN" | "COMPANY_ADMIN" | "MANAGER" | "TEAM_LEADER" | "AGENT" | "VIEWER";
 
@@ -52,10 +51,11 @@ export async function checkUsageLimit(
 ): Promise<{ allowed: boolean; current: number; limit: number; percentage: number; message?: string }> {
   await connectDB();
 
-  const company = await Company.findById(companyId).populate({ path: "planId", model: Plan });
-  if (!company) return { allowed: false, current: 0, limit: 0, percentage: 0, message: "Company not found" };
+  // Effective plan, not just company.planId: a lapsed trial/subscription drops
+  // to FREE_LIMITS here.
+  const plan = await getEffectivePlan(companyId);
+  if (!plan) return { allowed: false, current: 0, limit: 0, percentage: 0, message: "Company not found" };
 
-  const plan = company.planId as unknown as InstanceType<typeof Plan>;
   const period = new Date().toISOString().slice(0, 7);
 
   let usage = await Usage.findOne({ companyId, period });
@@ -64,11 +64,11 @@ export async function checkUsageLimit(
   }
 
   const current = ((usage as unknown as Record<string, unknown>)[resource] as number) || 0;
-  const limit = (plan.limits as Record<string, number>)[resource] || 0;
+  const limit = plan.limits[resource] || 0;
 
   if (limit === -1) return { allowed: true, current, limit: -1, percentage: 0 };
 
-  const percentage = Math.round((current / limit) * 100);
+  const percentage = limit > 0 ? Math.round((current / limit) * 100) : 100;
   const allowed = current + increment <= limit;
 
   return {
@@ -76,7 +76,11 @@ export async function checkUsageLimit(
     current,
     limit,
     percentage,
-    message: allowed ? undefined : `${resource} limit reached (${current}/${limit}). Upgrade your plan.`,
+    message: allowed
+      ? undefined
+      : plan.expired
+        ? `Your plan has ended, so ${resource} is limited to ${limit}/month on the free tier. Renew on the Billing page.`
+        : `${resource} limit reached (${current}/${limit}). Upgrade your plan.`,
   };
 }
 

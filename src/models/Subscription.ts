@@ -18,6 +18,8 @@ export interface ISubscription extends Document {
   trialStart?: Date;
   trialEnd?: Date;
   metadata?: Record<string, unknown>;
+  reminderSentAt?: Date;    // "plan ends in 3 days" email sent for this period
+  expiryNotifiedAt?: Date;  // "plan has ended" email sent
   createdAt: Date;
   updatedAt: Date;
 }
@@ -44,6 +46,8 @@ const SubscriptionSchema = new Schema<ISubscription>(
     trialStart: { type: Date },
     trialEnd: { type: Date },
     metadata: { type: Schema.Types.Mixed },
+    reminderSentAt: { type: Date },
+    expiryNotifiedAt: { type: Date },
   },
   { timestamps: true }
 );
