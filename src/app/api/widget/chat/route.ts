@@ -13,6 +13,8 @@ import { triggerChat } from "@/lib/pusher";
 import { rateLimit, rateLimitError } from "@/lib/rate-limit";
 import { sendEmail } from "@/lib/email";
 import User from "@/models/User";
+import { nextTicketNumber } from "@/lib/ticket-number";
+import { checkUsageLimit, incrementUsage } from "@/lib/api-helpers";
 
 async function resolveCompany(apiKey: string) {
   let company = await Company.findOne({ apiKey, isActive: true });
@@ -43,11 +45,6 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: CORS });
 }
 
-async function nextTicketNumber(companyId: string): Promise<string> {
-  const count = await Ticket.countDocuments({ companyId });
-  return `TKT-${String(count + 1).padStart(5, "0")}`;
-}
-
 export async function POST(request: NextRequest) {
   // Rate limit: 30 messages per minute per IP, 120 per minute per API key
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
@@ -73,6 +70,16 @@ export async function POST(request: NextRequest) {
   if (!company) return NextResponse.json({ success: false, error: "Invalid API key" }, { status: 401, headers: CORS });
 
   const companyId = company._id.toString();
+
+  // Chats are counted when the conversation starts (/api/widget start_conversation),
+  // which refuses once the plan's monthly limit is hit. Without a conversation the
+  // bot would still answer unsaved, so apply the same limit here too.
+  if (!conversationId) {
+    const quota = await checkUsageLimit(companyId, "chats").catch(() => null);
+    if (quota && !quota.allowed) {
+      return NextResponse.json({ success: false, error: "LIMIT_REACHED" }, { status: 402, headers: CORS });
+    }
+  }
 
   // If a live agent is handling this conversation, skip the bot entirely
   if (conversationId && message !== "__INIT__") {
@@ -165,6 +172,8 @@ export async function POST(request: NextRequest) {
           activities: [{ type: "CHAT", description: `Widget lead: ${ld.type}`, createdAt: new Date() }],
         });
         sideEffect = { type: "lead_created", leadId: lead._id };
+        // Counted but never blocked: dropping a captured lead loses the customer's sale.
+        incrementUsage(companyId, "leads").catch(() => {});
         // Tag the conversation with the lead intent so it shows in sidebar
         const leadTag = ld.type || "GENERAL";
         await Conversation.findByIdAndUpdate(conversationId, {
@@ -214,8 +223,10 @@ export async function POST(request: NextRequest) {
         // fields (and a "type" marker) that would otherwise be silently dropped here.
         customFields: (() => { const { subject: _s, description: _d, ...rest } = td; return rest; })(),
       });
+      incrementUsage(companyId, "tickets").catch(() => {});
       if (ld?.phone) {
-        await Lead.create({ companyId, conversationId, name: ld.name || "Visitor", phone: ld.phone, source: "CHAT_WIDGET", stage: "NEW", score: 50, currency: "INR", tags: ["SERVICE", "AUTO_DEALERSHIP"] }).catch(() => {});
+        const lead = await Lead.create({ companyId, conversationId, name: ld.name || "Visitor", phone: ld.phone, source: "CHAT_WIDGET", stage: "NEW", score: 50, currency: "INR", tags: ["SERVICE", "AUTO_DEALERSHIP"] }).catch(() => null);
+        if (lead) incrementUsage(companyId, "leads").catch(() => {});
       }
       sideEffect = { type: "ticket_created", ticketId: ticket._id, ticketNumber: ticket.ticketNumber };
       await Conversation.findByIdAndUpdate(conversationId, {

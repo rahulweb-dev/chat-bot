@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/mongodb";
-import { getRequestContext, apiError, apiSuccess, incrementUsage } from "@/lib/api-helpers";
+import { getRequestContext, apiError, apiSuccess } from "@/lib/api-helpers";
 import Message from "@/models/Message";
 import Conversation from "@/models/Conversation";
 import { getIO } from "@/server/socket";
@@ -68,10 +68,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     $inc: { messageCount: 1 },
     ...(isNote ? {} : { firstResponseAt: conversation.firstResponseAt || new Date() }),
   });
-
-  if (!isNote) {
-    await incrementUsage(ctx.companyId!, "chats");
-  }
 
   const populated = await message.populate("senderId", "name avatar role");
 

@@ -2,9 +2,7 @@ import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess, checkUsageLimit, incrementUsage } from "@/lib/api-helpers";
 import KnowledgeBase from "@/models/KnowledgeBase";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+import { getChatModel } from "@/lib/ai";
 
 export async function POST(request: NextRequest) {
   const ctx = await getRequestContext(request);
@@ -33,7 +31,7 @@ export async function POST(request: NextRequest) {
     contextContent = kbItems.map((kb) => kb.content).filter(Boolean).join("\n\n---\n\n").slice(0, 8000);
   }
 
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const model = getChatModel();
 
   let systemPrompt = "";
   if (mode === "summary") {

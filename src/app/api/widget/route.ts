@@ -11,6 +11,7 @@ import { pusherConfigured } from "@/lib/pusher";
 import { autoAssignConversation } from "@/lib/auto-assign";
 import ChatbotConfig from "@/models/ChatbotConfig";
 import { isWithinBusinessHours } from "@/lib/chatbot-flow";
+import { checkUsageLimit, incrementUsage } from "@/lib/api-helpers";
 
 // Resolves a widget API key to a company — supports both Company.apiKey and ApiKey model
 async function resolveCompany(apiKey: string) {
@@ -99,6 +100,14 @@ export async function POST(request: NextRequest) {
   const corsHeaders = CORS;
 
   if (action === "start_conversation") {
+    // One "chat" = one conversation. Refuse new ones once the plan's monthly limit
+    // is used up. Fails open (allows the chat) if the plan can't be read, so a data
+    // problem on our side never takes a customer's widget offline.
+    const quota = await checkUsageLimit(companyId, "chats").catch(() => null);
+    if (quota && !quota.allowed) {
+      return NextResponse.json({ success: false, error: "LIMIT_REACHED" }, { status: 402, headers: corsHeaders });
+    }
+
     const visitorId = data.visitorId || uuidv4();
     const conversation = await Conversation.create({
       companyId,
@@ -116,6 +125,7 @@ export async function POST(request: NextRequest) {
     });
 
     const convId = conversation._id.toString();
+    incrementUsage(companyId, "chats").catch(() => {});
 
     // Auto-assign to next available agent (round-robin); posts busy/offline bot msg if none
     const { assigned, agent } = await autoAssignConversation(companyId, convId, data.visitorName || data.name);

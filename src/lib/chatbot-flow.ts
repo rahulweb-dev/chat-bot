@@ -1,7 +1,7 @@
 import ChatbotConfig from "@/models/ChatbotConfig";
 import KnowledgeBase from "@/models/KnowledgeBase";
 import { checkUsageLimit, incrementUsage } from "@/lib/api-helpers";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getChatModel } from "@/lib/ai";
 
 export interface SessionData {
   flow: string;
@@ -343,8 +343,7 @@ async function getAIFallbackReply(message: string, companyId: string, collected:
   if (!usageCheck.allowed) return null; // degrade quietly to the normal menu, not an error shown to the visitor
 
   try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = getChatModel();
     const systemPrompt = `You are a helpful customer support assistant. Use ONLY the following knowledge base to answer the visitor's question — do not use outside knowledge. Keep the answer under 80 words, friendly and concise. If the knowledge base doesn't cover this, say so plainly and suggest talking to a human instead of guessing.\n\n${contextContent}`;
     const chat = model.startChat({ systemInstruction: systemPrompt });
     const result = await chat.sendMessage(message);

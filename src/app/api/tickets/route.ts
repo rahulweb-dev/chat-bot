@@ -3,11 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess, paginatedResponse, paginate, incrementUsage } from "@/lib/api-helpers";
 import Ticket from "@/models/Ticket";
 import Notification from "@/models/Notification";
-
-async function generateTicketNumber(companyId: string): Promise<string> {
-  const count = await Ticket.countDocuments({ companyId });
-  return `TKT-${String(count + 1).padStart(5, "0")}`;
-}
+import { nextTicketNumber } from "@/lib/ticket-number";
 
 export async function GET(request: NextRequest) {
   const ctx = await getRequestContext(request);
@@ -54,7 +50,7 @@ export async function POST(request: NextRequest) {
   await connectDB();
   const body = await request.json();
 
-  const ticketNumber = await generateTicketNumber(ctx.companyId);
+  const ticketNumber = await nextTicketNumber(ctx.companyId);
   const ticket = await Ticket.create({
     ...body,
     companyId: ctx.companyId,

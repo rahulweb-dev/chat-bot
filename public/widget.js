@@ -13,20 +13,61 @@
 
   var BASE  = (cfg.baseUrl || "").replace(/\/$/, "");
   var KEY   = cfg.apiKey;
-  var COLOR = cfg.primaryColor || "#6366f1";
-  var POS   = cfg.position || "bottom-right";
-  var THEME = cfg.theme || "light";
-  var DARK  = THEME === "dark";
+  // Look (color / theme / position): the dashboard settings served by /api/widget
+  // are the source of truth, so a change there reaches every installed site
+  // without re-pasting the snippet. The last server values are cached so the
+  // widget paints correctly on load; the snippet's values only cover a first
+  // visit before the server has answered.
+  var cachedLook = null;
+  try {
+    var rawLook = JSON.parse(localStorage.getItem("sf_look") || "null");
+    if (rawLook && rawLook.key === KEY) cachedLook = rawLook;
+  } catch (_) {}
+
+  var COLOR, THEME, DARK, BG, BG2, BORD, TXT, MUTED, C60, C20;
+  var darkMQ = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+
+  // Server sends "LIGHT"/"DARK"/"AUTO"; older snippets send "light"/"dark".
+  function normTheme(t) { return String(t || "light").toLowerCase(); }
+  // C60/C20 append alpha to the hex, so it must be #rrggbb.
+  function normColor(c) {
+    c = String(c || "").trim();
+    if (/^#[0-9a-f]{3}$/i.test(c)) c = "#" + c[1] + c[1] + c[2] + c[2] + c[3] + c[3];
+    return /^#[0-9a-f]{6}$/i.test(c) ? c : "#6366f1";
+  }
+
+  function setLook(color, theme) {
+    COLOR = normColor(color);
+    THEME = normTheme(theme);
+    DARK  = THEME === "dark" || (THEME === "auto" && !!(darkMQ && darkMQ.matches));
+    BG    = DARK ? "#111827" : "#ffffff";
+    BG2   = DARK ? "#1f2937" : "#f9fafb";
+    BORD  = DARK ? "#374151" : "#e5e7eb";
+    TXT   = DARK ? "#f9fafb" : "#111827";
+    MUTED = DARK ? "#9ca3af" : "#6b7280";
+    C60   = COLOR + "99";
+    C20   = COLOR + "33";
+  }
+  setLook(cachedLook ? cachedLook.color : cfg.primaryColor, cachedLook ? cachedLook.theme : cfg.theme);
+
+  // Position decides the launcher's HTML order, so it can only change on the next
+  // page load (from the cache), not live.
+  var POS   = String((cachedLook && cachedLook.position) || cfg.position || "bottom-right").toLowerCase().replace("_", "-");
   var SIDE  = POS === "bottom-left" ? "left" : "right";
 
-  // Theme tokens
-  var BG    = DARK ? "#111827" : "#ffffff";
-  var BG2   = DARK ? "#1f2937" : "#f9fafb";
-  var BORD  = DARK ? "#374151" : "#e5e7eb";
-  var TXT   = DARK ? "#f9fafb" : "#111827";
-  var MUTED = DARK ? "#9ca3af" : "#6b7280";
-  var C60   = COLOR + "99";
-  var C20   = COLOR + "33";
+  function applyServerLook(st) {
+    if (!st) return;
+    try { localStorage.setItem("sf_look", JSON.stringify({ key: KEY, color: st.primaryColor, theme: st.theme, position: st.position })); } catch (_) {}
+    if (normColor(st.primaryColor) === COLOR && normTheme(st.theme) === THEME) return;
+    setLook(st.primaryColor, st.theme);
+    injectCSS();
+  }
+
+  if (darkMQ) {
+    var onSchemeChange = function() { if (THEME === "auto") { setLook(COLOR, THEME); injectCSS(); } };
+    if (darkMQ.addEventListener) darkMQ.addEventListener("change", onSchemeChange);
+    else if (darkMQ.addListener) darkMQ.addListener(onSchemeChange);
+  }
 
   // State
   var convId        = null;
@@ -42,6 +83,7 @@
   var unreadCount   = 0;
   var labelPinned   = false; // true once the greeting label is showing persistently (not just on hover)
   var lastQR        = [];
+  var limitReached  = false; // company's plan is out of chats this month
   var renderedIds   = new Set(); // prevent duplicate messages from double-polling
   var pusherKey     = cfg.pusherKey     || null;
   var pusherCluster = cfg.pusherCluster || "ap2";
@@ -94,8 +136,11 @@
   }
 
   // ── CSS ──────────────────────────────────────────────────────────────────────
+  // Re-callable: reuses the same <style> so a theme change from the server just
+  // rewrites it instead of stacking a second stylesheet.
   function injectCSS() {
-    var s = document.createElement("style");
+    var s = document.getElementById("sf-style") || document.createElement("style");
+    s.id = "sf-style";
     s.textContent =
       // Reset
       "#sf-root,#sf-root *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}" +
@@ -237,7 +282,7 @@
       "@media(prefers-reduced-motion:reduce){" +
         "#sf-root *{animation-duration:.001s!important;animation-iteration-count:1!important;transition-duration:.001s!important}" +
       "}";
-    document.head.appendChild(s);
+    if (!s.parentNode) document.head.appendChild(s);
   }
 
   // ── Build HTML ───────────────────────────────────────────────────────────────
@@ -400,7 +445,7 @@
   function sendText() {
     var inp = document.getElementById("sf-inp");
     var text = inp.value.trim();
-    if (!text || isBusy) return;
+    if (!text || isBusy || limitReached) return;
     inp.value = "";
     inp.style.height = "auto";
     document.getElementById("sf-send").disabled = true;
@@ -408,7 +453,7 @@
   }
 
   function sendOption(text) {
-    if (isBusy) return;
+    if (isBusy || limitReached) return;
     sendMessage(text);
   }
 
@@ -494,6 +539,7 @@
       message: msg, sessionData: sess,
     }).then(function(r) {
       if (!r.success) {
+        if (r.error === "LIMIT_REACHED") { showLimitReached(); return null; }
         if (r.error === "Invalid API key") showErr("Invalid API key. Please check your Convo360 dashboard.");
         return null;
       }
@@ -517,6 +563,7 @@
         userAgent: navigator.userAgent,
       },
     }).then(function(r) {
+      if (r && r.error === "LIMIT_REACHED") { showLimitReached(); return; }
       if (r && r.success && r.data) {
         convId = r.data.conversationId;
         try { localStorage.setItem("sf_conv", convId); } catch(_){}
@@ -775,6 +822,21 @@
     if (d) { d.style.display = "none"; d.textContent = ""; }
   }
 
+  // The visitor isn't the one who can fix a plan limit, so the message stays
+  // neutral (no "upgrade" talk) and the input is closed instead of failing per message.
+  function showLimitReached() {
+    hideTyping();
+    isBusy = false;
+    if (limitReached) return;
+    limitReached = true;
+    addBubble("⏰ Chat is unavailable right now. Please try again later or contact us another way.", "bot");
+    setOptions([], false);
+    var inp = document.getElementById("sf-inp");
+    var snd = document.getElementById("sf-send");
+    if (inp) { inp.disabled = true; inp.placeholder = "Chat unavailable"; }
+    if (snd) snd.disabled = true;
+  }
+
   function showErr(msg) {
     hideTyping();
     isBusy = false;
@@ -840,6 +902,7 @@
       .then(function(r) { return r.json(); })
       .then(function(d) {
         if (!d.success || !d.data) return;
+        applyServerLook(d.data.settings);
         var logoUrl = (d.data.settings && d.data.settings.logo) || d.data.logo;
         applyCompanyInfo(d.data.name, logoUrl, true);
         if (d.data.settings && d.data.settings.launcherText) {
@@ -964,6 +1027,7 @@
     showTyping();
     isBusy = true;
     var initWithSession = function() {
+      if (limitReached) return;
       callChat("__INIT__").then(function(data) {
         isBusy = false;
         hideTyping();
