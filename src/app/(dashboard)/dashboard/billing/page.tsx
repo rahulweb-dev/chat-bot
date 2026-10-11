@@ -1,50 +1,72 @@
 "use client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Zap, Crown, Building, AlertTriangle, Mail } from "lucide-react";
+import { Check, Zap, Crown, Building, AlertTriangle, Loader2, CreditCard } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCardsSkeleton } from "@/components/ui/page-skeletons";
 
-const plans = [
-  {
-    type: "STARTER",
-    name: "Starter",
-    price: { monthly: 2499, annually: 24990 },
-    icon: Zap,
-    color: "text-blue-600",
-    bg: "bg-blue-50",
-    border: "border-blue-200",
+// Look of each plan card. Prices and features come from the Plan collection
+// (/api/plans) so the price shown is exactly the price charged at checkout.
+const PLAN_STYLE: Record<string, { icon: typeof Zap; color: string; bg: string; features: string[] }> = {
+  STARTER: {
+    icon: Zap, color: "text-blue-600", bg: "bg-blue-50",
     features: ["2 Agents", "1,000 Chats/mo", "500 AI Messages/mo", "1 Chatbot", "Basic Analytics", "Email Support"],
   },
-  {
-    type: "PRO",
-    name: "Pro",
-    price: { monthly: 8299, annually: 82990 },
-    icon: Crown,
-    color: "text-indigo-600",
-    bg: "bg-indigo-50",
-    border: "border-indigo-400",
-    popular: true,
+  PRO: {
+    icon: Crown, color: "text-indigo-600", bg: "bg-indigo-50",
     features: ["10 Agents", "10,000 Chats/mo", "5,000 AI Messages/mo", "5 Chatbots", "Advanced Analytics", "CRM & Leads", "API Access", "Priority Support"],
   },
-  {
-    type: "ENTERPRISE",
-    name: "Enterprise",
-    price: { monthly: 24999, annually: 249990 },
-    icon: Building,
-    color: "text-purple-600",
-    bg: "bg-purple-50",
-    border: "border-purple-200",
+  ENTERPRISE: {
+    icon: Building, color: "text-purple-600", bg: "bg-purple-50",
     features: ["Unlimited Agents", "Unlimited Chats", "Unlimited AI Messages", "Unlimited Chatbots", "White Labeling", "Custom Domain", "Dedicated Support", "SLA Guarantee"],
   },
-];
+};
+
+type DbPlan = {
+  _id: string;
+  type: "STARTER" | "PRO" | "ENTERPRISE";
+  name: string;
+  price: { monthly: number; annually: number };
+  currency?: string;
+  features?: string[];
+  isPopular?: boolean;
+};
+
+type RazorpayInstance = { open: () => void; on: (event: string, cb: (r: { error?: { description?: string } }) => void) => void };
+declare global {
+  interface Window { Razorpay?: new (options: Record<string, unknown>) => RazorpayInstance }
+}
+
+function loadRazorpay(): Promise<boolean> {
+  if (window.Razorpay) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const s = document.createElement("script");
+    s.src = "https://checkout.razorpay.com/v1/checkout.js";
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.body.appendChild(s);
+  });
+}
+
+function money(amount: number, currency = "INR") {
+  try {
+    return new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
+  } catch {
+    return `${currency} ${amount}`;
+  }
+}
 
 export default function BillingPage() {
   const [billing, setBilling] = useState<"MONTHLY" | "ANNUALLY">("MONTHLY");
+  const [paying, setPaying] = useState<string | null>(null);
+  const qc = useQueryClient();
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "COMPANY_ADMIN";
 
   const { data: subscription, isLoading: subscriptionLoading } = useQuery({
     queryKey: ["subscription"],
@@ -64,11 +86,75 @@ export default function BillingPage() {
     },
   });
 
-  const handleUpgrade = (planType: string) => {
-    toast({ title: "Contact us to upgrade", description: `Email rahulwebdeveloper12@gmail.com to activate the ${planType} plan.` });
+  const { data: dbPlans, isLoading: plansLoading } = useQuery({
+    queryKey: ["plans"],
+    queryFn: async () => {
+      const res = await fetch("/api/plans");
+      const d = await res.json();
+      return (d.data || []) as DbPlan[];
+    },
+  });
+
+  const handleUpgrade = async (plan: DbPlan) => {
+    setPaying(plan.type);
+    try {
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planType: plan.type, billingCycle: billing }),
+      });
+      const d = await res.json();
+      if (!d.success) {
+        toast({ title: "Couldn't start payment", description: d.error, variant: "destructive" });
+        setPaying(null);
+        return;
+      }
+      if (!(await loadRazorpay()) || !window.Razorpay) {
+        toast({ title: "Payment window didn't load", description: "Check your connection or ad blocker and try again.", variant: "destructive" });
+        setPaying(null);
+        return;
+      }
+      const o = d.data;
+      const rzp = new window.Razorpay({
+        key: o.keyId,
+        order_id: o.orderId,
+        amount: o.amount,
+        currency: o.currency,
+        name: "Convo360",
+        description: `${o.planName} plan · ${o.billingCycle === "ANNUALLY" ? "1 year" : "1 month"}`,
+        prefill: o.prefill,
+        notes: { company: o.companyName },
+        theme: { color: "#4f46e5" },
+        handler: async (r: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
+          const v = await fetch("/api/billing/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId: r.razorpay_order_id, paymentId: r.razorpay_payment_id, signature: r.razorpay_signature }),
+          }).then((x) => x.json()).catch(() => null);
+          setPaying(null);
+          if (v?.success) {
+            toast({ title: `You're on ${o.planName}`, description: "Your new limits are active now." });
+          } else {
+            // Payment went through at Razorpay; the webhook will still activate the plan.
+            toast({ title: "Payment received", description: "Your plan will update within a minute. Refresh if it doesn't." });
+          }
+          qc.invalidateQueries({ queryKey: ["subscription"] });
+          qc.invalidateQueries({ queryKey: ["usage"] });
+        },
+        modal: { ondismiss: () => setPaying(null) },
+      });
+      rzp.on("payment.failed", (r) => {
+        toast({ title: "Payment failed", description: r.error?.description || "No money was taken. Please try again.", variant: "destructive" });
+      });
+      rzp.open();
+    } catch {
+      toast({ title: "Couldn't start payment", description: "Please try again.", variant: "destructive" });
+      setPaying(null);
+    }
   };
 
   const currentPlan = subscription?.planId?.type || usageData?.plan?.type || "STARTER";
+  const isTrial = subscription?.status === "TRIALING";
 
   return (
     <div className="space-y-6">
@@ -106,7 +192,7 @@ export default function BillingPage() {
                   <Badge variant={subscription.status === "ACTIVE" ? "success" : subscription.status === "TRIALING" ? "info" : "warning"}>
                     {subscription.status}
                   </Badge>
-                  {subscription.status === "TRIALING" && subscription.trialEnd && (
+                  {isTrial && subscription.trialEnd && (
                     <span className="text-xs text-gray-500">
                       Trial ends {new Date(subscription.trialEnd).toLocaleDateString()}
                     </span>
@@ -115,10 +201,11 @@ export default function BillingPage() {
               </div>
               <div className="text-right">
                 <p className="text-3xl font-bold text-gray-900">
-                  ₹{subscription.amount}<span className="text-base font-normal text-gray-500">/mo</span>
+                  {money(subscription.amount, subscription.currency)}
+                  <span className="text-base font-normal text-gray-500">{subscription.billingCycle === "ANNUALLY" ? "/yr" : "/mo"}</span>
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  Next billing: {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
+                  {isTrial ? "Trial ends" : "Paid until"} {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
                 </p>
               </div>
             </div>
@@ -196,36 +283,47 @@ export default function BillingPage() {
           </div>
         </div>
 
+        {plansLoading && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[0, 1, 2].map((i) => <Skeleton key={i} className="h-96 rounded-xl" />)}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {plans.map((plan) => {
-            const Icon = plan.icon;
-            const isCurrent = currentPlan === plan.type;
+          {dbPlans?.map((plan) => {
+            const style = PLAN_STYLE[plan.type] || PLAN_STYLE.STARTER;
+            const Icon = style.icon;
+            const features = plan.features?.length ? plan.features : style.features;
+            const currency = plan.currency || "INR";
+            // Same plan, but upgrading from a trial or renewing early, is still a valid purchase.
+            const isCurrent = currentPlan === plan.type && !isTrial;
             const price = billing === "MONTHLY" ? plan.price.monthly : Math.round(plan.price.annually / 12);
+            const busy = paying === plan.type;
 
             return (
               <Card
-                key={plan.type}
-                className={`border-0 shadow-sm relative overflow-hidden ${plan.popular ? "ring-2 ring-indigo-400" : ""}`}
+                key={plan._id}
+                className={`border-0 shadow-sm relative overflow-hidden ${plan.isPopular ? "ring-2 ring-indigo-400" : ""}`}
               >
-                {plan.popular && (
+                {plan.isPopular && (
                   <div className="absolute top-0 right-0 bg-indigo-500 text-white text-xs px-3 py-1 rounded-bl-lg font-medium">
                     POPULAR
                   </div>
                 )}
                 <CardContent className="p-6">
-                  <div className={`w-10 h-10 ${plan.bg} rounded-lg flex items-center justify-center mb-4`}>
-                    <Icon className={`w-5 h-5 ${plan.color}`} />
+                  <div className={`w-10 h-10 ${style.bg} rounded-lg flex items-center justify-center mb-4`}>
+                    <Icon className={`w-5 h-5 ${style.color}`} />
                   </div>
                   <h3 className="text-lg font-semibold">{plan.name}</h3>
                   <div className="my-3">
-                    <span className="text-3xl font-bold">₹{price}</span>
+                    <span className="text-3xl font-bold">{money(price, currency)}</span>
                     <span className="text-gray-500 text-sm">/month</span>
                     {billing === "ANNUALLY" && (
-                      <div className="text-xs text-green-600 mt-0.5">Billed ₹{plan.price.annually}/year</div>
+                      <div className="text-xs text-green-600 mt-0.5">Billed {money(plan.price.annually, currency)}/year</div>
                     )}
                   </div>
                   <ul className="space-y-2 mb-6">
-                    {plan.features.map((f) => (
+                    {features.map((f) => (
                       <li key={f} className="flex items-center gap-2 text-sm text-gray-700">
                         <Check className="w-4 h-4 text-green-500 shrink-0" />
                         {f}
@@ -233,23 +331,38 @@ export default function BillingPage() {
                     ))}
                   </ul>
                   {isCurrent ? (
-                    <Button className="w-full" variant="outline" disabled>
-                      Current Plan
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      disabled={!isAdmin || !!paying}
+                      onClick={() => handleUpgrade(plan)}
+                    >
+                      {busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                      Current Plan · Renew
                     </Button>
                   ) : (
                     <Button
-                      className={`w-full ${plan.popular ? "bg-indigo-600 hover:bg-indigo-700" : ""}`}
-                      variant={plan.popular ? "default" : "outline"}
-                      onClick={() => handleUpgrade(plan.name)}
+                      className={`w-full ${plan.isPopular ? "bg-indigo-600 hover:bg-indigo-700" : ""}`}
+                      variant={plan.isPopular ? "default" : "outline"}
+                      disabled={!isAdmin || !!paying}
+                      onClick={() => handleUpgrade(plan)}
                     >
-                      <Mail className="w-4 h-4 mr-2" /> Contact to Upgrade
+                      {busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CreditCard className="w-4 h-4 mr-2" />}
+                      {isTrial && currentPlan === plan.type ? `Buy ${plan.name}` : `Upgrade to ${plan.name}`}
                     </Button>
+                  )}
+                  {!isAdmin && (
+                    <p className="text-xs text-gray-400 mt-2 text-center">Only your company admin can change the plan.</p>
                   )}
                 </CardContent>
               </Card>
             );
           })}
         </div>
+
+        {!plansLoading && !dbPlans?.length && (
+          <p className="text-sm text-gray-500">No plans are available right now. Please contact support.</p>
+        )}
       </div>
     </div>
   );
