@@ -16,6 +16,7 @@ export interface IBooking extends Document {
   notes?: string;
   attribution?: import("@/lib/attribution").Attribution;
   reminderSentAt?: Date;
+  googleEventId?: string; // event in the company's connected Google Calendar
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,6 +36,7 @@ const BookingSchema = new Schema<IBooking>(
     notes: { type: String },
     attribution: { type: Schema.Types.Mixed },
     reminderSentAt: { type: Date },
+    googleEventId: { type: String },
   },
   { timestamps: true }
 );

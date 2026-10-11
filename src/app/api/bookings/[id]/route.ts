@@ -3,6 +3,7 @@ import { z } from "zod";
 import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess } from "@/lib/api-helpers";
 import { releaseSlot } from "@/lib/booking";
+import { deleteCalendarEvent } from "@/lib/google-calendar";
 import Booking from "@/models/Booking";
 
 const patchSchema = z.object({
@@ -29,6 +30,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const booking = await Booking.findByIdAndUpdate(id, { $set: parsed.data }, { new: true });
   if (before.status === "BOOKED" && parsed.data.status === "CANCELLED") {
     await releaseSlot(ctx.companyId, before.startAt).catch(() => {});
+    if (before.googleEventId) deleteCalendarEvent(ctx.companyId, before.googleEventId).catch(() => {});
   }
   return apiSuccess(booking, "Booking updated");
 }

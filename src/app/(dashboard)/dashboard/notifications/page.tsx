@@ -10,6 +10,7 @@ import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { ListRowsSkeleton } from "@/components/ui/page-skeletons";
+import { PushCard } from "@/components/settings/push-card";
 
 const typeIcon: Record<string, React.ReactNode> = {
   NEW_CONVERSATION: <MessageSquare className="h-4 w-4 text-blue-500" />,
@@ -83,6 +84,8 @@ export default function NotificationsPage() {
           </Button>
         )}
       </div>
+
+      <PushCard />
 
       <Card>
         <CardHeader>

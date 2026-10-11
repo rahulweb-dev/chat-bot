@@ -6,7 +6,7 @@ import Subscription from "../models/Subscription";
 import User from "../models/User";
 import Notification from "../models/Notification";
 import { sendEmail } from "./email";
-import { FREE_LIMITS } from "./plan-limits";
+import { FREE_LIMITS, RENEWAL_GRACE_MS } from "./plan-limits";
 
 const REMIND_DAYS = 3;
 
@@ -67,6 +67,8 @@ export async function runBillingLifecycle(now = new Date()) {
     status: { $in: ["ACTIVE", "TRIALING"] },
     currentPeriodEnd: { $gt: now, $lte: soon },
     reminderSentAt: { $exists: false },
+    // Auto-renewing plans renew by themselves; no "your plan ends" email.
+    $or: [{ autoRenew: { $ne: true } }, { cancelAtPeriodEnd: true }],
   }).populate("planId", "name").lean<SubDoc[]>();
 
   for (const sub of ending) {
@@ -101,7 +103,11 @@ export async function runBillingLifecycle(now = new Date()) {
   // is the status cleanup and the email.
   const lapsed = await Subscription.find({
     status: { $in: ["ACTIVE", "TRIALING"] },
-    currentPeriodEnd: { $lte: now },
+    // Auto-renewing plans get RENEWAL_GRACE_MS for the renewal charge to land.
+    $or: [
+      { $or: [{ autoRenew: { $ne: true } }, { cancelAtPeriodEnd: true }], currentPeriodEnd: { $lte: now } },
+      { autoRenew: true, cancelAtPeriodEnd: { $ne: true }, currentPeriodEnd: { $lte: new Date(now.getTime() - RENEWAL_GRACE_MS) } },
+    ],
   }).populate("planId", "name").lean<SubDoc[]>();
 
   for (const sub of lapsed) {

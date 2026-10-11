@@ -6,6 +6,7 @@ import { normalizePhone } from "@/lib/phone";
 import { retrieve, formatContext } from "@/lib/rag";
 import { DEFAULT_BOOKING, type BookingConfig } from "@/lib/booking";
 import { handleBookingFlow, isBookingTrigger, bookingButton } from "@/lib/booking-flow";
+import { t, botLang, isMainMenu, isTalkToHuman, type BotLang } from "@/lib/bot-i18n";
 export { normalizePhone };
 
 export interface SessionData {
@@ -81,6 +82,7 @@ export interface BotContext {
   timezone?: string;
   vehicles?: string[];
   offers?: string[];
+  lang?: string; // widget language for the bot's built-in sentences (src/lib/bot-i18n.ts)
 }
 
 export const MAIN_MENU = [
@@ -398,18 +400,19 @@ function identifyThenMenu(
   ctx?: BotContext
 ): BotResponse | null {
   const col = { ...s.collected };
+  const L = botLang(ctx?.lang);
 
   if (s.flow === "IDENTIFY") {
     if (s.step === "ask_name") {
       if (!inp || inp.length < 2) {
-        return { messages: ["Please enter your name (at least 2 characters):"], quickReplies: [], sessionData: { flow: "IDENTIFY", step: "ask_name", collected: col }, action: "NONE" };
+        return { messages: [t(L, "nameRetry")], quickReplies: [], sessionData: { flow: "IDENTIFY", step: "ask_name", collected: col }, action: "NONE" };
       }
       col.name = inp;
-      return { messages: [`Nice to meet you, ${firstName(col.name)}! 😊 Could you share your mobile number?`], quickReplies: [], sessionData: { flow: "IDENTIFY", step: "ask_phone", collected: col }, action: "NONE" };
+      return { messages: [t(L, "askPhone", { name: firstName(col.name) })], quickReplies: [], sessionData: { flow: "IDENTIFY", step: "ask_phone", collected: col }, action: "NONE" };
     }
     if (s.step === "ask_phone") {
       if (!isPhone(inp)) {
-        return { messages: [PHONE_RETRY], quickReplies: [], sessionData: { flow: "IDENTIFY", step: "ask_phone", collected: col }, action: "NONE" };
+        return { messages: [t(L, "phoneRetry")], quickReplies: [], sessionData: { flow: "IDENTIFY", step: "ask_phone", collected: col }, action: "NONE" };
       }
       col.phone = normalizePhone(inp) ?? inp;
       const menuResp = showMenu(col);
@@ -419,8 +422,8 @@ function identifyThenMenu(
       const first = firstName(col.name);
       const within = !ctx || isWithinBusinessHours(ctx.businessHours, ctx.timezone);
       const reply = within
-        ? `Thanks, ${first}! ✅ How can I help you today?`
-        : `Thanks, ${first}! ✅ Our team is offline right now, so we'll call you on ${col.phone} as soon as we're back.\n\nMeanwhile, what would you like to know?`;
+        ? t(L, "thanksOnline", { name: first })
+        : t(L, "thanksOffline", { name: first, phone: col.phone });
       return { ...menuResp, messages: [reply] };
     }
   }
@@ -429,7 +432,7 @@ function identifyThenMenu(
     if (!col.name) {
       // First-time: start conversational identify flow
       return {
-        messages: [`${greeting}\n\nI'm your virtual assistant. May I know your name?`],
+        messages: [`${greeting}\n\n${t(L, "askName")}`],
         quickReplies: [],
         sessionData: { flow: "IDENTIFY", step: "ask_name", collected: col },
         action: "NONE",
@@ -439,7 +442,7 @@ function identifyThenMenu(
     // the dashboard preview always hits, since it pre-fills a name to skip straight
     // past the identify flow), personalised with a welcome-back line.
     const menuResp = showMenu(col);
-    return { ...menuResp, messages: [`${greeting}\n\nWelcome back, ${col.name}! How can I help you today?`, ...offlineNoticeLines(ctx)] };
+    return { ...menuResp, messages: [`${greeting}\n\n${t(L, "welcomeBack", { name: col.name })}`, ...offlineNoticeLines(ctx)] };
   }
 
   return null;
@@ -587,7 +590,7 @@ function runCustomFlow(input: string, session: SessionData, cf: CustomFlow, gree
 // is enabled, then falls back to the built-in Ashok Leyland demo flow. Also fetches
 // business hours and catalog data in the same query so custom flows can gate
 // agent handoffs on hours and pull live options from Vehicles/Offers.
-async function getBotReplyInner(message: string, session: SessionData, companyId: string, welcomeMessage?: string, timezone?: string, opts: { dryRun?: boolean } = {}): Promise<BotResponse> {
+async function getBotReplyInner(message: string, session: SessionData, companyId: string, welcomeMessage?: string, timezone?: string, opts: { dryRun?: boolean; lang?: string } = {}): Promise<BotResponse> {
   const greeting = welcomeMessage?.trim() || "👋 Hi! Welcome!";
 
   const config = await ChatbotConfig.findOne({ companyId })
@@ -608,6 +611,7 @@ async function getBotReplyInner(message: string, session: SessionData, companyId
     agentOnlineMessage: config?.agentOnlineMessage,
     agentOfflineMessage: config?.agentOfflineMessage,
     timezone,
+    lang: opts.lang,
     vehicles: (config?.vehicles ?? []).filter(v => v.isActive).map(v => v.name),
     offers: (config?.offers ?? []).filter(o => o.isActive).map(o => o.title),
   };
@@ -622,7 +626,7 @@ async function getBotReplyInner(message: string, session: SessionData, companyId
   // first, ahead of matchTraining/custom-flow/AI-fallback, makes the button
   // deterministic regardless of what the company has trained.
   const trimmed = message.trim();
-  if (match(trimmed, "Main Menu") || match(trimmed, "Start Over") || match(trimmed, "Go Back")) {
+  if (isMainMenu(trimmed)) {
     const col = session.collected || {};
     return cf?.enabled && cf.flows?.length ? customMenu(cf, col, greeting) : mainMenu(col, greeting);
   }
@@ -660,19 +664,37 @@ async function getBotReplyInner(message: string, session: SessionData, companyId
 // visitor sees gets a "📅 Book a …" button, unless one of the company's own menu
 // items already starts booking. opts.dryRun (dashboard previews) never reserves
 // a real slot.
-export async function getBotReply(message: string, session: SessionData, companyId: string, welcomeMessage?: string, timezone?: string, opts: { dryRun?: boolean } = {}): Promise<BotResponse> {
-  const res = await getBotReplyInner(message, session, companyId, welcomeMessage, timezone, opts);
-  if (res.sessionData.flow !== "INITIAL" || res.quickReplies.length < 2 || res.booking) return res;
+export async function getBotReply(message: string, session: SessionData, companyId: string, welcomeMessage?: string, timezone?: string, opts: { dryRun?: boolean; lang?: string } = {}): Promise<BotResponse> {
+  const L = botLang(opts.lang);
+  // Translated standard buttons come back in English for the engine, which
+  // matches on the English labels.
+  const input = isTalkToHuman(message) ? "💬 Talk to a Human" : message;
+  const res = await getBotReplyInner(input, session, companyId, welcomeMessage, timezone, opts);
+  return localizeButtons(await withBookingButton(res, companyId, L), L);
+}
 
+async function withBookingButton(res: BotResponse, companyId: string, L: BotLang): Promise<BotResponse> {
+  if (res.sessionData.flow !== "INITIAL" || res.quickReplies.length < 2 || res.booking) return res;
   const cfg = await ChatbotConfig.findOne({ companyId }).select("booking").lean<{ booking?: Partial<BookingConfig> }>();
   const booking = { ...DEFAULT_BOOKING, ...(cfg?.booking ?? {}) };
   if (!booking.enabled || res.quickReplies.some((q) => isBookingTrigger(q, booking))) return res;
 
-  const btn = bookingButton(booking);
-  const menuIdx = res.quickReplies.findIndex((q) => /Main Menu/i.test(q));
+  const btn = bookingButton(booking, L);
+  const menuIdx = res.quickReplies.findIndex((q) => isMainMenu(q));
   const quickReplies = [...res.quickReplies];
   quickReplies.splice(menuIdx === -1 ? quickReplies.length : menuIdx, 0, btn);
   return { ...res, quickReplies };
+}
+
+// The engine's own standard buttons, in the widget's language.
+function localizeButtons(res: BotResponse, L: BotLang): BotResponse {
+  if (L === "en") return res;
+  return {
+    ...res,
+    quickReplies: res.quickReplies.map((q) =>
+      q === "🔙 Main Menu" ? t(L, "mainMenu") : q === "💬 Talk to a Human" ? t(L, "talkToHuman") : q
+    ),
+  };
 }
 
 export function processFlow(input: string, session: SessionData, welcomeMessage?: string, ctx?: BotContext): BotResponse {

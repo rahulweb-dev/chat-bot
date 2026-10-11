@@ -10,6 +10,7 @@ import WhatsAppConversation from "@/models/WhatsAppConversation";
 import WhatsAppMessage from "@/models/WhatsAppMessage";
 import WhatsAppCampaignRecipient from "@/models/WhatsAppCampaignRecipient";
 import { getIO } from "@/server/socket";
+import { sendPushToCompany, sendPushToUsers } from "@/lib/push";
 
 interface WAMessage {
   from: string;
@@ -157,6 +158,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                 customerName: customerName || undefined,
                 lastMessage: content,
                 lastMessageAt: new Date(),
+                // Opens WhatsApp's 24-hour window for free-text replies.
+                lastInboundAt: new Date(),
                 status: "OPEN",
               },
               $inc: { unreadCount: 1 },
@@ -177,6 +180,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
           if (message) {
             getIO()?.to(`company:${companyId}`).emit("whatsapp:message:new", message);
+            const pushTo = conversation.assignedAgentId ? [String(conversation.assignedAgentId)] : null;
+            const push = { title: `💬 WhatsApp: ${conversation.customerName || conversation.customerPhone}`, body: (content || "New message").slice(0, 140), url: "/dashboard/inbox", tag: `wa-${conversation._id}` };
+            (pushTo ? sendPushToUsers(pushTo, push) : sendPushToCompany(String(companyId), push)).catch(() => {});
             getIO()?.to(`company:${companyId}`).emit("whatsapp:conversation:updated", {
               conversationId: conversation._id,
               lastMessage: conversation.lastMessage,

@@ -3,12 +3,13 @@ import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import {
   MessageSquare, TicketIcon, Users, Building2, BarChart3,
   Settings, Bell, Key, Bot, Workflow, CreditCard,
   LayoutDashboard, BookOpen, Tag, Globe, Shield,
-  Inbox, MessageCircle, Trophy, Mail, X, LogOut, ChevronLeft, ChevronRight, CalendarCheck,
+  Inbox, MessageCircle, Trophy, Mail, X, LogOut, ChevronLeft, ChevronRight, CalendarCheck, MessagesSquare,
 } from "lucide-react";
 import { getInitials } from "@/lib/utils";
 import { useUIStore } from "@/store/ui-store";
@@ -36,6 +37,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Communication",
     items: [
+      { label: "Inbox",          href: "/dashboard/inbox",         icon: MessagesSquare },
       { label: "Live Chat",      href: "/dashboard/chat",          icon: MessageSquare, badge: "Live" },
       { label: "WhatsApp",       href: "/dashboard/whatsapp",      icon: MessageCircle },
       { label: "Email Campaigns", href: "/dashboard/email-campaigns", icon: Mail },
@@ -116,6 +118,13 @@ function getIsDesktopSnapshot() {
 
 export function Sidebar() {
   const { data: session } = useSession();
+  // Agency branding (white-label plans); falls back to Convo360.
+  const { data: branding } = useQuery({
+    queryKey: ["branding"],
+    queryFn: async () => (await (await fetch("/api/white-label")).json()).data as { brandName?: string; brandLogo?: string },
+    enabled: !!session?.user && session.user.role !== "SUPER_ADMIN",
+    staleTime: 10 * 60 * 1000,
+  });
   const pathname = usePathname();
   const mobileNavOpen = useUIStore((s) => s.mobileNavOpen);
   const closeMobileNav = useUIStore((s) => s.closeMobileNav);
@@ -167,8 +176,8 @@ export function Sidebar() {
             href={isSuperAdmin ? "/admin" : "/dashboard"}
             className="flex items-center gap-2 font-display font-bold text-[21px] tracking-tight text-[#15140F]"
           >
-            <img src="/app_icon.png" alt="" className="w-6 h-6 rounded-md shrink-0" />
-            <span className={collapsedEffective ? "lg:hidden" : ""}>Convo360</span>
+            <img src={branding?.brandLogo || "/app_icon.png"} alt="" className="w-6 h-6 rounded-md shrink-0 object-cover" />
+            <span className={cn("truncate", collapsedEffective && "lg:hidden")}>{branding?.brandName || "Convo360"}</span>
           </Link>
           <button
             type="button"

@@ -55,6 +55,12 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const ctx = await getRequestContext(request);
   if (!ctx || !ctx.companyId) return apiError("Unauthorized", 401);
+  // The bot's menus, hours, AI and booking settings are the company's public
+  // face: only admins and managers may change them, never agents/viewers or a
+  // widget/API key (which resolves to role AGENT).
+  if (!["SUPER_ADMIN", "COMPANY_ADMIN", "MANAGER"].includes(ctx.userRole)) {
+    return apiError("Only admins and managers can change the chatbot", 403);
+  }
 
   await connectDB();
   const requestBody = await request.json();

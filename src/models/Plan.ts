@@ -14,6 +14,9 @@ export interface IPlan extends Document {
     monthly?: string;
     annually?: string;
   };
+  // Razorpay plan ids for automatic renewal, created on first use (src/lib/billing.ts).
+  // Stored with the price they were made for: a price change creates a new one.
+  razorpayPlan?: { monthly?: { planId: string; amount: number }; annually?: { planId: string; amount: number } };
   limits: {
     agents: number;
     chats: number;
@@ -47,6 +50,10 @@ const PlanSchema = new Schema<IPlan>(
       annually: { type: Number, required: true },
     },
     currency: { type: String, default: "USD" },
+    razorpayPlan: {
+      monthly: { planId: String, amount: Number },
+      annually: { planId: String, amount: Number },
+    },
     stripePriceId: {
       monthly: String,
       annually: String,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runBillingLifecycle } from "@/lib/billing-lifecycle";
 import { runBookingReminders } from "@/lib/booking-reminders";
+import { runDailyDigests } from "@/lib/daily-digest";
 
 // Same job the custom server runs hourly (server.ts), exposed for hosts where
 // that server doesn't run (e.g. Vercel Cron). Call with
@@ -11,7 +12,10 @@ export async function GET(request: NextRequest) {
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
-  // Booking reminders ride along so one scheduled call covers both jobs.
-  const [billing, bookingReminders] = await Promise.all([runBillingLifecycle(), runBookingReminders()]);
-  return NextResponse.json({ success: true, data: { billing, bookingReminders } });
+  // All scheduled jobs ride along so one hourly call covers them. Each is
+  // idempotent (claims before sending), so overlapping calls are safe.
+  const [billing, bookingReminders, dailyDigests] = await Promise.all([
+    runBillingLifecycle(), runBookingReminders(), runDailyDigests(),
+  ]);
+  return NextResponse.json({ success: true, data: { billing, bookingReminders, dailyDigests } });
 }

@@ -14,6 +14,8 @@ import ChatbotConfig from "@/models/ChatbotConfig";
 import { isWithinBusinessHours } from "@/lib/chatbot-flow";
 import { checkUsageLimit, incrementUsage } from "@/lib/api-helpers";
 import { sanitizeAttribution } from "@/lib/attribution";
+import { sendPushToUsers } from "@/lib/push";
+import { getBranding } from "@/lib/white-label";
 
 // Resolves a widget API key to a company — supports both Company.apiKey and ApiKey model
 async function resolveCompany(apiKey: string) {
@@ -109,7 +111,10 @@ export async function GET(request: NextRequest) {
         showAgentName: settings?.widget?.showAgentName ?? true,
         logo: settings?.widget?.logo || company.logo,
         customCss: settings?.widget?.customCss,
+        language: settings?.widget?.language || "en",
       },
+      // Widget footer: Convo360 unless the plan allows white labeling.
+      branding: await getBranding(String(company._id)).then((b) => ({ hidePoweredBy: b.hidePoweredBy, poweredByText: b.poweredByText, poweredByUrl: b.poweredByUrl })).catch(() => ({ hidePoweredBy: false })),
       // Only what the widget needs to decide when to pop a teaser message.
       proactive: (chatbotConfig?.proactive ?? [])
         .filter((r) => r.enabled && r.message?.trim())
@@ -180,6 +185,7 @@ export async function POST(request: NextRequest) {
     // Notify assigned agent directly
     if (assigned && agent) {
       io?.to(`user:${agent._id}`).emit("conversation:assigned", { conversationId: convId });
+      sendPushToUsers([String(agent._id)], { title: "💬 New chat assigned to you", body: data.visitorName || data.name || "A website visitor", url: "/dashboard/chat", tag: `conv-${convId}` }).catch(() => {});
     }
 
     // Outbound webhook

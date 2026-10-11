@@ -51,6 +51,11 @@ export interface ICompany extends Document {
     hideBranding: boolean;
     customCss?: string;
     favicon?: string;
+    // Agency / reseller branding (plans with white labeling only, see src/lib/white-label.ts)
+    brandName?: string;      // shown instead of "Convo360" in this company's dashboard
+    brandLogo?: string;
+    poweredByText?: string;  // widget footer; empty + hideBranding = no footer
+    poweredByUrl?: string;
   };
   apiKey: string;
   createdAt: Date;
@@ -117,6 +122,10 @@ const CompanySchema = new Schema<ICompany>(
       hideBranding: { type: Boolean, default: false },
       customCss: String,
       favicon: String,
+      brandName: String,
+      brandLogo: String,
+      poweredByText: String,
+      poweredByUrl: String,
     },
     apiKey: { type: String, required: true, unique: true },
   },

@@ -3,7 +3,8 @@ import { z } from "zod";
 import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess } from "@/lib/api-helpers";
 import { rateLimit, rateLimitError } from "@/lib/rate-limit";
-import { createOrder, razorpayConfigured, toMinorUnits } from "@/lib/razorpay";
+import { createOrder, createRazorpaySubscription, razorpayConfigured, toMinorUnits } from "@/lib/razorpay";
+import { ensureRazorpayPlan } from "@/lib/billing";
 import Plan from "@/models/Plan";
 import Payment from "@/models/Payment";
 import User from "@/models/User";
@@ -12,6 +13,7 @@ import Company from "@/models/Company";
 const checkoutSchema = z.object({
   planType: z.enum(["STARTER", "PRO", "ENTERPRISE"]),
   billingCycle: z.enum(["MONTHLY", "ANNUALLY"]).default("MONTHLY"),
+  autoRenew: z.boolean().default(true),
 });
 
 // Starts a plan purchase: creates a Razorpay order for the plan's price and
@@ -28,7 +30,7 @@ export async function POST(request: NextRequest) {
 
   const parsed = checkoutSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) return apiError(parsed.error.issues[0].message, 422);
-  const { planType, billingCycle } = parsed.data;
+  const { planType, billingCycle, autoRenew } = parsed.data;
 
   await connectDB();
   const plan = await Plan.findOne({ type: planType, isActive: true });
@@ -39,17 +41,34 @@ export async function POST(request: NextRequest) {
   if (!amount || amount <= 0) return apiError("This plan can't be bought online. Please contact sales.", 400);
   const currency = (plan.currency || "INR").toUpperCase();
 
-  let order;
+  const notes = { companyId: ctx.companyId, planType, billingCycle };
+  // Auto-renew: a Razorpay subscription (mandate) instead of a one-time order.
+  // Its id ("sub_…") is stored as the Payment's orderId so activation, webhooks
+  // and idempotency work the same way for both.
+  let orderId: string;
+  let subscriptionId: string | undefined;
   try {
-    order = await createOrder({
-      amountMinor: toMinorUnits(amount),
-      currency,
-      receipt: `c${ctx.companyId.slice(-8)}-${Date.now()}`, // Razorpay caps receipts at 40 chars
-      notes: { companyId: ctx.companyId, planType, billingCycle },
-    });
+    if (autoRenew) {
+      const rzpPlanId = await ensureRazorpayPlan(String(plan._id), billingCycle);
+      const sub = await createRazorpaySubscription({ planId: rzpPlanId, cycle: billingCycle, notes });
+      orderId = subscriptionId = sub.id;
+    } else {
+      const order = await createOrder({
+        amountMinor: toMinorUnits(amount),
+        currency,
+        receipt: `c${ctx.companyId.slice(-8)}-${Date.now()}`, // Razorpay caps receipts at 40 chars
+        notes,
+      });
+      orderId = order.id;
+    }
   } catch (err) {
-    console.error("[billing] Razorpay order failed:", err instanceof Error ? err.message : err);
-    return apiError("Couldn't start the payment. Please try again in a minute.", 502);
+    console.error("[billing] Razorpay checkout failed:", err instanceof Error ? err.message : err);
+    return apiError(
+      autoRenew
+        ? "Couldn't set up automatic renewal. Try again, or switch off 'Renew automatically' to pay once."
+        : "Couldn't start the payment. Please try again in a minute.",
+      502
+    );
   }
 
   await Payment.create({
@@ -59,7 +78,7 @@ export async function POST(request: NextRequest) {
     billingCycle,
     amount,
     currency,
-    orderId: order.id,
+    orderId,
   });
 
   const [user, company] = await Promise.all([
@@ -69,9 +88,9 @@ export async function POST(request: NextRequest) {
 
   return apiSuccess({
     keyId: process.env.RAZORPAY_KEY_ID,
-    orderId: order.id,
-    amount: order.amount,
-    currency: order.currency,
+    ...(subscriptionId ? { subscriptionId } : { orderId }),
+    amount: toMinorUnits(amount),
+    currency,
     planName: plan.name,
     billingCycle,
     companyName: company?.name,

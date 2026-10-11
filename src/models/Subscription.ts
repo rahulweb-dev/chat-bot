@@ -19,6 +19,8 @@ export interface ISubscription extends Document {
   trialEnd?: Date;
   metadata?: Record<string, unknown>;
   reminderSentAt?: Date;    // "plan ends in 3 days" email sent for this period
+  autoRenew?: boolean;      // charged automatically by Razorpay each period
+  razorpaySubscriptionId?: string;
   expiryNotifiedAt?: Date;  // "plan has ended" email sent
   createdAt: Date;
   updatedAt: Date;
@@ -47,6 +49,8 @@ const SubscriptionSchema = new Schema<ISubscription>(
     trialEnd: { type: Date },
     metadata: { type: Schema.Types.Mixed },
     reminderSentAt: { type: Date },
+    autoRenew: { type: Boolean, default: false },
+    razorpaySubscriptionId: { type: String, index: true },
     expiryNotifiedAt: { type: Date },
   },
   { timestamps: true }

@@ -15,7 +15,9 @@ import { sendEmail } from "@/lib/email";
 import User from "@/models/User";
 import { nextTicketNumber } from "@/lib/ticket-number";
 import { sendWhatsAppLeadAlert } from "@/lib/lead-alerts";
+import { sendPushToCompany, sendPushToUsers } from "@/lib/push";
 import { releaseSlot } from "@/lib/booking";
+import { createCalendarEvent } from "@/lib/google-calendar";
 import Booking from "@/models/Booking";
 import { checkUsageLimit, incrementUsage } from "@/lib/api-helpers";
 import type { Attribution } from "@/lib/attribution";
@@ -38,6 +40,14 @@ async function resolveCompany(apiKey: string) {
 function emitNotification(companyId: string, data: Record<string, unknown>) {
   // getIO() returns undefined on serverless (Vercel) where the custom server never ran.
   getIO()?.to(`company:${companyId}`).emit("notification:new", data);
+  // Same event as a phone/desktop push, so it reaches the team with the dashboard closed.
+  const type = String(data.type ?? "");
+  sendPushToCompany(companyId, {
+    title: type === "agent_request" ? "🙋 Visitor wants a person" : type === "ticket" ? "🎫 New ticket" : "🎯 New lead",
+    body: String(data.message ?? ""),
+    url: type === "agent_request" ? "/dashboard/chat" : type === "ticket" ? "/dashboard/tickets" : String(data.message ?? "").includes("booked") ? "/dashboard/bookings" : "/dashboard/leads",
+    tag: data.conversationId ? `conv-${data.conversationId}-${type}` : undefined,
+  }).catch(() => {});
 }
 
 const CORS = {
@@ -57,7 +67,7 @@ export async function POST(request: NextRequest) {
   if (!ipOk)  return rateLimitError();
 
   const body = await request.json();
-  const { apiKey, conversationId, message, sessionData } = body;
+  const { apiKey, conversationId, message, sessionData, lang } = body;
 
   if (!apiKey || !message) {
     return NextResponse.json({ success: false, error: "apiKey and message required" }, { status: 400, headers: CORS });
@@ -96,6 +106,8 @@ export async function POST(request: NextRequest) {
       const msg = await Message.findOne({ conversationId, content: message, senderType: "VISITOR" }).sort({ createdAt: -1 });
       getIO()?.to(`conversation:${conversationId}`).emit("message:new", msg);
       getIO()?.to(`company:${companyId}`).emit("conversation:updated", { conversationId, lastMessage: message, lastMessageAt: new Date() });
+      // The assigned agent gets the message on their phone too (one notification per chat, replaced as new messages arrive).
+      if (conv.assignedTo) sendPushToUsers([String(conv.assignedTo)], { title: "💬 New message", body: message.slice(0, 140), url: "/dashboard/chat", tag: `conv-${conversationId}` }).catch(() => {});
       const session: SessionData = sessionData?.flow ? sessionData : { flow: "INITIAL", step: "", collected: {} };
       return NextResponse.json({ success: true, data: { messages: [], quickReplies: [], action: "NONE", sideEffect: {}, sessionData: session } }, { headers: CORS });
     }
@@ -105,7 +117,7 @@ export async function POST(request: NextRequest) {
 
   // Training/FAQs → this company's own custom menu flow (if enabled) → the built-in demo flow
   const companySettings = await Settings.findOne({ companyId }).select("widget.welcomeMessage general.timezone").lean() as { widget?: { welcomeMessage?: string }; general?: { timezone?: string } } | null;
-  const result = await getBotReply(message, session, companyId, companySettings?.widget?.welcomeMessage, companySettings?.general?.timezone);
+  const result = await getBotReply(message, session, companyId, companySettings?.widget?.welcomeMessage, companySettings?.general?.timezone, { lang: typeof lang === "string" ? lang : undefined });
 
   // Real IDs of the bot messages just saved below — sent back so the widget can mark
   // them as already-rendered before its Pusher subscription echoes the same messages
@@ -238,6 +250,16 @@ export async function POST(request: NextRequest) {
           attribution: lead?.attribution ?? (await attributionFor()),
         });
         sideEffect = { type: "booking_created", bookingId: booking._id, leadId: lead?._id };
+        // Put it in the company's Google Calendar, if connected (no-op otherwise).
+        createCalendarEvent(companyId, {
+          title: `${b.label[0].toUpperCase()}${b.label.slice(1)}: ${booking.name}`,
+          description: [
+            "Booked via website chat.",
+            `Phone: ${booking.phone ?? "-"}`,
+            lead?.attribution?.channel ? `Source: ${lead.attribution.channel}` : "",
+          ].filter(Boolean).join("\n"),
+          start: booking.startAt, end: booking.endAt,
+        }).then(async (id) => { if (id) await Booking.updateOne({ _id: booking._id }, { googleEventId: id }); }).catch(() => {});
         await Conversation.findByIdAndUpdate(conversationId, { $addToSet: { tags: "BOOKING" } }).catch(() => {});
         emitNotification(companyId, { type: "lead", conversationId, message: `New ${b.label} booked by ${ld?.name || "Visitor"} for ${ld?.bookingAt ?? b.startAt}`, name: ld?.name || "Visitor" });
         sendWhatsAppLeadAlert(companyId, {

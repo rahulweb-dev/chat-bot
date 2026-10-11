@@ -5,6 +5,7 @@ import KnowledgeBase from "@/models/KnowledgeBase";
 import { safeFetch } from "@/lib/safe-fetch";
 import { crawlSite, extractFileText } from "@/lib/kb-ingest";
 import { indexKnowledgeBase } from "@/lib/rag";
+import { getEffectivePlan } from "@/lib/plan-limits";
 
 export async function GET(request: NextRequest) {
   const ctx = await getRequestContext(request);
@@ -44,6 +45,21 @@ export async function POST(request: NextRequest) {
 
   await connectDB();
   const { crawl, ...body } = await request.json();
+
+  // Plan limit on documents held (a live count, like agents), not uploads per month.
+  const [plan, held] = await Promise.all([
+    getEffectivePlan(ctx.companyId),
+    KnowledgeBase.countDocuments({ companyId: ctx.companyId }),
+  ]);
+  const limit = plan?.limits.knowledgeFiles ?? 0;
+  if (limit !== -1 && held >= limit) {
+    return apiError(
+      plan?.expired
+        ? `Your plan has ended, so the free tier allows ${limit} document${limit === 1 ? "" : "s"}. Renew on the Billing page to add more.`
+        : `Your plan allows ${limit} knowledge documents and you have ${held}. Delete one or upgrade on the Billing page.`,
+      403
+    );
+  }
 
   const kb = await KnowledgeBase.create({
     ...body,

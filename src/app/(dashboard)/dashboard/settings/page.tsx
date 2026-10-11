@@ -16,6 +16,8 @@ import { Loader2, Save, Bell, Shield, MessageSquare, Globe, Palette, ImageIcon, 
 import { uploadToImageKit } from "@/lib/imagekitUpload";
 import { FormSkeleton } from "@/components/ui/page-skeletons";
 import { WhatsAppAlertsCard } from "@/components/settings/whatsapp-alerts-card";
+import { DailyDigestCard } from "@/components/settings/daily-digest-card";
+import { WhiteLabelCard } from "@/components/settings/white-label-card";
 
 function LogoUploadField({ value, onChange }: { value: string; onChange: (url: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -188,6 +190,8 @@ export default function SettingsPage() {
           </form>
         </CardContent>
       </Card>
+
+      <WhiteLabelCard />
 
       <Tabs defaultValue="general">
         <TabsList className="grid grid-cols-5 w-full max-w-2xl">
@@ -369,6 +373,7 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
           <WhatsAppAlertsCard initial={s.notifications?.whatsappAlerts} />
+          <DailyDigestCard initial={s.notifications?.dailyDigest} />
         </TabsContent>
 
         <TabsContent value="security">

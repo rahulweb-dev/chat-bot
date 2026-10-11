@@ -10,6 +10,7 @@ export interface IWhatsAppConversation extends Document {
   status: "OPEN" | "PENDING" | "RESOLVED" | "CLOSED";
   lastMessage?: string;
   lastMessageAt?: Date;
+  lastInboundAt?: Date; // last customer message: free-text replies allowed for 24h after
   tags: string[];
   unreadCount: number;
   createdAt: Date;
@@ -26,6 +27,7 @@ const WhatsAppConversationSchema = new Schema<IWhatsAppConversation>(
     status: { type: String, enum: ["OPEN", "PENDING", "RESOLVED", "CLOSED"], default: "OPEN" },
     lastMessage: { type: String },
     lastMessageAt: { type: Date },
+    lastInboundAt: { type: Date },
     tags: [{ type: String }],
     unreadCount: { type: Number, default: 0 },
   },

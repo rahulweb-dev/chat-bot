@@ -50,6 +50,8 @@ const money = formatMoney;
 export default function BillingPage() {
   const [billing, setBilling] = useState<"MONTHLY" | "ANNUALLY">("MONTHLY");
   const [paying, setPaying] = useState<string | null>(null);
+  const [autoRenew, setAutoRenew] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
   const qc = useQueryClient();
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "COMPANY_ADMIN";
@@ -87,7 +89,7 @@ export default function BillingPage() {
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planType: plan.type, billingCycle: billing }),
+        body: JSON.stringify({ planType: plan.type, billingCycle: billing, autoRenew }),
       });
       const d = await res.json();
       if (!d.success) {
@@ -101,21 +103,27 @@ export default function BillingPage() {
         return;
       }
       const o = d.data;
+      const cycleLabel = o.billingCycle === "ANNUALLY" ? "year" : "month";
       const rzp = new window.Razorpay({
         key: o.keyId,
-        order_id: o.orderId,
-        amount: o.amount,
-        currency: o.currency,
+        // Auto-renew opens Razorpay's mandate flow (UPI AutoPay / card / eMandate).
+        ...(o.subscriptionId ? { subscription_id: o.subscriptionId } : { order_id: o.orderId, amount: o.amount, currency: o.currency }),
         name: "Convo360",
-        description: `${o.planName} plan · ${o.billingCycle === "ANNUALLY" ? "1 year" : "1 month"}`,
+        description: o.subscriptionId
+          ? `${o.planName} plan · renews every ${cycleLabel}`
+          : `${o.planName} plan · 1 ${cycleLabel}`,
         prefill: o.prefill,
         notes: { company: o.companyName },
         theme: { color: "#4f46e5" },
-        handler: async (r: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
+        handler: async (r: { razorpay_order_id?: string; razorpay_subscription_id?: string; razorpay_payment_id: string; razorpay_signature: string }) => {
           const v = await fetch("/api/billing/verify", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ orderId: r.razorpay_order_id, paymentId: r.razorpay_payment_id, signature: r.razorpay_signature }),
+            body: JSON.stringify({
+              ...(r.razorpay_subscription_id ? { subscriptionId: r.razorpay_subscription_id } : { orderId: r.razorpay_order_id }),
+              paymentId: r.razorpay_payment_id,
+              signature: r.razorpay_signature,
+            }),
           }).then((x) => x.json()).catch(() => null);
           setPaying(null);
           if (v?.success) {
@@ -141,6 +149,23 @@ export default function BillingPage() {
 
   const currentPlan = subscription?.planId?.type || usageData?.plan?.type || "STARTER";
   const isTrial = subscription?.status === "TRIALING";
+  const renewsAuto = !!subscription?.autoRenew && !subscription?.cancelAtPeriodEnd;
+
+  async function cancelRenewal() {
+    setCancelling(true);
+    try {
+      const r = await fetch("/api/billing/cancel-renewal", { method: "POST" });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.success) throw new Error(d.error || "Couldn't turn off auto-renew");
+      toast({ title: "Auto-renew turned off", description: `Your plan stays active until ${new Date(d.data.activeUntil).toLocaleDateString()}.` });
+      qc.invalidateQueries({ queryKey: ["subscription"] });
+      qc.invalidateQueries({ queryKey: ["usage"] });
+    } catch (e) {
+      toast({ title: e instanceof Error ? e.message : "Couldn't turn off auto-renew", variant: "destructive" });
+    } finally {
+      setCancelling(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -191,8 +216,19 @@ export default function BillingPage() {
                   <span className="text-base font-normal text-gray-500">{subscription.billingCycle === "ANNUALLY" ? "/yr" : "/mo"}</span>
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  {isTrial ? "Trial ends" : "Paid until"} {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
+                  {isTrial ? "Trial ends" : renewsAuto ? "Renews automatically on" : "Paid until"}{" "}
+                  {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
                 </p>
+                {renewsAuto && isAdmin && (
+                  <button
+                    type="button"
+                    onClick={cancelRenewal}
+                    disabled={cancelling}
+                    className="mt-2 text-xs font-medium text-gray-500 underline underline-offset-2 hover:text-red-600 disabled:opacity-50"
+                  >
+                    {cancelling ? "Turning off…" : "Turn off auto-renew"}
+                  </button>
+                )}
               </div>
             </div>
           </CardContent>
@@ -268,6 +304,23 @@ export default function BillingPage() {
             </button>
           </div>
         </div>
+
+        <label htmlFor="auto-renew" className="flex items-start gap-3 rounded-lg border bg-white p-3 cursor-pointer max-w-xl">
+          <input
+            id="auto-renew"
+            type="checkbox"
+            checked={autoRenew}
+            onChange={(e) => setAutoRenew(e.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-indigo-600"
+          />
+          <span>
+            <span className="block text-sm font-medium text-gray-800">Renew automatically</span>
+            <span className="block text-xs text-gray-500">
+              Charged every {billing === "ANNUALLY" ? "year" : "month"} by UPI AutoPay, card or netbanking mandate, so your chatbot never
+              stops. Turn it off any time; you keep the plan until the period ends. Untick to pay once.
+            </span>
+          </span>
+        </label>
 
         {plansLoading && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

@@ -1,11 +1,13 @@
 "use client";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
-import { CalendarCheck, Clock, Save, BellRing, Plus } from "lucide-react";
+import { CalendarCheck, CalendarSync, Clock, Save, BellRing, Plus } from "lucide-react";
 
 export interface BookingSettings {
   enabled: boolean;
@@ -25,6 +27,61 @@ const DEFAULTS: BookingSettings = {
 };
 
 const clamp = (v: string, min: number, max: number) => Math.max(min, Math.min(max, Number(v) || min));
+
+// Two-way sync: busy times in the calendar hide slots, bookings appear in it.
+function GoogleCalendarCard() {
+  const qc = useQueryClient();
+  const params = useSearchParams();
+  const result = params.get("calendar"); // set by the OAuth callback redirect
+  const { data, isLoading } = useQuery({
+    queryKey: ["google-calendar"],
+    queryFn: async () => {
+      const r = await fetch("/api/integrations/google-calendar");
+      return (await r.json()).data as { available: boolean; connected: boolean; email?: string; error?: string };
+    },
+  });
+  const disconnect = useMutation({
+    mutationFn: async () => {
+      const r = await fetch("/api/integrations/google-calendar", { method: "DELETE" });
+      if (!r.ok) throw new Error();
+    },
+    onSuccess: () => { toast({ title: "Google Calendar disconnected" }); qc.invalidateQueries({ queryKey: ["google-calendar"] }); },
+    onError: () => toast({ title: "Couldn't disconnect", variant: "destructive" }),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm flex items-center gap-2"><CalendarSync className="w-4 h-4" /> Google Calendar</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {result === "connected" && <p className="text-xs rounded-md bg-green-50 text-green-700 px-3 py-2">Google Calendar connected.</p>}
+        {result === "error" && <p className="text-xs rounded-md bg-red-50 text-red-700 px-3 py-2">Couldn&apos;t connect Google Calendar. Please try again.</p>}
+        <p className="text-xs text-gray-500">
+          Times that are busy in your calendar aren&apos;t offered to visitors, and every booking is added to it with the visitor&apos;s
+          name and number. Only busy/free times are read, never your event details.
+        </p>
+        {isLoading ? (
+          <p className="text-xs text-gray-400">Checking…</p>
+        ) : !data?.available ? (
+          <p className="text-xs text-amber-700 bg-amber-50 rounded-md px-3 py-2">Google Calendar isn&apos;t set up on this server yet.</p>
+        ) : data.connected ? (
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-sm">Connected{data.email ? <> as <b>{data.email}</b></> : ""}</p>
+            <Button variant="outline" size="sm" onClick={() => disconnect.mutate()} disabled={disconnect.isPending}>Disconnect</Button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {data.error && <p className="text-xs text-red-600">The last connection stopped working: {data.error}. Connect again.</p>}
+            <Button asChild variant="outline" size="sm">
+              <a href="/api/integrations/google-calendar/connect">Connect Google Calendar</a>
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export function BookingTab({
   initial,
@@ -131,6 +188,8 @@ export function BookingTab({
           </div>
         </CardContent>
       </Card>
+
+      <GoogleCalendarCard />
 
       <Card>
         <CardHeader>

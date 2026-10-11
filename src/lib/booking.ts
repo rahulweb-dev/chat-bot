@@ -1,6 +1,7 @@
 import { Types } from "mongoose";
 import Counter from "@/models/Counter";
 import Booking from "@/models/Booking";
+import { busyTimes } from "@/lib/google-calendar";
 
 // Appointment / site-visit slots, generated from the company's business hours
 // in its own timezone (Settings → General → Timezone).
@@ -61,9 +62,9 @@ export function timeLabel(date: Date, tz: string): string {
   return date.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: safeTz(tz) }).toUpperCase();
 }
 
-export function whenLabel(date: Date, tz: string): string {
+export function whenLabel(date: Date, tz: string, lang: "en" | "hi" = "en"): string {
   const p = partsIn(date, safeTz(tz));
-  return `${dayLabel(`${p.y}-${pad(p.m)}-${pad(p.d)}`)} at ${timeLabel(date, tz)}`;
+  return `${dayLabel(`${p.y}-${pad(p.m)}-${pad(p.d)}`)}${lang === "hi" ? ", " : " at "}${timeLabel(date, tz)}`;
 }
 
 // ── Availability ──────────────────────────────────────────────────────────────
@@ -96,11 +97,14 @@ async function bookedCounts(companyId: string, from: Date, to: Date): Promise<Ma
 }
 
 // Next open days (YYYY-MM-DD in the company's timezone) that still have a free slot.
-export async function availableDays(companyId: string, cfg: BookingConfig, hours: BizHour[], tzIn?: string, now = new Date()) {
+export async function availableDays(companyId: string, cfg: BookingConfig, hours: BizHour[], tzIn?: string, now = new Date(), words = { today: "Today", tomorrow: "Tomorrow" }) {
   const tz = safeTz(tzIn);
   const today = partsIn(now, tz);
   const days: { key: string; label: string }[] = [];
-  for (let i = 0; i < Math.min(cfg.daysAhead, 30) && days.length < 8; i++) {
+  const horizon = Math.min(cfg.daysAhead, 30);
+  // One Google Calendar busy lookup for the whole range (empty if not connected).
+  const busy = await busyTimes(companyId, now, new Date(now.getTime() + (horizon + 1) * 86_400_000));
+  for (let i = 0; i < horizon && days.length < 8; i++) {
     const dt = new Date(Date.UTC(today.y, today.m - 1, today.d + i, 12));
     const key = `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
     const win = windowFor(key, hours, tz);
@@ -108,8 +112,8 @@ export async function availableDays(companyId: string, cfg: BookingConfig, hours
     const slots = slotsInWindow(win, cfg, now);
     if (!slots.length) continue;
     const counts = await bookedCounts(companyId, win.start, win.end);
-    if (slots.some((s) => (counts.get(s.getTime()) ?? 0) < cfg.capacity)) {
-      days.push({ key, label: i === 0 ? `Today, ${dayLabel(key).split(", ").pop()}` : i === 1 ? `Tomorrow, ${dayLabel(key).split(", ").pop()}` : dayLabel(key) });
+    if (slots.some((s) => (counts.get(s.getTime()) ?? 0) < cfg.capacity && notBusy(s, cfg, busy))) {
+      days.push({ key, label: i === 0 ? `${words.today}, ${dayLabel(key).split(", ").pop()}` : i === 1 ? `${words.tomorrow}, ${dayLabel(key).split(", ").pop()}` : dayLabel(key) });
     }
   }
   return days;
@@ -120,10 +124,18 @@ export async function availableSlots(companyId: string, cfg: BookingConfig, hour
   const win = windowFor(dayKey, hours, tz);
   if (!win) return [];
   const slots = slotsInWindow(win, cfg, now);
-  const counts = await bookedCounts(companyId, win.start, win.end);
+  const [counts, busy] = await Promise.all([bookedCounts(companyId, win.start, win.end), busyTimes(companyId, win.start, win.end)]);
   return slots
-    .filter((s) => (counts.get(s.getTime()) ?? 0) < cfg.capacity)
+    .filter((s) => (counts.get(s.getTime()) ?? 0) < cfg.capacity && notBusy(s, cfg, busy))
     .map((s) => ({ startAt: s, label: timeLabel(s, tz) }));
+}
+
+// A slot overlapping any busy block in the connected Google Calendar is not
+// offered (the calendar is treated as the team's shared availability).
+function notBusy(start: Date, cfg: BookingConfig, busy: { start: number; end: number }[]) {
+  const s = start.getTime();
+  const e = s + cfg.slotMinutes * 60_000;
+  return !busy.some((b) => b.start < e && b.end > s);
 }
 
 // Atomically takes one place in a slot. The upsert fails with a duplicate-key

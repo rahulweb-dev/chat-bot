@@ -9,6 +9,9 @@ const publicRoutes = [
   "/reset-password",
   "/invite",
   "/widget",
+  // Installable dashboard app: the browser fetches these without a session.
+  "/sw.js",
+  "/manifest.webmanifest",
   "/api/widget",
   "/api/auth",
   "/api/health",

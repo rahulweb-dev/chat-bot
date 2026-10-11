@@ -18,12 +18,13 @@ import {
   HelpCircle, Tag, Truck, Clock, Plus, Trash2, Save, Loader2,
   Pencil, Check, X, Bot, MessageSquare, Brain, Code, Sparkles,
   Zap, ExternalLink, CheckCircle2, Circle, Copy, Reply, Palette,
-  GitBranch, ChevronDown, ChevronRight, ChevronUp, Ticket, UserCheck, ArrowRight, RotateCcw, Eye, Megaphone, CalendarCheck,
+  GitBranch, ChevronDown, ChevronRight, ChevronUp, Ticket, UserCheck, ArrowRight, RotateCcw, Eye, Megaphone, CalendarCheck, LayoutTemplate,
 } from "lucide-react";
 import type { CustomFlowStep, CustomFlowBranch, CustomFlowItem, CustomFlow } from "@/components/chatbot/flow-types";
 import { FlowCanvas } from "@/components/chatbot/flow-canvas";
 import { ProactiveTab, type ProactiveRule } from "@/components/chatbot/proactive-tab";
 import { BookingTab, type BookingSettings } from "@/components/chatbot/booking-tab";
+import { TemplatesTab } from "@/components/chatbot/templates-tab";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface FAQ      { _id?: string; question: string; answer: string; isActive: boolean }
@@ -62,7 +63,10 @@ export async function patchConfig(body: Partial<Config>): Promise<{ success: tru
 interface RailItem { value: string; label: string; icon: React.ComponentType<{ className?: string }>; href?: string }
 interface RailGroup { label: string; items: RailItem[] }
 const RAIL_GROUPS: RailGroup[] = [
-  { label: "", items: [{ value: "overview", label: "Overview", icon: Sparkles }] },
+  { label: "", items: [
+    { value: "overview",  label: "Overview",          icon: Sparkles },
+    { value: "templates", label: "Industry Templates", icon: LayoutTemplate },
+  ] },
   { label: "Setup", items: [
     { value: "welcome",  label: "Welcome Message", icon: MessageSquare },
     { value: "flow",     label: "Menu Flow",        icon: GitBranch, href: "/dashboard/chatbot/menu-flow" },
@@ -2155,7 +2159,7 @@ function ChatbotFlowPreview({ color, theme, companyName, logo, triggerMessage }:
 }
 
 // ── Main page ──────────────────────────────────────────────────────────────────
-const VALID_TABS = ["overview", "welcome", "flow", "faqs", "training", "catalog", "hours", "appearance", "proactive", "bookings", "install", "canned", "realtime"];
+const VALID_TABS = ["overview", "templates", "welcome", "flow", "faqs", "training", "catalog", "hours", "appearance", "proactive", "bookings", "install", "canned", "realtime"];
 
 function ChatbotPageInner() {
   const qc = useQueryClient();
@@ -2169,6 +2173,7 @@ function ChatbotPageInner() {
     theme: "LIGHT" as "LIGHT" | "DARK",
     primaryColor: "#6366f1",
     position: "BOTTOM_RIGHT" as "BOTTOM_RIGHT" | "BOTTOM_LEFT",
+    language: "en" as "en" | "hi" | "auto",
     welcomeMessage: "Hi! How can we help you today?",
     offlineMessage: "We're offline. Leave a message!",
     showAgentAvatar: true,
@@ -2394,6 +2399,21 @@ function ChatbotPageInner() {
                     </div>
                   </div>
 
+                  <div>
+                    <label className="text-sm font-medium bg-white">Widget Language</label>
+                    <div className="flex gap-3 mt-2">
+                      {([["en", "English"], ["hi", "हिंदी"], ["auto", "Visitor's browser"]] as const).map(([code, name]) => (
+                        <button key={code} onClick={() => setSettings({ ...settings, language: code })}
+                          className={`flex-1 py-2.5 rounded-xl border text-sm font-medium transition-all ${settings.language === code ? "border-indigo-400 bg-indigo-50 text-indigo-700 shadow-sm" : "border-gray-200 text-gray-500 hover:border-gray-300"}`}>
+                          {name}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1.5">
+                      Buttons, prompts and booking messages. Write your greeting, menu and FAQs in the same language; AI answers follow the visitor.
+                    </p>
+                  </div>
+
                   <div className="flex items-center justify-between pt-1">
                     <div>
                       <p className="text-sm font-medium">Show Agent Avatar</p>
@@ -2460,6 +2480,16 @@ function ChatbotPageInner() {
                   }}
                 />
               )}
+            </TabsContent>
+
+            {/* Industry templates */}
+            <TabsContent value="templates" className="mt-0">
+              <TemplatesTab
+                onApplied={() => {
+                  refetchConfig();
+                  qc.invalidateQueries({ queryKey: ["company-settings"] });
+                }}
+              />
             </TabsContent>
 
             {/* Bookings */}

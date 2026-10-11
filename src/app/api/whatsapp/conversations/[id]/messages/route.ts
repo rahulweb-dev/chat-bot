@@ -8,6 +8,7 @@ import WhatsAppConversation from "@/models/WhatsAppConversation";
 import WhatsAppMessage from "@/models/WhatsAppMessage";
 import WhatsAppIntegration from "@/models/WhatsAppIntegration";
 import { getIO } from "@/server/socket";
+import { WHATSAPP_WINDOW_MS } from "@/lib/phone";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -53,6 +54,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const accessToken = decrypt(integration.encryptedAccessToken);
 
   const isTemplate = !!templateName;
+  // WhatsApp only delivers free-text messages within 24h of the customer's last
+  // message; outside it Meta rejects them (after we'd have charged the wallet).
+  // Conversations from before lastInboundAt was recorded are let through.
+  if (!isTemplate && conversation.lastInboundAt && Date.now() - new Date(conversation.lastInboundAt).getTime() > WHATSAPP_WINDOW_MS) {
+    return apiError("It's been more than 24 hours since this customer last messaged, so WhatsApp only allows an approved template. Send a template instead.", 422);
+  }
   const components: Record<string, unknown>[] | undefined =
     isTemplate && Array.isArray(templateBodyParams) && templateBodyParams.length > 0
       ? [{ type: "body", parameters: templateBodyParams.map((text: string) => ({ type: "text", text })) }]

@@ -27,3 +27,31 @@ export function toWhatsAppNumber(raw: string): string | null {
   if (!n) return null;
   return n.startsWith("+") ? n.slice(1) : `91${n}`;
 }
+
+// WhatsApp's customer-service window: free-text replies are allowed for 24h
+// after the customer's last message.
+export const WHATSAPP_WINDOW_MS = 24 * 3_600_000;
+
+// One key per customer across channels: website chat stores "9876543210",
+// WhatsApp stores "919876543210". Both become "919876543210".
+export function phoneKey(raw?: string | null): string | null {
+  if (!raw) return null;
+  const wa = toWhatsAppNumber(raw);
+  if (wa) return wa;
+  // Matching only, not validation: numbers normalizePhone rejects (e.g. the
+  // placeholder list) must still line up with the same number on WhatsApp.
+  const digits = String(raw).replace(/\D/g, "");
+  if (/^[6-9]\d{9}$/.test(digits)) return `91${digits}`;
+  if (/^0[6-9]\d{9}$/.test(digits)) return `91${digits.slice(1)}`;
+  return digits.length >= 8 ? digits : null;
+}
+
+// Every stored form a customer's number may have, for queries.
+export function phoneVariants(key: string): string[] {
+  const v = new Set([key, `+${key}`]);
+  if (/^91\d{10}$/.test(key)) {
+    const local = key.slice(2);
+    v.add(local); v.add(`0${local}`); v.add(`+91 ${local}`); v.add(`${local.slice(0, 5)} ${local.slice(5)}`);
+  }
+  return [...v];
+}

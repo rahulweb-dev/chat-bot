@@ -27,6 +27,17 @@ export interface EffectivePlan {
   limits: Record<string, number>;
   expired: boolean;
   periodEnd?: Date;
+  autoRenew?: boolean;
+}
+
+// Razorpay charges an auto-renewing plan at the end of the period and the
+// webhook can land a little later (or after a retried charge). Keep the plan
+// active for this long past its end date so customers aren't dropped to the
+// free tier for a few hours each month.
+export const RENEWAL_GRACE_MS = 3 * 24 * 3_600_000;
+
+export function renewsAutomatically(sub: { autoRenew?: boolean; cancelAtPeriodEnd?: boolean }) {
+  return !!sub.autoRenew && !sub.cancelAtPeriodEnd;
 }
 
 // The limits that apply to a company right now.
@@ -53,11 +64,12 @@ export async function getEffectivePlan(companyId: string): Promise<EffectivePlan
   if (!company.subscriptionId) return base;
 
   const sub = await Subscription.findById(company.subscriptionId)
-    .select("status currentPeriodEnd")
-    .lean<{ status: string; currentPeriodEnd: Date }>();
+    .select("status currentPeriodEnd autoRenew cancelAtPeriodEnd")
+    .lean<{ status: string; currentPeriodEnd: Date; autoRenew?: boolean; cancelAtPeriodEnd?: boolean }>();
   if (!sub) return base;
 
-  const live = (sub.status === "ACTIVE" || sub.status === "TRIALING") && new Date(sub.currentPeriodEnd) > new Date();
-  if (live) return { ...base, periodEnd: sub.currentPeriodEnd };
+  const end = new Date(sub.currentPeriodEnd).getTime() + (renewsAutomatically(sub) ? RENEWAL_GRACE_MS : 0);
+  const live = (sub.status === "ACTIVE" || sub.status === "TRIALING") && end > Date.now();
+  if (live) return { ...base, periodEnd: sub.currentPeriodEnd, autoRenew: renewsAutomatically(sub) };
   return { name: "Free", type: "FREE", limits: FREE_LIMITS, expired: true, periodEnd: sub.currentPeriodEnd };
 }

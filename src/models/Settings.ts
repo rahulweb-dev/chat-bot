@@ -43,6 +43,8 @@ export interface ISettings extends Document {
     // variables (name, phone, interest, source); without it a plain text is tried,
     // which WhatsApp only delivers within 24h of the owner messaging that number.
     whatsappAlerts?: { enabled: boolean; phones: string[]; templateName?: string; templateLanguage?: string };
+    // Morning summary of yesterday (src/lib/daily-digest.ts). On by default.
+    dailyDigest?: { enabled?: boolean; hour?: number; email?: boolean; whatsappTemplate?: string; whatsappLanguage?: string; lastSentOn?: string };
   };
   security: {
     twoFactorEnabled: boolean;
@@ -76,6 +78,8 @@ export interface ISettings extends Document {
     showAgentAvatar: boolean;
     showAgentName: boolean;
     languages: string[];
+    // Widget + built-in bot sentences: "en", "hi", or "auto" (visitor's browser language).
+    language?: "en" | "hi" | "auto";
     customCss?: string;
   };
   createdAt: Date;
@@ -126,6 +130,14 @@ const SettingsSchema = new Schema<ISettings>(
         templateName: { type: String, default: "" },
         templateLanguage: { type: String, default: "en" },
       },
+      dailyDigest: {
+        enabled: { type: Boolean, default: true },
+        hour: { type: Number, default: 9, min: 0, max: 23 },
+        email: { type: Boolean, default: true },
+        whatsappTemplate: { type: String, default: "" },
+        whatsappLanguage: { type: String, default: "en" },
+        lastSentOn: { type: String },
+      },
     },
     security: {
       twoFactorEnabled: { type: Boolean, default: false },
@@ -159,6 +171,7 @@ const SettingsSchema = new Schema<ISettings>(
       showAgentAvatar: { type: Boolean, default: true },
       showAgentName: { type: Boolean, default: true },
       languages: [{ type: String, default: ["en"] }],
+      language: { type: String, enum: ["en", "hi", "auto"], default: "en" },
       customCss: String,
     },
   },

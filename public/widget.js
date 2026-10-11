@@ -56,9 +56,56 @@
   // switched live like color and theme.
   var SIDE  = sideFor((cachedLook && cachedLook.position) || cfg.position);
 
+  // ── Language ────────────────────────────────────────────────────────────────
+  // The widget's own text. "auto" follows the visitor's browser. The bot's
+  // built-in sentences follow the same setting (sent as `lang` with each message).
+  var UI = {
+    en: {
+      chatWithUs: "Chat with us", openChat: "Open chat", chat: "Chat", close: "Close",
+      online: "Online &bull; Replies instantly", typeMessage: "Type a message…", poweredBy: "Powered by",
+      pcfTitle: "Before we start…", pcfSub: "Please share a few details so we can help you better.",
+      yourName: "Your Name", email: "Email", phone: "Phone", startChat: "Start Chat →", namePh: "Your name",
+      wentWrong: "Something went wrong. Please try again.", unavailable: "Chat unavailable",
+      limitReached: "⏰ Chat is unavailable right now. Please try again later or contact us another way.",
+      rate: "How was your experience?", thanksRating: "Thanks for your feedback! ⭐",
+    },
+    hi: {
+      chatWithUs: "हमसे बात करें", openChat: "चैट खोलें", chat: "चैट", close: "बंद करें",
+      online: "ऑनलाइन &bull; तुरंत जवाब", typeMessage: "मैसेज लिखें…", poweredBy: "द्वारा संचालित",
+      pcfTitle: "शुरू करने से पहले…", pcfSub: "बेहतर मदद के लिए कृपया अपनी कुछ जानकारी दें।",
+      yourName: "आपका नाम", email: "ईमेल", phone: "फ़ोन", startChat: "चैट शुरू करें →", namePh: "आपका नाम",
+      wentWrong: "कुछ गड़बड़ हो गई। कृपया दोबारा कोशिश करें।", unavailable: "चैट अभी उपलब्ध नहीं",
+      limitReached: "⏰ चैट अभी उपलब्ध नहीं है। कृपया बाद में कोशिश करें या हमसे दूसरे तरीके से संपर्क करें।",
+      rate: "आपका अनुभव कैसा रहा?", thanksRating: "आपकी राय के लिए धन्यवाद! ⭐",
+    },
+  };
+  function resolveLang(v) {
+    v = String(v || "en").toLowerCase();
+    if (v === "auto") v = /^hi\b/i.test(navigator.language || "") ? "hi" : "en";
+    return UI[v] ? v : "en";
+  }
+  var LANG = resolveLang((cachedLook && cachedLook.language) || cfg.language);
+  function tr(k) { return (UI[LANG] && UI[LANG][k]) || UI.en[k] || k; }
+
+  // Re-labels the already-built widget when the server's language setting
+  // differs from the cached one (no rebuild, so an open chat isn't lost).
+  function applyLanguageText() {
+    var set = function(id, html) { var el = document.getElementById(id); if (el) el.innerHTML = html; };
+    var lbl = document.getElementById("sf-label");
+    if (lbl && !lbl.classList.contains("sf-pro")) lbl.textContent = launcherText === "Chat with us" ? tr("chatWithUs") : launcherText;
+    set("sf-hstat", tr("online"));
+    set("sf-pcf-title", tr("pcfTitle"));
+    set("sf-pcf-sub", tr("pcfSub"));
+    set("sf-pwr-t", tr("poweredBy"));
+    var inp = document.getElementById("sf-inp");
+    if (inp && !limitReached) inp.placeholder = tr("typeMessage");
+  }
+
   function applyServerLook(st) {
     if (!st) return;
-    try { localStorage.setItem("sf_look", JSON.stringify({ key: KEY, color: st.primaryColor, theme: st.theme, position: st.position })); } catch (_) {}
+    var lang = resolveLang(st.language);
+    if (lang !== LANG) { LANG = lang; applyLanguageText(); }
+    try { localStorage.setItem("sf_look", JSON.stringify({ key: KEY, color: st.primaryColor, theme: st.theme, position: st.position, language: st.language })); } catch (_) {}
     var side = st.position ? sideFor(st.position) : SIDE;
     if (normColor(st.primaryColor) === COLOR && normTheme(st.theme) === THEME && side === SIDE) return;
     SIDE = side;
@@ -337,42 +384,42 @@
 
     var btnWrapHtml =
       '<div id="sf-btnwrap">' +
-        '<button id="sf-btn" aria-label="Open chat">' +
+        '<button id="sf-btn" aria-label="' + tr("openChat") + '">' +
           '<img class="chat-icon" src="' + BASE + '/app_icon.png" alt="" />' +
           '<svg class="close-icon" style="display:none" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>' +
         '</button>' +
         '<div id="sf-dot"></div>' +
       '</div>';
-    var labelHtml = '<button id="sf-label" type="button">Chat with us</button>';
+    var labelHtml = '<button id="sf-label" type="button">' + tr("chatWithUs") + '</button>';
 
     root.innerHTML =
       '<div id="sf-launch">' + labelHtml + btnWrapHtml + '</div>' +
-      '<div id="sf-win" role="dialog" aria-label="Chat">' +
+      '<div id="sf-win" role="dialog" aria-label="' + tr("chat") + '">' +
         '<div id="sf-head">' +
           '<div id="sf-handle"></div>' +
           '<div id="sf-hav"></div>' +
           '<div id="sf-hi">' +
             '<div id="sf-hname">Support</div>' +
-            '<div id="sf-hsub"><span id="sf-online"></span><span id="sf-hstat">Online &bull; Replies instantly</span></div>' +
+            '<div id="sf-hsub"><span id="sf-online"></span><span id="sf-hstat">' + tr("online") + '</span></div>' +
           '</div>' +
-          '<button id="sf-hx" aria-label="Close">' +
+          '<button id="sf-hx" aria-label="' + tr("close") + '">' +
             '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>' +
           '</button>' +
         '</div>' +
         '<div id="sf-pcf-wrap" style="display:none">' +
-          '<p id="sf-pcf-title">Before we start…</p>' +
-          '<p id="sf-pcf-sub">Please share a few details so we can help you better.</p>' +
+          '<p id="sf-pcf-title">' + tr("pcfTitle") + '</p>' +
+          '<p id="sf-pcf-sub">' + tr("pcfSub") + '</p>' +
           '<form id="sf-pcf" style="display:flex;flex-direction:column;gap:12px"></form>' +
         '</div>' +
         '<div id="sf-msgs"></div>' +
         '<div id="sf-qr" style="display:none"></div>' +
         '<div id="sf-foot">' +
-          '<textarea id="sf-inp" rows="1" placeholder="Type a message…"></textarea>' +
+          '<textarea id="sf-inp" rows="1" placeholder="' + tr("typeMessage") + '"></textarea>' +
           '<button id="sf-send" disabled>' +
             '<svg width="17" height="17" viewBox="0 0 24 24" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>' +
           '</button>' +
         '</div>' +
-        '<div id="sf-pwr">Powered by <a href="https://supportflow.app" target="_blank">Convo360</a></div>' +
+        '<div id="sf-pwr"><span id="sf-pwr-t">' + tr("poweredBy") + '</span> <a href="https://supportflow.app" target="_blank">Convo360</a></div>' +
       '</div>';
     document.body.appendChild(root);
 
@@ -425,6 +472,25 @@
       var atBottom = qrEl.scrollTop + qrEl.clientHeight >= qrEl.scrollHeight - 2;
       qrEl.classList.toggle("sf-qr-scroll", !atBottom && qrEl.scrollHeight > qrEl.clientHeight + 1);
     });
+  }
+
+  // ── Footer branding (white label) ─────────────────────────────────────────────
+  // Agencies on a white-label plan can hide "Powered by Convo360" or show their
+  // own name and link instead. Built with DOM nodes, never innerHTML.
+  function applyBranding(b) {
+    var pwr = document.getElementById("sf-pwr");
+    if (!pwr || !b) return;
+    if (b.hidePoweredBy && !b.poweredByText) { pwr.style.display = "none"; return; }
+    if (!b.poweredByText) return;
+    pwr.textContent = "";
+    var t = document.createElement("span");
+    t.id = "sf-pwr-t";
+    t.textContent = tr("poweredBy") + " ";
+    pwr.appendChild(t);
+    var a = document.createElement(b.poweredByUrl ? "a" : "span");
+    if (b.poweredByUrl) { a.href = b.poweredByUrl; a.target = "_blank"; a.rel = "noopener"; }
+    a.textContent = b.poweredByText;
+    pwr.appendChild(a);
   }
 
   // ── Proactive message ────────────────────────────────────────────────────────
@@ -552,7 +618,7 @@
     }).catch(function() {
       hideTyping();
       isBusy = false;
-      addBubble("Something went wrong. Please try again.", "bot");
+      addBubble(tr("wentWrong"), "bot");
     });
   }
 
@@ -617,7 +683,7 @@
   function callChatWithSession(msg, sess) {
     return post("/api/widget/chat", {
       apiKey: KEY, conversationId: convId, visitorId: visitorId,
-      message: msg, sessionData: sess,
+      message: msg, sessionData: sess, lang: LANG,
     }).then(function(r) {
       if (!r.success) {
         if (r.error === "LIMIT_REACHED") { showLimitReached(); return null; }
@@ -952,11 +1018,11 @@
     isBusy = false;
     if (limitReached) return;
     limitReached = true;
-    addBubble("⏰ Chat is unavailable right now. Please try again later or contact us another way.", "bot");
+    addBubble(tr("limitReached"), "bot");
     setOptions([], false);
     var inp = document.getElementById("sf-inp");
     var snd = document.getElementById("sf-send");
-    if (inp) { inp.disabled = true; inp.placeholder = "Chat unavailable"; }
+    if (inp) { inp.disabled = true; inp.placeholder = tr("unavailable"); }
     if (snd) snd.disabled = true;
   }
 
@@ -1031,9 +1097,10 @@
         if (d.data.settings && d.data.settings.launcherText) {
           launcherText = d.data.settings.launcherText;
           var lbl = document.getElementById("sf-label");
-          if (lbl && !lbl.classList.contains("sf-pro")) lbl.textContent = launcherText;
+          if (lbl && !lbl.classList.contains("sf-pro")) lbl.textContent = launcherText === "Chat with us" ? tr("chatWithUs") : launcherText;
         }
         scheduleProactive(d.data.proactive);
+        applyBranding(d.data.branding);
         if (d.data.name || logoUrl) {
           try { localStorage.setItem("sf_company", JSON.stringify({ key: KEY, name: d.data.name || "", logo: logoUrl || "" })); } catch (_) {}
         }
@@ -1082,11 +1149,11 @@
     form.innerHTML = "";
 
     var fields = [];
-    if (pcfRequireName  || preChatEnabled) fields.push({ id: "pcf-name",  label: "Your Name",  type: "text",  placeholder: "John Doe",         key: "name"  });
-    if (pcfRequireEmail)                    fields.push({ id: "pcf-email", label: "Email",       type: "email", placeholder: "you@example.com",  key: "email" });
-    if (pcfRequirePhone)                    fields.push({ id: "pcf-phone", label: "Phone",       type: "tel",   placeholder: "+1 555 000 0000",  key: "phone" });
+    if (pcfRequireName  || preChatEnabled) fields.push({ id: "pcf-name",  label: tr("yourName"),  type: "text",  placeholder: tr("namePh"),         key: "name"  });
+    if (pcfRequireEmail)                    fields.push({ id: "pcf-email", label: tr("email"),       type: "email", placeholder: "you@example.com",  key: "email" });
+    if (pcfRequirePhone)                    fields.push({ id: "pcf-phone", label: tr("phone"),       type: "tel",   placeholder: "98765 43210",  key: "phone" });
     // Default: always show name if nothing specific is required
-    if (!fields.length) fields.push({ id: "pcf-name", label: "Your Name", type: "text", placeholder: "John Doe", key: "name" });
+    if (!fields.length) fields.push({ id: "pcf-name", label: tr("yourName"), type: "text", placeholder: tr("namePh"), key: "name" });
 
     fields.forEach(function(f) {
       var wrap = document.createElement("div");
@@ -1109,7 +1176,7 @@
     var btn = document.createElement("button");
     btn.id = "sf-pcf-btn";
     btn.type = "submit";
-    btn.textContent = "Start Chat →";
+    btn.textContent = tr("startChat");
     form.appendChild(btn);
 
     form.addEventListener("submit", function(e) {
@@ -1192,7 +1259,7 @@
     wrap.style.cssText = "display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 12px;background:" + BG + ";border:1px solid " + BORD + ";border-radius:16px;margin-top:8px";
 
     var lbl = document.createElement("p");
-    lbl.textContent = "How was your experience?";
+    lbl.textContent = tr("rate");
     lbl.style.cssText = "font-size:13px;font-weight:600;color:" + TXT + ";margin:0";
     wrap.appendChild(lbl);
 
@@ -1231,7 +1298,7 @@
 
   function submitCSAT(rating, wrap) {
     post("/api/widget/rate", { conversationId: convId, rating: rating }).catch(function(){});
-    wrap.innerHTML = "<p style=\"font-size:13px;color:" + MUTED + ";text-align:center;padding:4px 0\">Thanks for your feedback! ⭐</p>";
+    wrap.innerHTML = "<p style=\"font-size:13px;color:" + MUTED + ";text-align:center;padding:4px 0\">" + tr("thanksRating") + "</p>";
   }
 
   // ── Boot ──────────────────────────────────────────────────────────────────────
