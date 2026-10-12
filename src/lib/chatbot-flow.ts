@@ -469,6 +469,40 @@ function stepOptions(step: CustomFlowStep, ctx?: BotContext): string[] {
   return step.options;
 }
 
+// The bot asks every visitor for their name and number up front (IDENTIFY), so
+// a menu-flow step asking for name / phone / email again would repeat the
+// question. Recognised by the step's saveAs key, its validation type, or the
+// wording of a free-text question. Returns the known answer, or null.
+const NAME_KEYS = new Set(["name", "fullname", "yourname", "customername", "visitorname", "firstname", "clientname"]);
+const PHONE_KEYS = new Set(["phone", "mobile", "phonenumber", "mobilenumber", "mobileno", "phoneno", "contact", "contactnumber", "contactno", "whatsapp", "whatsappnumber", "number"]);
+const EMAIL_KEYS = new Set(["email", "emailaddress", "emailid", "mail"]);
+
+function identityKind(step: CustomFlowStep): "phone" | "email" | "name" | null {
+  const key = (step.saveAs || "").toLowerCase().replace(/[^a-z]/g, "");
+  const q = (step.question || "").toLowerCase();
+  const freeText = step.type === "text";
+  if (step.validate === "phone" || PHONE_KEYS.has(key) || (freeText && /mobile|phone|contact number|whatsapp number|मोबाइल|फ़ोन/.test(q))) return "phone";
+  if (step.validate === "email" || EMAIL_KEYS.has(key) || (freeText && /e-?mail/.test(q))) return "email";
+  if (NAME_KEYS.has(key) || (freeText && (!step.validate || step.validate === "none") && /\b(your|full)?\s*name\b|नाम/.test(q) && !/company|business|project|vehicle|model|city|firm|society|building/.test(q))) return "name";
+  return null;
+}
+
+function knownAnswer(step: CustomFlowStep, col: Record<string, string>): string | null {
+  const kind = identityKind(step);
+  return kind && col[kind] ? col[kind] : null;
+}
+
+// Index of the next step that still needs asking, from `from` on, filling in
+// answers the bot already has. -1 = nothing left to ask.
+function nextStepToAsk(target: CustomFlowItem, from: number, col: Record<string, string>): number {
+  for (let i = from; i < target.steps.length; i++) {
+    const known = knownAnswer(target.steps[i], col);
+    if (known === null) return i;
+    col[target.steps[i].saveAs || `field_${i}`] = known;
+  }
+  return -1;
+}
+
 function askCustomStep(target: CustomFlowItem, index: number, col: Record<string, string>, ctx?: BotContext): BotResponse {
   const step = target.steps[index];
   const options = stepOptions(step, ctx);
@@ -552,8 +586,9 @@ function runCustomFlow(input: string, session: SessionData, cf: CustomFlow, gree
   if (!s.flow || s.flow === "INITIAL" || !s.step) {
     const target = cf.flows.find(f => inp.toLowerCase().includes(f.label.toLowerCase()) || f.label.toLowerCase().includes(inp.toLowerCase()));
     if (!target) return showMenu(col);
-    if (!target.steps.length) return finalizeCustomFlow(target, col, ctx);
-    return askCustomStep(target, 0, col, ctx);
+    const first = nextStepToAsk(target, 0, col);
+    if (first === -1) return finalizeCustomFlow(target, col, ctx);
+    return askCustomStep(target, first, col, ctx);
   }
 
   if (s.flow.startsWith("CUSTOM::")) {
@@ -577,8 +612,12 @@ function runCustomFlow(input: string, session: SessionData, cf: CustomFlow, gree
 
     col[currentStep.saveAs || `field_${stepIndex}`] =
       currentStep.validate === "phone" ? (normalizePhone(inp) ?? inp) : inp;
-    const nextIndex = stepIndex + 1;
-    if (nextIndex < target.steps.length) return askCustomStep(target, nextIndex, col, ctx);
+    // Whatever the visitor typed for a name/phone step also updates what the
+    // bot knows about them, so later flows don't ask again either.
+    const kind = identityKind(currentStep);
+    if (kind) col[kind] = col[currentStep.saveAs || `field_${stepIndex}`];
+    const nextIndex = nextStepToAsk(target, stepIndex + 1, col);
+    if (nextIndex !== -1) return askCustomStep(target, nextIndex, col, ctx);
     return finalizeCustomFlow(target, col, ctx);
   }
 
