@@ -1905,6 +1905,10 @@ function ChatbotFlowPreview({ color, theme, companyName, logo, triggerMessage }:
   const BORD  = dark ? "#374151" : "#e5e7eb";
   const TXT   = dark ? "#f9fafb" : "#111827";
   const MUTED = dark ? "#9ca3af" : "#6b7280";
+  // Same "Classic" look as the live widget (public/widget.js): grey thread and
+  // option pills in a softened brand color.
+  const THR   = dark ? "#0b1220" : "#f2f3f5";
+  const SOFT  = `color-mix(in srgb, ${color} 60%, ${dark ? "#334155" : "#8a8fb0"})`;
 
   const [msgs, setMsgs]     = useState<ChatMsg[]>([]);
   const [qrs, setQRs]       = useState<string[]>([]);
@@ -2052,49 +2056,65 @@ function ChatbotFlowPreview({ color, theme, companyName, logo, triggerMessage }:
 
       {(!error || msgs.length > 0) && (
         <div ref={scrollRef} style={{
-          flex: 1, overflowY: "auto", padding: "14px 14px 8px",
-          display: "flex", flexDirection: "column", gap: 10,
-          background: BG2, minHeight: 240, maxHeight: 340,
+          flex: 1, overflowY: "auto", padding: "12px 12px 10px",
+          display: "flex", flexDirection: "column", gap: 6,
+          background: THR, minHeight: 240, maxHeight: 360,
         }}>
-          {msgs.map((m, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "flex-end", gap: 6, justifyContent: m.from === "user" ? "flex-end" : "flex-start" }}>
-              {m.from === "bot" && (
-                <div style={{ width: 20, height: 20, borderRadius: "50%", overflow: "hidden", flexShrink: 0, background: logo ? "#ffffff" : color, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {logo ? (
-                    <img src={logo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  ) : (
-                    <img src="/app_icon.png" alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  )}
-                </div>
-              )}
-              <div style={{ display: "flex", flexDirection: "column", alignItems: m.from === "user" ? "flex-end" : "flex-start", maxWidth: "78%" }}>
-                <div style={{
-                  padding: "9px 13px",
-                  borderRadius: m.from === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-                  fontSize: 13, lineHeight: 1.55, wordBreak: "break-word", whiteSpace: "pre-wrap",
-                  background: m.from === "user" ? color : BG,
-                  color: m.from === "user" ? "white" : TXT,
-                  border: m.from === "user" ? "none" : `1px solid ${BORD}`,
-                  boxShadow: "0 1px 4px rgba(0,0,0,.06)",
-                }}>
-                  {m.text}
-                </div>
-                <div style={{ fontSize: 10, color: MUTED, marginTop: 3, paddingLeft: m.from === "bot" ? 3 : 0, paddingRight: m.from === "user" ? 3 : 0 }}>
-                  {m.time}
-                </div>
+          {msgs.map((m, i) => {
+            const prev = msgs[i - 1];
+            // Time once above each run of messages from the same side.
+            const newGroup = !prev || prev.from !== m.from;
+            const avatar = (
+              <div style={{ width: 34, height: 34, borderRadius: "50%", overflow: "hidden", flexShrink: 0, background: "#ffffff", border: `1px solid ${BORD}`, visibility: newGroup ? "visible" : "hidden" }}>
+                <img src={logo || "/app_icon.png"} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               </div>
-            </div>
-          ))}
-          {typing && (
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
-              <div style={{ width: 20, height: 20, borderRadius: "50%", overflow: "hidden", flexShrink: 0, background: color, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {logo ? (
-                  <img src={logo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                ) : (
-                  <img src="/app_icon.png" alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            );
+            return (
+              <div key={i} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                {newGroup && (
+                  <div style={{ fontSize: 12, color: MUTED, margin: "8px 2px 0", textAlign: m.from === "user" ? "right" : "left" }}>{m.time}</div>
                 )}
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, justifyContent: m.from === "user" ? "flex-end" : "flex-start" }}>
+                  {m.from === "bot" && avatar}
+                  <div style={{
+                    maxWidth: "80%", padding: m.from === "user" ? "11px 16px" : "12px 16px", borderRadius: 18,
+                    fontSize: 14, lineHeight: 1.6, wordBreak: "break-word", whiteSpace: "pre-wrap",
+                    background: m.from === "user" ? color : BG,
+                    color: m.from === "user" ? "white" : TXT,
+                    fontWeight: m.from === "user" ? 600 : 400,
+                    boxShadow: m.from === "user" ? "none" : "0 1px 2px rgba(0,0,0,.05)",
+                  }}>
+                    {m.text}
+                  </div>
+                </div>
               </div>
-              <div style={{ padding: "10px 14px", borderRadius: "18px 18px 18px 4px", background: BG, border: `1px solid ${BORD}`, display: "flex", gap: 4, alignItems: "center" }}>
+            );
+          })}
+          {/* Option pills inside the thread, under the bot's message */}
+          {!typing && qrs.filter((o) => !/Main Menu|मुख्य मेन्यू/i.test(o)).length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8, padding: "6px 0 4px 42px" }}>
+              {qrs.filter((o) => !/Main Menu|मुख्य मेन्यू/i.test(o)).map((opt) => {
+                const isBack = /Go Back/i.test(opt);
+                return (
+                  <button
+                    key={opt}
+                    onClick={() => send(opt)}
+                    style={isBack
+                      ? { padding: "8px 15px", borderRadius: 999, border: `1.5px solid ${BORD}`, background: "transparent", color: MUTED, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }
+                      : { maxWidth: 220, padding: "10px 16px", borderRadius: 999, border: "none", background: SOFT, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", lineHeight: 1.3, textAlign: "center" }}
+                  >
+                    {opt}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {typing && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 6 }}>
+              <div style={{ width: 34, height: 34, borderRadius: "50%", overflow: "hidden", flexShrink: 0, background: "#ffffff", border: `1px solid ${BORD}` }}>
+                <img src={logo || "/app_icon.png"} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              </div>
+              <div style={{ padding: "13px 16px", borderRadius: 18, background: BG, display: "flex", gap: 4, alignItems: "center", boxShadow: "0 1px 2px rgba(0,0,0,.05)" }}>
                 {[0, 1, 2].map((d) => (
                   <span key={d} style={{ width: 6, height: 6, borderRadius: "50%", background: MUTED, display: "inline-block", animation: `sfb 1.2s ${d * 0.2}s infinite ease-in-out` }} />
                 ))}
@@ -2104,26 +2124,16 @@ function ChatbotFlowPreview({ color, theme, companyName, logo, triggerMessage }:
         </div>
       )}
 
-      {qrs.length > 0 && !typing && (
-        <div style={{ padding: "10px 12px 12px", background: BG2, borderTop: `1px solid ${BORD}`, display: "flex", flexWrap: "wrap", gap: 8, flexShrink: 0, maxHeight: 200, overflowY: "auto" }}>
-          {qrs.map((opt) => {
-            const isBack = /Main Menu|Go Back/i.test(opt);
-            return (
-              <button
-                key={opt}
-                onClick={() => send(opt)}
-                style={isBack
-                  ? { padding: "9px 16px", borderRadius: 999, border: `1.5px solid ${BORD}`, background: "transparent", color: MUTED, fontSize: 11.5, fontWeight: 600, cursor: "pointer", lineHeight: 1.3 }
-                  : { maxWidth: 185, boxSizing: "border-box", padding: "11px 16px", borderRadius: 14, border: "none", background: color, color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", textAlign: "left", lineHeight: 1.35, overflowWrap: "break-word" }}
-              >
-                {opt}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {/* Menu bar: back to the main menu at any time */}
+      <button
+        onClick={() => send("🔙 Main Menu")}
+        disabled={typing}
+        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 10, border: "none", borderTop: `1px solid ${BORD}`, background: BG, color: TXT, fontSize: 14, cursor: typing ? "default" : "pointer", flexShrink: 0, boxShadow: "0 -6px 14px -10px rgba(0,0,0,.18)" }}>
+        <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+        Menu
+      </button>
 
-      <div style={{ padding: "10px 12px", borderTop: `1px solid ${BORD}`, display: "flex", gap: 8, alignItems: "flex-end", background: BG, flexShrink: 0 }}>
+      <div style={{ padding: "8px 12px 6px", display: "flex", gap: 10, alignItems: "center", background: BG, flexShrink: 0 }}>
         <textarea
           ref={inputRef}
           rows={1}
@@ -2132,13 +2142,14 @@ function ChatbotFlowPreview({ color, theme, companyName, logo, triggerMessage }:
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
           placeholder={typing ? "Bot is typing…" : "Type a message… (Enter to send)"}
           disabled={typing}
-          style={{ flex: 1, border: `1.5px solid ${BORD}`, borderRadius: 22, padding: "9px 14px", fontSize: 13, outline: "none", background: BG2, color: TXT, resize: "none", maxHeight: 80, lineHeight: 1.4, fontFamily: "inherit", opacity: typing ? 0.55 : 1 }}
+          style={{ flex: 1, border: "1.5px solid transparent", borderRadius: 14, padding: "10px 14px", fontSize: 13.5, outline: "none", background: THR, color: TXT, resize: "none", maxHeight: 80, lineHeight: 1.4, fontFamily: "inherit", opacity: typing ? 0.55 : 1 }}
         />
         <button
           onClick={() => send(input)}
           disabled={typing || !input.trim()}
-          style={{ width: 38, height: 38, flexShrink: 0, borderRadius: "50%", background: (!typing && input.trim()) ? color : BORD, border: "none", cursor: (!typing && input.trim()) ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.2s" }}>
-          <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, fill: "white" }}>
+          aria-label="Send"
+          style={{ width: 36, height: 36, flexShrink: 0, background: "transparent", border: "none", cursor: (!typing && input.trim()) ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", color: TXT, opacity: (!typing && input.trim()) ? 1 : 0.35 }}>
+          <svg viewBox="0 0 24 24" style={{ width: 22, height: 22, fill: "currentColor" }}>
             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
           </svg>
         </button>

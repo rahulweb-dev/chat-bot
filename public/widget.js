@@ -24,7 +24,7 @@
     if (rawLook && rawLook.key === KEY) cachedLook = rawLook;
   } catch (_) {}
 
-  var COLOR, THEME, DARK, BG, BG2, BORD, TXT, MUTED, C60, C20;
+  var COLOR, THEME, DARK, BG, BG2, BORD, TXT, MUTED, C60, C20, THR, SOFT;
   var darkMQ = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 
   // Server sends "LIGHT"/"DARK"/"AUTO"; older snippets send "light"/"dark".
@@ -34,6 +34,13 @@
     c = String(c || "").trim();
     if (/^#[0-9a-f]{3}$/i.test(c)) c = "#" + c[1] + c[1] + c[2] + c[2] + c[3] + c[3];
     return /^#[0-9a-f]{6}$/i.test(c) ? c : "#6366f1";
+  }
+
+  // Blend two #rrggbb colors: w = share of `a` (0..1).
+  function mixHex(a, b, w) {
+    var pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+    var ch = function(sh) { return Math.round(((pa >> sh) & 255) * w + ((pb >> sh) & 255) * (1 - w)); };
+    return "#" + ((1 << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).slice(1);
   }
 
   function setLook(color, theme) {
@@ -47,6 +54,10 @@
     MUTED = DARK ? "#9ca3af" : "#6b7280";
     C60   = COLOR + "99";
     C20   = COLOR + "33";
+    // Classic chat: grey conversation area, and option pills in a softened
+    // (greyed) version of the brand color so they read as choices, not alarms.
+    THR   = DARK ? "#0b1220" : "#f2f3f5";
+    SOFT  = mixHex(COLOR, DARK ? "#334155" : "#8a8fb0", 0.6);
   }
   setLook(cachedLook ? cachedLook.color : cfg.primaryColor, cachedLook ? cachedLook.theme : cfg.theme);
 
@@ -67,7 +78,7 @@
       yourName: "Your Name", email: "Email", phone: "Phone", startChat: "Start Chat →", namePh: "Your name",
       wentWrong: "Something went wrong. Please try again.", unavailable: "Chat unavailable",
       limitReached: "⏰ Chat is unavailable right now. Please try again later or contact us another way.",
-      rate: "How was your experience?", thanksRating: "Thanks for your feedback! ⭐",
+      rate: "How was your experience?", thanksRating: "Thanks for your feedback! ⭐", menu: "Menu", send: "Send",
     },
     hi: {
       chatWithUs: "हमसे बात करें", openChat: "चैट खोलें", chat: "चैट", close: "बंद करें",
@@ -76,7 +87,7 @@
       yourName: "आपका नाम", email: "ईमेल", phone: "फ़ोन", startChat: "चैट शुरू करें →", namePh: "आपका नाम",
       wentWrong: "कुछ गड़बड़ हो गई। कृपया दोबारा कोशिश करें।", unavailable: "चैट अभी उपलब्ध नहीं",
       limitReached: "⏰ चैट अभी उपलब्ध नहीं है। कृपया बाद में कोशिश करें या हमसे दूसरे तरीके से संपर्क करें।",
-      rate: "आपका अनुभव कैसा रहा?", thanksRating: "आपकी राय के लिए धन्यवाद! ⭐",
+      rate: "आपका अनुभव कैसा रहा?", thanksRating: "आपकी राय के लिए धन्यवाद! ⭐", menu: "मेन्यू", send: "भेजें",
     },
   };
   function resolveLang(v) {
@@ -97,6 +108,7 @@
     set("sf-pcf-title", tr("pcfTitle"));
     set("sf-pcf-sub", tr("pcfSub"));
     set("sf-pwr-t", tr("poweredBy"));
+    set("sf-menubar-t", tr("menu"));
     var inp = document.getElementById("sf-inp");
     if (inp && !limitReached) inp.placeholder = tr("typeMessage");
   }
@@ -266,81 +278,83 @@
       "#sf-hx{background:rgba(255,255,255,.15);border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s;color:white}" +
       "#sf-hx:hover{background:rgba(255,255,255,.28)}" +
 
-      // Messages area
-      "#sf-msgs{flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:14px;background:" + BG2 + ";scroll-behavior:smooth}" +
+      // ── Conversation ("Classic" layout) ──────────────────────────────────────
+      // Grey thread, white bot bubbles beside the company logo, the time above
+      // each group of messages, option pills inside the thread, and a Menu bar.
+      "#sf-msgs{flex:1;overflow-y:auto;padding:14px 12px 12px;display:flex;flex-direction:column;gap:6px;background:" + THR + ";scroll-behavior:smooth}" +
       "#sf-msgs::-webkit-scrollbar{width:4px}" +
       "#sf-msgs::-webkit-scrollbar-thumb{background:" + BORD + ";border-radius:4px}" +
 
       // Date divider
       "#sf-root .sf-date{text-align:center;font-size:11px;color:" + MUTED + ";padding:4px 12px;background:" + BORD + ";border-radius:20px;align-self:center;margin:4px 0}" +
 
+      // Time stamp above a group (left for the bot, right for the visitor)
+      "#sf-root .sf-stamp{font-size:12px;color:" + MUTED + ";margin:8px 2px 0;animation:sfFade .22s ease}" +
+      "#sf-root .sf-stamp.you{text-align:right}" +
+
       // Message rows
-      "#sf-root .sf-row{display:flex;align-items:flex-end;gap:8px;animation:sfFade .22s ease}" +
+      "#sf-root .sf-row{display:flex;align-items:flex-start;gap:8px;animation:sfFade .22s ease}" +
       "@keyframes sfFade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}" +
       "#sf-root .sf-row.you{flex-direction:row-reverse}" +
 
-      // Avatars
-      "#sf-root .sf-av{width:28px;height:28px;border-radius:50%;background:" + C20 + ";display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;font-weight:700;color:" + COLOR + ";border:1.5px solid " + BORD + "}" +
-      "#sf-root .sf-row.you .sf-av{background:" + COLOR + ";color:white;border:none}" +
+      // Avatar: the company logo in a white circle, bot side only. Later
+      // messages in the same group keep the space but hide the logo.
+      "#sf-root .sf-av{width:34px;height:34px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px;font-weight:700;color:" + COLOR + ";border:1px solid " + BORD + ";overflow:hidden}" +
+      "#sf-root .sf-row.you .sf-av{display:none}" +
+      "#sf-root .sf-row.sf-cont .sf-av{visibility:hidden}" +
 
       // Bubble wrapper
-      "#sf-root .sf-bwrap{display:flex;flex-direction:column;max-width:78%;gap:2px}" +
+      "#sf-root .sf-bwrap{display:flex;flex-direction:column;max-width:80%;gap:3px}" +
       "#sf-root .sf-row.you .sf-bwrap{align-items:flex-end}" +
 
-      // Sender label
-      "#sf-root .sf-lbl{font-size:10.5px;color:" + MUTED + ";font-weight:600;padding:0 4px}" +
+      // Sender label (live agent replies)
+      "#sf-root .sf-lbl{font-size:11px;color:" + MUTED + ";font-weight:600;padding:0 4px}" +
 
-      // Bubble
-      "#sf-root .sf-bub{padding:10px 14px;border-radius:18px;font-size:13.5px;line-height:1.65;word-break:break-word;white-space:pre-wrap;position:relative}" +
-      "#sf-root .sf-row.bot .sf-bub{background:" + BG + ";color:" + TXT + ";border:1px solid " + BORD + ";border-bottom-left-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.07)}" +
-      "#sf-root .sf-row.you .sf-bub{background:" + COLOR + ";color:white;border-bottom-right-radius:4px;box-shadow:0 2px 8px " + C60 + "}" +
+      // Bubbles
+      "#sf-root .sf-bub{padding:12px 16px;border-radius:18px;font-size:14.5px;line-height:1.6;word-break:break-word;white-space:pre-wrap;position:relative}" +
+      "#sf-root .sf-row.bot .sf-bub{background:" + BG + ";color:" + TXT + ";box-shadow:0 1px 2px rgba(0,0,0,.05)}" +
+      "#sf-root .sf-row.you .sf-bub{background:" + COLOR + ";color:#fff;font-weight:600;padding:11px 16px}" +
       "#sf-root .sf-bub a{color:inherit;text-decoration:underline;text-underline-offset:2px;font-weight:600;word-break:break-word}" +
-
-      // Time
-      "#sf-root .sf-time{font-size:10px;color:" + MUTED + ";padding:0 4px;display:flex;align-items:center;gap:3px}" +
-      // Earlier messages in a same-sender run: no time, avatar kept as a spacer, tighter gap.
-      "#sf-root .sf-row.sf-grp .sf-time{display:none}" +
-      "#sf-root .sf-row.sf-grp .sf-av{visibility:hidden}" +
-      "#sf-root .sf-row.sf-grp{margin-bottom:-9px}" +
 
       // System notices (offline hours, connecting-to-agent, errors) — visually
       // distinct from a conversational turn so they read as status, not chat
-      "#sf-root .sf-notice{align-self:center;max-width:90%;text-align:center;padding:9px 16px;border-radius:14px;font-size:12px;font-weight:600;line-height:1.5;margin:2px 0}" +
+      "#sf-root .sf-notice{align-self:center;max-width:90%;text-align:center;padding:9px 16px;border-radius:14px;font-size:12.5px;font-weight:600;line-height:1.5;margin:6px 0 2px}" +
       "#sf-root .sf-notice-warn{background:" + (DARK ? "rgba(245,158,11,.16)" : "#fffbeb") + ";color:" + (DARK ? "#fbbf24" : "#92400e") + ";border:1px solid " + (DARK ? "rgba(245,158,11,.32)" : "#fde68a") + "}" +
       "#sf-root .sf-notice-info{background:" + C20 + ";color:" + COLOR + ";border:1px solid " + COLOR + "33}" +
       "#sf-root .sf-notice-error{background:" + (DARK ? "rgba(239,68,68,.16)" : "#fef2f2") + ";color:" + (DARK ? "#fca5a5" : "#991b1b") + ";border:1px solid " + (DARK ? "rgba(239,68,68,.32)" : "#fecaca") + "}" +
 
       // Typing
-      "#sf-root .sf-typing-wrap{display:flex;align-items:flex-end;gap:8px}" +
-      "#sf-root .sf-typing{background:" + BG + ";border:1px solid " + BORD + ";padding:12px 16px;border-radius:18px 18px 18px 4px;display:flex;gap:5px;align-items:center;box-shadow:0 1px 4px rgba(0,0,0,.07)}" +
+      "#sf-root .sf-typing-wrap{display:flex;align-items:flex-start;gap:8px;margin-top:6px}" +
+      "#sf-root .sf-typing{background:" + BG + ";padding:14px 16px;border-radius:18px;display:flex;gap:5px;align-items:center;box-shadow:0 1px 2px rgba(0,0,0,.05)}" +
       "#sf-root .sf-typing span{width:7px;height:7px;background:" + MUTED + ";border-radius:50%;animation:sfDot 1.2s infinite ease-in-out}" +
       "#sf-root .sf-typing span:nth-child(2){animation-delay:.2s}" +
       "#sf-root .sf-typing span:nth-child(3){animation-delay:.4s}" +
       "@keyframes sfDot{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-7px);opacity:1}}" +
 
-      // Quick replies — compact solid pills capped at a max width, so a long
-      // option wraps inside a narrower chip instead of stretching full-bleed
-      // into a slab. Sized to still clear a comfortable ~40px tap target —
-      // the first pass at this was too tight (small font, thin padding),
-      // which read as cramped rather than compact.
-      "#sf-qr{position:relative;padding:12px 14px 16px;background:" + BG + ";border-top:1px solid " + BORD + ";display:flex;flex-wrap:wrap;gap:8px;flex-shrink:0;max-height:240px;overflow-y:auto}" +
-      "#sf-qr::-webkit-scrollbar{width:3px}" +
-      "#sf-qr::-webkit-scrollbar-thumb{background:" + BORD + ";border-radius:3px}" +
-      "#sf-qr.sf-qr-scroll{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent 100%);mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent 100%)}" +
-      "#sf-root .sf-qb{max-width:185px;box-sizing:border-box;overflow-wrap:break-word;padding:11px 16px;border-radius:14px;border:none;background:" + COLOR + ";color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;transition:transform .15s,box-shadow .15s,filter .15s;line-height:1.35;text-align:left}" +
-      "#sf-root .sf-qb:hover{filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 4px 12px " + C60 + "}" +
-      "#sf-root .sf-qb:active{transform:translateY(0) scale(.98);filter:brightness(.97)}" +
-      "#sf-root .sf-qb.back{max-width:none;background:transparent;border:1.5px solid " + BORD + ";color:" + MUTED + ";font-size:11.5px;font-weight:600;border-radius:999px;padding:9px 16px}" +
-      "#sf-root .sf-qb.back:hover{background:" + BORD + ";color:" + TXT + ";transform:none;box-shadow:none;filter:none}" +
+      // Option pills, inside the thread under the bot's message. Earlier sets
+      // stay as history (dimmed, not clickable); the chosen one keeps the full
+      // brand color so the visitor can see what they picked.
+      "#sf-root .sf-pills{display:flex;flex-wrap:wrap;justify-content:center;gap:9px;padding:6px 0 4px 42px;animation:sfFade .25s ease}" +
+      "#sf-root .sf-qb{max-width:240px;box-sizing:border-box;overflow-wrap:break-word;padding:11px 18px;border-radius:999px;border:none;background:" + SOFT + ";color:#fff;font-size:14px;font-weight:600;cursor:pointer;line-height:1.3;text-align:center;transition:filter .15s,transform .15s,box-shadow .15s}" +
+      "#sf-root .sf-qb:hover{filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 4px 12px " + C20 + "}" +
+      "#sf-root .sf-qb:active{transform:scale(.97)}" +
+      "#sf-root .sf-qb.back{background:transparent;border:1.5px solid " + BORD + ";color:" + MUTED + ";font-size:13px;padding:9px 16px}" +
+      "#sf-root .sf-pills.sf-old .sf-qb{opacity:.5;cursor:default;pointer-events:none;transform:none;box-shadow:none}" +
+      "#sf-root .sf-pills.sf-old .sf-qb.sf-picked{opacity:1;background:" + COLOR + "}" +
+
+      // Menu bar: brings back the main menu at any time
+      "#sf-menubar{display:none;align-items:center;justify-content:center;gap:10px;width:100%;padding:11px;border:none;border-top:1px solid " + BORD + ";background:" + BG + ";color:" + TXT + ";font-size:14.5px;font-weight:500;cursor:pointer;flex-shrink:0;box-shadow:0 -6px 14px -10px rgba(0,0,0,.18)}" +
+      "#sf-menubar:hover{background:" + BG2 + "}" +
+      "#sf-menubar.show{display:flex}" +
 
       // Input
-      "#sf-foot{padding:10px 14px 14px;border-top:1px solid " + BORD + ";display:flex;align-items:flex-end;gap:8px;background:" + BG + ";flex-shrink:0}" +
-      "#sf-inp{flex:1;border:1.5px solid " + BORD + ";border-radius:22px;padding:10px 16px;font-size:13.5px;outline:none;background:" + BG2 + ";color:" + TXT + ";resize:none;max-height:100px;line-height:1.5;transition:border-color .15s}" +
-      "#sf-inp:focus{border-color:" + COLOR + ";box-shadow:0 0 0 3px " + C20 + "}" +
+      "#sf-foot{padding:8px 12px 6px;display:flex;align-items:center;gap:10px;background:" + BG + ";flex-shrink:0}" +
+      "#sf-inp{flex:1;border:1.5px solid transparent;border-radius:14px;padding:11px 16px;font-size:14.5px;outline:none;background:" + THR + ";color:" + TXT + ";resize:none;max-height:100px;line-height:1.5;transition:border-color .15s,background .15s}" +
+      "#sf-inp:focus{border-color:" + C60 + ";background:" + BG + "}" +
       "#sf-inp::placeholder{color:" + MUTED + "}" +
-      "#sf-send{width:42px;height:42px;flex-shrink:0;border-radius:50%;background:" + COLOR + ";border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;box-shadow:0 4px 12px " + C60 + "}" +
-      "#sf-send:hover:not(:disabled){transform:scale(1.1);box-shadow:0 6px 18px " + C60 + "}" +
-      "#sf-send:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}" +
+      "#sf-send{width:40px;height:40px;flex-shrink:0;border-radius:50%;background:transparent;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:" + TXT + ";transition:color .15s,transform .15s}" +
+      "#sf-send:hover:not(:disabled){color:" + COLOR + ";transform:translateX(2px)}" +
+      "#sf-send:disabled{opacity:.35;cursor:not-allowed}" +
 
       // Pre-chat form
       "#sf-pcf-wrap{flex:1;display:flex;flex-direction:column;justify-content:center;padding:24px 20px;gap:14px;background:" + BG2 + "}" +
@@ -412,11 +426,14 @@
           '<form id="sf-pcf" style="display:flex;flex-direction:column;gap:12px"></form>' +
         '</div>' +
         '<div id="sf-msgs"></div>' +
-        '<div id="sf-qr" style="display:none"></div>' +
+        '<button id="sf-menubar" type="button">' +
+          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>' +
+          '<span id="sf-menubar-t">' + tr("menu") + '</span>' +
+        '</button>' +
         '<div id="sf-foot">' +
           '<textarea id="sf-inp" rows="1" placeholder="' + tr("typeMessage") + '"></textarea>' +
-          '<button id="sf-send" disabled>' +
-            '<svg width="17" height="17" viewBox="0 0 24 24" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>' +
+          '<button id="sf-send" disabled aria-label="' + tr("send") + '">' +
+            '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>' +
           '</button>' +
         '</div>' +
         '<div id="sf-pwr"><span id="sf-pwr-t">' + tr("poweredBy") + '</span> <a href="https://supportflow.app" target="_blank">Convo360</a></div>' +
@@ -427,6 +444,10 @@
     document.getElementById("sf-label").addEventListener("click", toggle);
     document.getElementById("sf-hx").addEventListener("click", toggle);
     document.getElementById("sf-send").addEventListener("click", sendText);
+    document.getElementById("sf-menubar").addEventListener("click", function() {
+      if (isBusy || limitReached) return;
+      sendMessage("🔙 Main Menu", tr("menu"));
+    });
 
     // Greet with the launcher label a beat after load rather than instantly —
     // reads as a deliberate nudge, not a layout flash. Guarded by !isOpen so
@@ -462,15 +483,6 @@
     });
     inp.addEventListener("keydown", function(e) {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(); }
-    });
-
-    // Drop the "more options below" fade once they've scrolled to the bottom
-    // of the quick-reply list, so it doesn't look like the last button is
-    // still being clipped once it's actually fully in view.
-    var qrEl = document.getElementById("sf-qr");
-    qrEl.addEventListener("scroll", function() {
-      var atBottom = qrEl.scrollTop + qrEl.clientHeight >= qrEl.scrollHeight - 2;
-      qrEl.classList.toggle("sf-qr-scroll", !atBottom && qrEl.scrollHeight > qrEl.clientHeight + 1);
     });
   }
 
@@ -604,8 +616,10 @@
     sendMessage(text);
   }
 
-  function sendMessage(text) {
-    addBubble(text, "you");
+  // `display` is what the visitor sees in their bubble when it differs from
+  // what the bot needs (the Menu bar shows "Menu" but sends "Main Menu").
+  function sendMessage(text, display) {
+    addBubble(display || text, "you");
     setOptions([], false);
     showTyping();
     isBusy = true;
@@ -923,28 +937,24 @@
     setLinkedText(bub, text);
     wrap.appendChild(bub);
 
-    var timeEl = document.createElement("div");
-    timeEl.className = "sf-time";
-    timeEl.textContent = fmtTime(ts || new Date());
-    if (!isBot) {
-      var tick = document.createElement("span");
-      tick.style.cssText = "font-size:12px;color:" + COLOR + "99";
-      tick.textContent = "✓✓";
-      timeEl.appendChild(tick);
-    }
-    wrap.appendChild(timeEl);
     row.appendChild(wrap);
 
-    // Group consecutive messages from the same sender within 2 minutes: only the
-    // last one in a run keeps its time and avatar, like any messaging app.
+    // Group consecutive messages from the same sender within 2 minutes: the time
+    // is shown once above the group, and only the first message shows the logo.
     var when = new Date(ts || Date.now()).getTime();
     row.setAttribute("data-ts", String(when));
     row.setAttribute("data-from", side + "|" + (senderLabel || ""));
     var prev = msgs.lastElementChild;
-    if (prev && prev.classList.contains("sf-row") &&
+    var continues = prev && prev.classList.contains("sf-row") &&
         prev.getAttribute("data-from") === row.getAttribute("data-from") &&
-        Math.abs(when - Number(prev.getAttribute("data-ts"))) < 120000) {
-      prev.classList.add("sf-grp");
+        Math.abs(when - Number(prev.getAttribute("data-ts"))) < 120000;
+    if (continues) {
+      row.classList.add("sf-cont");
+    } else {
+      var stamp = document.createElement("div");
+      stamp.className = "sf-stamp" + (isBot ? "" : " you");
+      stamp.textContent = fmtTime(ts || new Date());
+      msgs.appendChild(stamp);
     }
 
     msgs.appendChild(row);
@@ -952,27 +962,47 @@
     return row;
   }
 
-  function setOptions(opts, show) {
-    var el = document.getElementById("sf-qr");
-    if (!el) return;
-    el.innerHTML = "";
-    if (!show || !opts || !opts.length) { el.style.display = "none"; return; }
-    el.style.display = "flex";
+  // Option pills live inside the conversation, under the bot's message. When
+  // the visitor answers (or new options arrive), the current set stays in the
+  // thread as history, dimmed and no longer clickable, with the chosen option
+  // highlighted. "Main Menu" isn't shown as a pill: the Menu bar does that job.
+  var activePills = null;
+  var activePillsKey = "";
 
-    // Every pill is capped at max-width (see .sf-qb) and wraps its own text
-    // internally, so — unlike the old shrink-to-fit single-line pills — a
-    // long option never needs a separate full-width escape hatch; it just
-    // wraps to two lines inside its own chip like any other option.
-    opts.forEach(function(opt) {
-      var isBack = /Main Menu|Go Back/i.test(opt);
+  function retirePills() {
+    if (activePills) activePills.classList.add("sf-old");
+    activePills = null;
+    activePillsKey = "";
+  }
+
+  function setOptions(opts, show) {
+    var msgs = document.getElementById("sf-msgs");
+    if (!msgs) return;
+    var list = (show && opts ? opts : []).filter(function(o) { return !/Main Menu|मुख्य मेन्यू/i.test(o); });
+    var key = list.join("\u0001");
+    // Re-opening the widget re-applies the saved options: don't add a duplicate.
+    if (list.length && activePills && key === activePillsKey && activePills.parentNode) return;
+    retirePills();
+    if (!list.length) return;
+
+    var el = document.createElement("div");
+    el.className = "sf-pills";
+    list.forEach(function(opt) {
       var btn = document.createElement("button");
-      btn.className = "sf-qb" + (isBack ? " back" : "");
+      btn.type = "button";
+      btn.className = "sf-qb" + (/Go Back|वापस/i.test(opt) ? " back" : "");
       btn.textContent = opt;
-      btn.addEventListener("click", function() { sendOption(opt); });
+      btn.addEventListener("click", function() {
+        if (isBusy || limitReached || el.classList.contains("sf-old")) return;
+        btn.classList.add("sf-picked");
+        sendOption(opt);
+      });
       el.appendChild(btn);
     });
-    el.scrollTop = 0;
-    el.classList.toggle("sf-qr-scroll", el.scrollHeight > el.clientHeight + 1);
+    msgs.appendChild(el);
+    activePills = el;
+    activePillsKey = key;
+    msgs.scrollTop = msgs.scrollHeight;
   }
 
   function showTyping() {
@@ -1024,6 +1054,7 @@
     var snd = document.getElementById("sf-send");
     if (inp) { inp.disabled = true; inp.placeholder = tr("unavailable"); }
     if (snd) snd.disabled = true;
+    showMenubar(false);
   }
 
   function showErr(msg) {
@@ -1211,9 +1242,16 @@
     if (pcf) pcf.style.display = "flex";
     if (msgs) msgs.style.display = "none";
     if (foot) foot.style.display = "none";
+    showMenubar(false);
+  }
+
+  function showMenubar(on) {
+    var m = document.getElementById("sf-menubar");
+    if (m) m.classList.toggle("show", !!on && !limitReached);
   }
 
   function startChatFlow() {
+    showMenubar(true);
     if (chatStarted) { startPoll(); return; }
     chatStarted = true;
     showTyping();
