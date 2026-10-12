@@ -78,7 +78,7 @@
       yourName: "Your Name", email: "Email", phone: "Phone", startChat: "Start Chat →", namePh: "Your name",
       wentWrong: "Something went wrong. Please try again.", unavailable: "Chat unavailable",
       limitReached: "⏰ Chat is unavailable right now. Please try again later or contact us another way.",
-      rate: "How was your experience?", thanksRating: "Thanks for your feedback! ⭐", menu: "Menu", send: "Send",
+      rate: "How was your experience?", thanksRating: "Thanks for your feedback! ⭐", menu: "Menu", send: "Send", latest: "Latest messages",
     },
     hi: {
       chatWithUs: "हमसे बात करें", openChat: "चैट खोलें", chat: "चैट", close: "बंद करें",
@@ -87,7 +87,7 @@
       yourName: "आपका नाम", email: "ईमेल", phone: "फ़ोन", startChat: "चैट शुरू करें →", namePh: "आपका नाम",
       wentWrong: "कुछ गड़बड़ हो गई। कृपया दोबारा कोशिश करें।", unavailable: "चैट अभी उपलब्ध नहीं",
       limitReached: "⏰ चैट अभी उपलब्ध नहीं है। कृपया बाद में कोशिश करें या हमसे दूसरे तरीके से संपर्क करें।",
-      rate: "आपका अनुभव कैसा रहा?", thanksRating: "आपकी राय के लिए धन्यवाद! ⭐", menu: "मेन्यू", send: "भेजें",
+      rate: "आपका अनुभव कैसा रहा?", thanksRating: "आपकी राय के लिए धन्यवाद! ⭐", menu: "मेन्यू", send: "भेजें", latest: "नए मैसेज",
     },
   };
   function resolveLang(v) {
@@ -281,9 +281,20 @@
       // ── Conversation ("Classic" layout) ──────────────────────────────────────
       // Grey thread, white bot bubbles beside the company logo, the time above
       // each group of messages, option pills inside the thread, and a Menu bar.
-      "#sf-msgs{flex:1;overflow-y:auto;padding:14px 12px 12px;display:flex;flex-direction:column;gap:6px;background:" + THR + ";scroll-behavior:smooth}" +
-      "#sf-msgs::-webkit-scrollbar{width:4px}" +
-      "#sf-msgs::-webkit-scrollbar-thumb{background:" + BORD + ";border-radius:4px}" +
+      // min-height:0 + overscroll containment: the thread scrolls on its own
+      // (wheel and touch) and reaching its top/bottom doesn't scroll the page behind.
+      "#sf-msgs{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:14px 12px 12px;display:flex;flex-direction:column;gap:6px;background:" + THR + ";scroll-behavior:smooth;scrollbar-width:thin;scrollbar-color:" + (DARK ? "rgba(255,255,255,.28)" : "rgba(0,0,0,.28)") + " transparent}" +
+      // Messages never get squeezed to fit; the thread scrolls instead.
+      "#sf-msgs > *{flex-shrink:0}" +
+      // A scrollbar visitors can actually see, so they know they can scroll up.
+      "#sf-msgs::-webkit-scrollbar{width:6px}" +
+      "#sf-msgs::-webkit-scrollbar-track{background:transparent}" +
+      "#sf-msgs::-webkit-scrollbar-thumb{background:" + (DARK ? "rgba(255,255,255,.28)" : "rgba(0,0,0,.28)") + ";border-radius:6px}" +
+      "#sf-msgs::-webkit-scrollbar-thumb:hover{background:" + (DARK ? "rgba(255,255,255,.45)" : "rgba(0,0,0,.45)") + "}" +
+      // "↓" back-to-latest button, shown while scrolled up.
+      "#sf-jump{position:absolute;right:16px;bottom:140px;z-index:3;width:38px;height:38px;border-radius:50%;border:1px solid " + BORD + ";background:" + BG + ";color:" + TXT + ";box-shadow:0 6px 18px rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transform:translateY(8px) scale(.9);pointer-events:none;transition:opacity .2s,transform .2s}" +
+      "#sf-jump.show{opacity:1;transform:none;pointer-events:auto}" +
+      "#sf-jump:hover{color:" + COLOR + "}" +
 
       // Date divider
       "#sf-root .sf-date{text-align:center;font-size:11px;color:" + MUTED + ";padding:4px 12px;background:" + BORD + ";border-radius:20px;align-self:center;margin:4px 0}" +
@@ -426,6 +437,9 @@
           '<form id="sf-pcf" style="display:flex;flex-direction:column;gap:12px"></form>' +
         '</div>' +
         '<div id="sf-msgs"></div>' +
+        '<button id="sf-jump" type="button" aria-label="' + tr("latest") + '">' +
+          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg>' +
+        '</button>' +
         '<button id="sf-menubar" type="button">' +
           '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>' +
           '<span id="sf-menubar-t">' + tr("menu") + '</span>' +
@@ -444,6 +458,7 @@
     document.getElementById("sf-label").addEventListener("click", toggle);
     document.getElementById("sf-hx").addEventListener("click", toggle);
     document.getElementById("sf-send").addEventListener("click", sendText);
+    initScrollTracking();
     document.getElementById("sf-menubar").addEventListener("click", function() {
       if (isBusy || limitReached) return;
       sendMessage("🔙 Main Menu", tr("menu"));
@@ -575,8 +590,10 @@
           startChatFlow();
         }
       } else {
-        // Widget already started — just restart polling on re-open
+        // Widget already started — just restart polling on re-open, and come
+        // back to the latest message.
         startPoll();
+        setTimeout(function() { scrollToLatest(true); }, 30);
       }
 
       setTimeout(function() {
@@ -906,7 +923,7 @@
       notice.className = "sf-notice sf-notice-" + noticeCls;
       notice.textContent = text;
       msgs.appendChild(notice);
-      msgs.scrollTop = msgs.scrollHeight;
+      scrollToLatest(false);
       return notice;
     }
 
@@ -958,8 +975,51 @@
     }
 
     msgs.appendChild(row);
-    msgs.scrollTop = msgs.scrollHeight;
+    scrollToLatest(side === "you");
     return row;
+  }
+
+  // ── Scrolling ───────────────────────────────────────────────────────────────
+  // Follow new messages only while the visitor is at (or near) the bottom. If
+  // they've scrolled up to read earlier messages, new ones don't yank them
+  // down; a "↓" button appears instead. The visitor's own message always
+  // scrolls to the bottom.
+  var stickToBottom = true;
+
+  function scrollToLatest(force) {
+    var msgs = document.getElementById("sf-msgs");
+    if (!msgs) return;
+    if (force || stickToBottom) {
+      msgs.scrollTop = msgs.scrollHeight;
+      stickToBottom = true;
+      showJump(false);
+    } else {
+      showJump(true);
+    }
+  }
+
+  function showJump(on) {
+    var j = document.getElementById("sf-jump");
+    var msgs = document.getElementById("sf-msgs");
+    var win = document.getElementById("sf-win");
+    if (!j) return;
+    if (on && msgs && win) {
+      // Sit just above the bottom edge of the conversation area, whatever the
+      // height of the Menu bar and input below it.
+      j.style.bottom = (win.getBoundingClientRect().bottom - msgs.getBoundingClientRect().bottom + 12) + "px";
+    }
+    j.classList.toggle("show", !!on);
+  }
+
+  function initScrollTracking() {
+    var msgs = document.getElementById("sf-msgs");
+    var j = document.getElementById("sf-jump");
+    if (!msgs) return;
+    msgs.addEventListener("scroll", function() {
+      stickToBottom = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 80;
+      if (stickToBottom) showJump(false);
+    }, { passive: true });
+    if (j) j.addEventListener("click", function() { scrollToLatest(true); });
   }
 
   // Option pills live inside the conversation, under the bot's message. When
@@ -1002,7 +1062,7 @@
     msgs.appendChild(el);
     activePills = el;
     activePillsKey = key;
-    msgs.scrollTop = msgs.scrollHeight;
+    scrollToLatest(false);
   }
 
   function showTyping() {
@@ -1021,7 +1081,7 @@
     wrap.appendChild(t);
     var msgs = document.getElementById("sf-msgs");
     msgs.appendChild(wrap);
-    msgs.scrollTop = 999999;
+    scrollToLatest(false);
   }
 
   function hideTyping() {
@@ -1331,7 +1391,7 @@
     });
     wrap.appendChild(stars);
     msgs.appendChild(wrap);
-    msgs.scrollTop = msgs.scrollHeight;
+    scrollToLatest(false);
   }
 
   function submitCSAT(rating, wrap) {
