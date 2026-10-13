@@ -65,14 +65,14 @@ function verifyMetaSignature(rawBody: string, signatureHeader: string | null, ap
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-function extractContent(msg: WAMessage): { messageType: WAMessageType; content: string; mediaId?: string } {
+function extractContent(msg: WAMessage): { messageType: WAMessageType; content: string; mediaId?: string; fileName?: string } {
   switch (msg.type) {
     case "text":
       return { messageType: "TEXT", content: msg.text?.body || "" };
     case "image":
       return { messageType: "IMAGE", content: msg.image?.caption || "[image]", mediaId: msg.image?.id };
     case "document":
-      return { messageType: "DOCUMENT", content: msg.document?.caption || msg.document?.filename || "[document]", mediaId: msg.document?.id };
+      return { messageType: "DOCUMENT", content: msg.document?.caption || msg.document?.filename || "[document]", mediaId: msg.document?.id, fileName: msg.document?.filename };
     case "audio":
       return { messageType: "AUDIO", content: "[audio message]", mediaId: msg.audio?.id };
     case "video":
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         }
 
         for (const msg of value.messages as WAMessage[]) {
-          const { messageType, content, mediaId } = extractContent(msg);
+          const { messageType, content, mediaId, fileName } = extractContent(msg);
           const customerName = nameByWaId[msg.from];
 
           const contact = await WhatsAppContact.findOneAndUpdate(
@@ -184,6 +184,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             messageType,
             content,
             mediaUrl: mediaId, // stores the WhatsApp media ID; resolved on demand via /api/whatsapp/media/[mediaId]
+            fileName,
             whatsappMessageId: msg.id,
             status: "DELIVERED",
           }).catch(() => null); // unique index on whatsappMessageId guards webhook retries

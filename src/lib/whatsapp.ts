@@ -130,6 +130,59 @@ export async function sendText(phoneNumberId: string, accessToken: string, to: s
   }
 }
 
+// Uploads a file to Meta and returns its media ID. The ID can be sent in a
+// message and also downloaded again later through fetchMedia().
+export async function uploadMedia(
+  phoneNumberId: string,
+  accessToken: string,
+  file: Blob,
+  filename: string,
+  mimeType: string
+): Promise<{ ok: boolean; mediaId?: string; error?: string }> {
+  try {
+    const form = new FormData();
+    form.append("messaging_product", "whatsapp");
+    form.append("type", mimeType);
+    form.append("file", new Blob([file], { type: mimeType }), filename);
+    const res = await fetch(`${BASE_URL}/${phoneNumberId}/media`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: form,
+    });
+    if (!res.ok) return { ok: false, error: await extractGraphError(res) };
+    const data = await res.json();
+    return data?.id ? { ok: true, mediaId: data.id } : { ok: false, error: "Upload failed" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Network error" };
+  }
+}
+
+export async function sendMedia(
+  phoneNumberId: string,
+  accessToken: string,
+  to: string,
+  kind: "image" | "video" | "audio" | "document",
+  mediaId: string,
+  opts: { caption?: string; filename?: string } = {}
+): Promise<WhatsAppResult> {
+  // Audio takes no caption; only documents carry a filename.
+  const media: Record<string, string> = { id: mediaId };
+  if (opts.caption && kind !== "audio") media.caption = opts.caption;
+  if (opts.filename && kind === "document") media.filename = opts.filename;
+  try {
+    const res = await fetch(`${BASE_URL}/${phoneNumberId}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messaging_product: "whatsapp", to, type: kind, [kind]: media }),
+    });
+    if (!res.ok) return { ok: false, error: await extractGraphError(res) };
+    const data = await res.json();
+    return { ok: true, whatsappMessageId: data?.messages?.[0]?.id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Network error" };
+  }
+}
+
 // Counts {{1}}, {{2}}, ... placeholders in a template's BODY component text
 function countBodyParams(bodyText: string): number {
   const matches = bodyText.match(/\{\{\d+\}\}/g);

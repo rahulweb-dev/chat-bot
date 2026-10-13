@@ -50,6 +50,8 @@ export default function InboxPage() {
   const [chosenChannel, setChosenChannel] = useState<Channel | null>(null);
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  // Synchronous guard: Enter pressed again before `sending` re-renders must not send twice.
+  const sendingRef = useRef(false);
 
   const { data: items, isLoading } = useQuery({
     queryKey: ["inbox", status, search],
@@ -93,13 +95,14 @@ export default function InboxPage() {
 
   async function send() {
     const content = text.trim();
-    if (!content || !thread || !channel || waClosed) return;
+    if (!content || !thread || !channel || waClosed || sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
     try {
       const url = channel === "WEB"
         ? `/api/chat/conversations/${thread.web!.conversationId}/messages`
         : `/api/whatsapp/conversations/${thread.whatsapp!.conversationId}/messages`;
-      const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content }) });
+      const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content, clientMessageId: crypto.randomUUID() }) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || d.success === false) throw new Error(d.error || "Couldn't send");
       setText("");
@@ -108,6 +111,7 @@ export default function InboxPage() {
     } catch (e) {
       toast({ title: e instanceof Error ? e.message : "Couldn't send", variant: "destructive" });
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   }

@@ -8,6 +8,10 @@ export interface IWhatsAppMessage extends Document {
   messageType: "TEXT" | "IMAGE" | "DOCUMENT" | "AUDIO" | "VIDEO" | "TEMPLATE";
   content?: string;
   mediaUrl?: string;
+  fileName?: string;
+  // Random id from the dashboard composer, so a double-clicked Send is
+  // recognised and only goes out once.
+  clientMessageId?: string;
   templateName?: string;
   whatsappMessageId?: string;
   status: "QUEUED" | "SENT" | "DELIVERED" | "READ" | "FAILED";
@@ -27,6 +31,8 @@ const WhatsAppMessageSchema = new Schema<IWhatsAppMessage>(
     messageType: { type: String, enum: ["TEXT", "IMAGE", "DOCUMENT", "AUDIO", "VIDEO", "TEMPLATE"], default: "TEXT" },
     content: { type: String },
     mediaUrl: { type: String },
+    fileName: { type: String },
+    clientMessageId: { type: String },
     templateName: { type: String },
     whatsappMessageId: { type: String },
     status: { type: String, enum: ["QUEUED", "SENT", "DELIVERED", "READ", "FAILED"], default: "QUEUED" },
@@ -42,6 +48,10 @@ const WhatsAppMessageSchema = new Schema<IWhatsAppMessage>(
 WhatsAppMessageSchema.index({ conversationId: 1, createdAt: 1 });
 WhatsAppMessageSchema.index({ companyId: 1 });
 WhatsAppMessageSchema.index({ whatsappMessageId: 1 }, { unique: true, sparse: true });
+WhatsAppMessageSchema.index(
+  { companyId: 1, clientMessageId: 1 },
+  { unique: true, partialFilterExpression: { clientMessageId: { $type: "string" } } }
+);
 
 const WhatsAppMessage: Model<IWhatsAppMessage> =
   mongoose.models.WhatsAppMessage || mongoose.model<IWhatsAppMessage>("WhatsAppMessage", WhatsAppMessageSchema);

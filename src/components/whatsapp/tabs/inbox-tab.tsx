@@ -12,7 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Send, Search, MessageCircle, FileText, LayoutTemplate, Download, Loader2, X } from "lucide-react";
+import { Search, MessageCircle, FileText, LayoutTemplate, Download, Loader2, X, Check, CheckCheck, Clock, AlertCircle } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
+import { InboxComposer } from "@/components/whatsapp/inbox-composer";
 import { cn, getInitials, timeAgo } from "@/lib/utils";
 import { EmptyState } from "@/components/whatsapp/empty-state";
 import { ChatThreadSkeleton } from "@/components/ui/page-skeletons";
@@ -36,9 +38,20 @@ interface Message {
   messageType: "TEXT" | "IMAGE" | "DOCUMENT" | "AUDIO" | "VIDEO" | "TEMPLATE";
   content?: string;
   mediaUrl?: string;
+  fileName?: string;
+  // Set on the optimistic copy shown while a file is uploading.
+  localUrl?: string;
   templateName?: string;
   status: string;
+  failReason?: string;
   createdAt: string;
+}
+
+function StatusTicks({ status, failReason }: { status: string; failReason?: string }) {
+  if (status === "SENDING" || status === "QUEUED") return <Clock className="w-3 h-3" aria-label="Sending" />;
+  if (status === "FAILED") return <AlertCircle className="w-3 h-3 text-red-200" aria-label={failReason || "Failed"} />;
+  if (status === "SENT") return <Check className="w-3.5 h-3.5" aria-label="Sent" />;
+  return <CheckCheck className={cn("w-3.5 h-3.5", status === "READ" && "text-sky-300")} aria-label={status === "READ" ? "Read" : "Delivered"} />;
 }
 
 interface WATemplate {
@@ -53,7 +66,9 @@ let socket: Socket | null = null;
 
 function MessageBubble({ message }: { message: Message }) {
   const isOutbound = message.direction === "OUTBOUND";
-  const mediaSrc = message.mediaUrl ? `/api/whatsapp/media/${message.mediaUrl}` : undefined;
+  const mediaSrc = message.localUrl || (message.mediaUrl ? `/api/whatsapp/media/${message.mediaUrl}` : undefined);
+  const isMedia = ["IMAGE", "VIDEO", "AUDIO", "DOCUMENT"].includes(message.messageType);
+  const uploading = isMedia && !mediaSrc && (message.status === "SENDING" || message.status === "QUEUED");
 
   return (
     <div className={cn("flex", isOutbound ? "justify-end" : "justify-start")}>
@@ -63,8 +78,16 @@ function MessageBubble({ message }: { message: Message }) {
           isOutbound ? "bg-green-600 text-white rounded-tr-sm" : "bg-white border rounded-tl-sm shadow-sm"
         )}
       >
+        {uploading && (
+          <div className={cn("flex items-center gap-2 text-xs mb-1 px-1", isOutbound ? "text-green-100" : "text-gray-500")}>
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading {message.fileName || message.messageType.toLowerCase()}…
+          </div>
+        )}
         {message.messageType === "IMAGE" && mediaSrc && (
-          <img src={mediaSrc} alt="attachment" className="max-w-60 rounded-lg mb-1" />
+          <a href={mediaSrc} target="_blank" rel="noopener noreferrer">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={mediaSrc} alt="attachment" className={cn("max-w-60 rounded-lg mb-1", message.status === "SENDING" && "opacity-70")} />
+          </a>
         )}
         {message.messageType === "VIDEO" && mediaSrc && (
           <video src={mediaSrc} controls className="max-w-60 rounded-lg mb-1" />
@@ -77,25 +100,38 @@ function MessageBubble({ message }: { message: Message }) {
             href={mediaSrc}
             target="_blank"
             rel="noopener noreferrer"
+            download={message.fileName || true}
             className={cn(
-              "flex items-center gap-2 text-xs underline mb-1",
-              isOutbound ? "text-white" : "text-indigo-600"
+              "flex items-center gap-2.5 rounded-lg px-2.5 py-2 mb-1 min-w-48",
+              isOutbound ? "bg-green-700/60 text-white" : "bg-gray-50 border text-gray-800"
             )}
           >
-            <Download className="w-3.5 h-3.5" /> Download document
+            <FileText className="w-6 h-6 shrink-0" />
+            <span className="text-xs font-medium truncate flex-1">{message.fileName || "Document"}</span>
+            <Download className="w-3.5 h-3.5 shrink-0" />
           </a>
+        )}
+        {message.messageType === "DOCUMENT" && !mediaSrc && !uploading && message.fileName && (
+          <div className="flex items-center gap-2 text-xs mb-1 px-1"><FileText className="w-4 h-4" /> {message.fileName}</div>
         )}
         {message.messageType === "TEMPLATE" && (
           <div className={cn("flex items-center gap-1.5 text-xs font-medium mb-1", isOutbound ? "text-green-100" : "text-indigo-600")}>
             <LayoutTemplate className="w-3.5 h-3.5" /> Template: {message.templateName}
           </div>
         )}
-        {message.content && message.content !== `[Template: ${message.templateName}]` && (
-          <span className="px-1">{message.content}</span>
+        {message.content &&
+          message.content !== `[Template: ${message.templateName}]` &&
+          // Inbound documents without a caption store their filename as content.
+          !(message.messageType === "DOCUMENT" && message.content === message.fileName) && (
+          <span className="px-1 whitespace-pre-wrap wrap-break-word">{message.content}</span>
         )}
-        <div className={cn("text-[10px] mt-1 px-1", isOutbound ? "text-green-100" : "text-gray-400")}>
+        <div className={cn("flex items-center justify-end gap-1 text-[10px] mt-1 px-1", isOutbound ? "text-green-100" : "text-gray-400")}>
           {timeAgo(message.createdAt)}
+          {isOutbound && <StatusTicks status={message.status} failReason={message.failReason} />}
         </div>
+        {isOutbound && message.status === "FAILED" && message.failReason && (
+          <div className="text-[10px] mt-0.5 px-1 text-red-100">Not delivered: {message.failReason}</div>
+        )}
       </div>
     </div>
   );
@@ -183,7 +219,6 @@ export function InboxTab() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [input, setInput] = useState("");
   const [messageSearch, setMessageSearch] = useState("");
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -217,14 +252,26 @@ export function InboxTab() {
     return (messages || []).filter((m) => m.content?.toLowerCase().includes(q));
   }, [messages, messageSearch]);
 
-  const sendMessage = useMutation({
-    mutationFn: (payload: { content?: string; templateName?: string; templateLanguage?: string; templateBodyParams?: string[] }) =>
-      axios.post(`/api/whatsapp/conversations/${activeId}/messages`, payload),
+  // Text, files and emoji go through InboxComposer; this sends templates.
+  // The ref blocks a double-click before isPending re-renders the button.
+  const templateSendingRef = useRef(false);
+  const sendTemplate = useMutation({
+    mutationFn: (payload: { templateName: string; templateLanguage: string; templateBodyParams: string[] }) =>
+      axios.post(`/api/whatsapp/conversations/${activeId}/messages`, { ...payload, clientMessageId: crypto.randomUUID() }),
     onSuccess: () => {
+      setTemplateDialogOpen(false);
+    },
+    onError: (e) => {
+      toast({
+        title: "Template not sent",
+        description: axios.isAxiosError(e) ? e.response?.data?.error || e.message : "Something went wrong",
+        variant: "destructive",
+      });
+    },
+    onSettled: () => {
+      templateSendingRef.current = false;
       qc.invalidateQueries({ queryKey: ["whatsapp-messages", activeId] });
       qc.invalidateQueries({ queryKey: ["whatsapp-conversations"] });
-      setInput("");
-      setTemplateDialogOpen(false);
     },
   });
 
@@ -407,25 +454,7 @@ export function InboxTab() {
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="p-3 border-t flex gap-2">
-              <Button variant="outline" size="icon" className="shrink-0" title="Send template" onClick={() => setTemplateDialogOpen(true)}>
-                <FileText className="h-4 w-4" />
-              </Button>
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && input.trim()) {
-                    e.preventDefault();
-                    sendMessage.mutate({ content: input.trim() });
-                  }
-                }}
-                placeholder="Type a message... (outside 24h window, use a template instead)"
-              />
-              <Button onClick={() => input.trim() && sendMessage.mutate({ content: input.trim() })} disabled={sendMessage.isPending}>
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
+            <InboxComposer key={active._id} conversationId={active._id} onOpenTemplates={() => setTemplateDialogOpen(true)} />
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center">
@@ -437,10 +466,12 @@ export function InboxTab() {
       <TemplatePickerDialog
         open={templateDialogOpen}
         onOpenChange={setTemplateDialogOpen}
-        sending={sendMessage.isPending}
-        onSend={(templateName, templateLanguage, templateBodyParams) =>
-          sendMessage.mutate({ templateName, templateLanguage, templateBodyParams })
-        }
+        sending={sendTemplate.isPending}
+        onSend={(templateName, templateLanguage, templateBodyParams) => {
+          if (templateSendingRef.current) return;
+          templateSendingRef.current = true;
+          sendTemplate.mutate({ templateName, templateLanguage, templateBodyParams });
+        }}
       />
     </div>
   );
