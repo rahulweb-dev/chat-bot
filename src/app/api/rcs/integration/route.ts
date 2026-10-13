@@ -1,3 +1,4 @@
+import { appUrl } from "@/lib/app-url";
 import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess } from "@/lib/api-helpers";
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
     lastTestedAt: integration.lastTestedAt,
     lastTestStatus: integration.lastTestStatus,
     lastTestError: integration.lastTestError,
-    webhookCallbackUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/rcs/${ctx.companyId}`,
+    webhookCallbackUrl: `${appUrl(request)}/api/webhooks/rcs/${ctx.companyId}`,
   });
 }
 
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
     status: "SUCCESS",
   });
 
-  return apiSuccess({ connected: true, webhookCallbackUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/rcs/${ctx.companyId}` }, "RCS (Twilio) connected");
+  return apiSuccess({ connected: true, webhookCallbackUrl: `${appUrl(request)}/api/webhooks/rcs/${ctx.companyId}` }, "RCS (Twilio) connected");
 }
 
 export async function DELETE(request: NextRequest) {

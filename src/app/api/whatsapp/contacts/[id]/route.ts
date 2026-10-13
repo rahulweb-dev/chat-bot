@@ -31,7 +31,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (tags !== undefined) update.tags = tags;
   if (optIn !== undefined) {
     update.optIn = optIn;
-    if (optIn) update.optInAt = new Date();
+    // Record when, either way, for consent records.
+    update[optIn ? "optInAt" : "optOutAt"] = new Date();
   }
 
   const contact = await WhatsAppContact.findOneAndUpdate(

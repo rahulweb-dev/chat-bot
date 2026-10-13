@@ -1,3 +1,4 @@
+import { appUrl } from "@/lib/app-url";
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { decrypt } from "@/lib/crypto";
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   // Reconstruct the canonical URL Twilio signed against — must match what's registered
   // in the Twilio Console exactly, not whatever a reverse proxy rewrote the request to.
-  const canonicalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/rcs/${companyId}`;
+  const canonicalUrl = `${appUrl(request)}/api/webhooks/rcs/${companyId}`;
   const authToken = decrypt(integration.encryptedAuthToken);
 
   if (!verifyTwilioSignature(canonicalUrl, parsedParams, request.headers.get("x-twilio-signature"), authToken)) {

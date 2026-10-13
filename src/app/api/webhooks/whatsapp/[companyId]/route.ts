@@ -34,11 +34,21 @@ interface WAStatus {
 type WAMessageType = "TEXT" | "IMAGE" | "DOCUMENT" | "AUDIO" | "VIDEO";
 
 // WhatsApp Business Policy requires honoring opt-out replies to any message we send.
-const STOP_KEYWORDS = new Set(["stop", "unsubscribe", "optout", "opt out", "cancel", "remove me"]);
-const START_KEYWORDS = new Set(["start", "subscribe", "unstop", "resume"]);
+// Whole-message match after stripping punctuation/emoji, so "STOP.", "Stop!!",
+// "please stop" and Hindi replies work, but a sentence that merely contains
+// "stop" ("my car won't stop beeping") does not unsubscribe anyone.
+const STOP_KEYWORDS = new Set([
+  "stop", "stop all", "stop messages", "please stop", "stop please", "unsubscribe", "unsubscribe me",
+  "optout", "opt out", "cancel", "remove me", "dont message", "do not message", "no more messages",
+  "बंद", "बंद करो", "बंद करें", "रोकें", "रोको", "मैसेज बंद करो",
+]);
+const START_KEYWORDS = new Set([
+  "start", "subscribe", "unstop", "resume", "start again", "start messages",
+  "शुरू", "शुरू करो", "शुरू करें", "चालू", "चालू करो",
+]);
 
 function classifyOptKeyword(text: string): "STOP" | "START" | null {
-  const normalized = text.trim().toLowerCase();
+  const normalized = text.toLowerCase().replace(/[^\p{L}\p{M}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
   if (STOP_KEYWORDS.has(normalized)) return "STOP";
   if (START_KEYWORDS.has(normalized)) return "START";
   return null;

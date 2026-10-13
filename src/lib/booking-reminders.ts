@@ -4,13 +4,14 @@ import { connectDB } from "./mongodb";
 import { decrypt } from "./crypto";
 import { sendTemplate } from "./whatsapp";
 import { chargeForMessage, refundMessage } from "./whatsappWallet";
-import { toWhatsAppNumber } from "./phone";
+import { toWhatsAppNumber, phoneVariants } from "./phone";
 import { whenLabel } from "./booking";
 import Booking from "../models/Booking";
 import ChatbotConfig from "../models/ChatbotConfig";
 import Company from "../models/Company";
 import Settings from "../models/Settings";
 import WhatsAppIntegration from "../models/WhatsAppIntegration";
+import WhatsAppContact from "../models/WhatsAppContact";
 
 // WhatsApp reminder to the visitor ~24h (at least 2h) before their booking.
 // Business-initiated WhatsApp needs an approved template, so this only runs for
@@ -37,6 +38,9 @@ export async function runBookingReminders(now = new Date()) {
       .select("phoneNumberId encryptedAccessToken").lean<{ phoneNumberId: string; encryptedAccessToken: string }>();
     const to = toWhatsAppNumber(b.phone);
     if (!integration || !to) continue;
+    // Someone who replied STOP gets no reminders either.
+    const optedOut = await WhatsAppContact.exists({ companyId: b.companyId, phone: { $in: phoneVariants(to) }, optIn: false });
+    if (optedOut) continue;
 
     // Claim first so an overlapping run can't send twice.
     const claimed = await Booking.findOneAndUpdate({ _id: b._id, reminderSentAt: { $exists: false } }, { reminderSentAt: now });

@@ -25,6 +25,7 @@ import { FlowCanvas } from "@/components/chatbot/flow-canvas";
 import { ProactiveTab, type ProactiveRule } from "@/components/chatbot/proactive-tab";
 import { BookingTab, type BookingSettings } from "@/components/chatbot/booking-tab";
 import { TemplatesTab } from "@/components/chatbot/templates-tab";
+import { useAppUrl } from "@/lib/use-app-url";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface FAQ      { _id?: string; question: string; answer: string; isActive: boolean }
@@ -2265,7 +2266,7 @@ function ChatbotPageInner() {
   const activeKeys = (apiKeys || []).filter((k: { isActive: boolean }) => k.isActive);
   const selectedKey = activeKeys.find((k: { _id: string }) => k._id === selectedKeyId) || activeKeys[0];
   const widgetKey = selectedKey?.key || "YOUR_API_KEY";
-  const appUrl    = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "");
+  const appUrl    = useAppUrl();
 
   const snippetCode = `<!-- Convo360 Widget -->
 <script>

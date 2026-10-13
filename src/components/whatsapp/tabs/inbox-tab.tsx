@@ -187,6 +187,10 @@ export function InboxTab() {
   const [messageSearch, setMessageSearch] = useState("");
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Real-time comes over Socket.IO, which only runs with the custom server
+  // (server.ts). When it isn't connected (e.g. a Vercel deploy, or a dropped
+  // connection), poll quickly so new messages still appear without a refresh.
+  const [live, setLive] = useState(false);
 
   const { data: conversations, isLoading: conversationsLoading } = useQuery<Conversation[]>({
     queryKey: ["whatsapp-conversations", search, statusFilter],
@@ -196,13 +200,15 @@ export function InboxTab() {
           params: { search: search || undefined, status: statusFilter !== "ALL" ? statusFilter : undefined, limit: 50 },
         })
         .then((r) => r.data.data),
-    refetchInterval: 15000,
+    refetchInterval: live ? 30000 : 5000,
   });
 
   const { data: messages } = useQuery<Message[]>({
     queryKey: ["whatsapp-messages", activeId],
     queryFn: () => axios.get(`/api/whatsapp/conversations/${activeId}/messages`).then((r) => r.data.data.messages),
     enabled: !!activeId,
+    // Open chat: near-instant without a live connection; a slow safety net with one.
+    refetchInterval: live ? 30000 : 3000,
   });
 
   const filteredMessages = useMemo(() => {
@@ -258,6 +264,10 @@ export function InboxTab() {
         auth: { token },
         transports: ["websocket", "polling"],
       });
+
+      socket.on("connect", () => setLive(true));
+      socket.on("disconnect", () => setLive(false));
+      socket.on("connect_error", () => setLive(false));
 
       socket.on("whatsapp:message:new", () => {
         qc.invalidateQueries({ queryKey: ["whatsapp-messages"] });

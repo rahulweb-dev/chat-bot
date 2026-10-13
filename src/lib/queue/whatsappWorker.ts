@@ -11,6 +11,7 @@ import WhatsAppCampaign from "@/models/WhatsAppCampaign";
 import WhatsAppIntegration from "@/models/WhatsAppIntegration";
 import WhatsAppConversation from "@/models/WhatsAppConversation";
 import WhatsAppMessage from "@/models/WhatsAppMessage";
+import WhatsAppContact from "@/models/WhatsAppContact";
 import { getIO } from "@/server/socket";
 
 const globalForWorker = globalThis as unknown as { __whatsappWorker?: Worker };
@@ -27,6 +28,19 @@ async function processRecipient(job: Job<{ recipientId: string }>) {
   if (!integration || !campaign.templateName) {
     recipient.status = "FAILED";
     recipient.error = !integration ? "WhatsApp integration not connected" : "Campaign has no template selected";
+    await recipient.save();
+    await recomputeCampaignStats(String(recipient.campaignId));
+    return;
+  }
+
+  // Re-check consent at send time: a contact who replied STOP after this
+  // campaign was queued must not get it (WhatsApp policy). Checked before
+  // charging, so an opted-out send costs nothing. Same rule as the email and
+  // RCS workers.
+  const contact = await WhatsAppContact.findById(recipient.contactId).select("optIn").lean<{ optIn?: boolean }>();
+  if (contact && contact.optIn === false) {
+    recipient.status = "FAILED";
+    recipient.error = "Contact opted out (replied STOP)";
     await recipient.save();
     await recomputeCampaignStats(String(recipient.campaignId));
     return;

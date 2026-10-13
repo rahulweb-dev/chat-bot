@@ -1,5 +1,6 @@
 "use client";
 
+import { useAppUrl } from "@/lib/use-app-url";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
@@ -21,6 +22,7 @@ import { ListRowsSkeleton } from "@/components/ui/page-skeletons";
 
 export default function ApiKeysPage() {
   const queryClient = useQueryClient();
+  const appUrl = useAppUrl();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [createdKey, setCreatedKey] = useState<string | null>(null);
@@ -228,7 +230,7 @@ export default function ApiKeysPage() {
               size="sm"
               className="absolute top-2 right-2 h-6 text-[10px] text-gray-400 hover:text-white"
               onClick={() => copyToClipboard(
-                `<script>\n  window.SupportFlowConfig = {\n    apiKey: "YOUR_API_KEY",\n    baseUrl: "${process.env.NEXT_PUBLIC_APP_URL || 'https://yourdomain.com'}",\n  };\n</script>\n<script src="${process.env.NEXT_PUBLIC_APP_URL || 'https://yourdomain.com'}/widget.js" async></script>`
+                `<script>\n  window.SupportFlowConfig = {\n    apiKey: "YOUR_API_KEY",\n    baseUrl: "${appUrl}",\n  };\n</script>\n<script src="${appUrl}/widget.js" async></script>`
               )}
             >
               <Copy className="h-3 w-3 mr-1" /> Copy
@@ -237,13 +239,13 @@ export default function ApiKeysPage() {
             <span className="text-blue-400">&lt;script&gt;</span><br />
             <span className="pl-4 text-white">{"  window.SupportFlowConfig = {"}</span><br />
             <span className="pl-8"><span className="text-yellow-300">apiKey</span><span className="text-white">: </span><span className="text-green-400">&quot;YOUR_API_KEY&quot;</span><span className="text-white">,</span></span><br />
-            <span className="pl-8"><span className="text-yellow-300">baseUrl</span><span className="text-white">: </span><span className="text-green-400">&quot;{process.env.NEXT_PUBLIC_APP_URL || 'https://yourdomain.com'}&quot;</span><span className="text-white">,</span></span><br />
+            <span className="pl-8"><span className="text-yellow-300">baseUrl</span><span className="text-white">: </span><span className="text-green-400">&quot;{appUrl}&quot;</span><span className="text-white">,</span></span><br />
             <span className="pl-4 text-white">{"  };"}</span><br />
             <span className="text-blue-400">&lt;/script&gt;</span><br />
             <span className="text-blue-400">&lt;script </span>
             <span className="text-yellow-300">src</span>
             <span className="text-white">=</span>
-            <span className="text-green-400">&quot;{process.env.NEXT_PUBLIC_APP_URL || 'https://yourdomain.com'}/widget.js&quot;</span>
+            <span className="text-green-400">&quot;{appUrl}/widget.js&quot;</span>
             <span className="text-yellow-300"> async</span>
             <span className="text-blue-400">&gt;&lt;/script&gt;</span>
           </div>

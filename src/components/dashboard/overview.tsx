@@ -1,4 +1,5 @@
 "use client";
+import { useAppUrl } from "@/lib/use-app-url";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -102,7 +103,7 @@ export function DashboardOverview({ role }: OverviewProps) {
   const overview  = analytics?.overview;
   const trends    = analytics?.trends;
   const widgetKey = apiKeys?.[0]?.key;
-  const appUrl    = process.env.NEXT_PUBLIC_APP_URL || "https://your-domain.com";
+  const appUrl    = useAppUrl();
 
   // Today's values
   const todayChats   = trends?.chats?.at(-1)?.value   ?? 0;

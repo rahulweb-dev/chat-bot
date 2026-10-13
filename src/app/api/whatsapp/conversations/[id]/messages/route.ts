@@ -5,6 +5,7 @@ import { decrypt } from "@/lib/crypto";
 import { sendText, sendTemplate } from "@/lib/whatsapp";
 import { chargeForMessage, refundMessage } from "@/lib/whatsappWallet";
 import WhatsAppConversation from "@/models/WhatsAppConversation";
+import WhatsAppContact from "@/models/WhatsAppContact";
 import WhatsAppMessage from "@/models/WhatsAppMessage";
 import WhatsAppIntegration from "@/models/WhatsAppIntegration";
 import { getIO } from "@/server/socket";
@@ -54,6 +55,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const accessToken = decrypt(integration.encryptedAccessToken);
 
   const isTemplate = !!templateName;
+  // Templates are business-initiated: never to someone who replied STOP.
+  // (Plain replies inside the 24h window answer the customer's own message, so
+  // they're still allowed.)
+  if (isTemplate) {
+    const contact = await WhatsAppContact.findOne(
+      conversation.contactId ? { _id: conversation.contactId } : { companyId: ctx.companyId, phone: conversation.customerPhone }
+    ).select("optIn").lean<{ optIn?: boolean }>();
+    if (contact && contact.optIn === false) {
+      return apiError("This customer opted out (replied STOP), so templates can't be sent to them. They can reply START to opt back in.", 422);
+    }
+  }
   // WhatsApp only delivers free-text messages within 24h of the customer's last
   // message; outside it Meta rejects them (after we'd have charged the wallet).
   // Conversations from before lastInboundAt was recorded are let through.

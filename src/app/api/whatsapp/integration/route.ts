@@ -1,3 +1,4 @@
+import { appUrl } from "@/lib/app-url";
 import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { getRequestContext, apiError, apiSuccess } from "@/lib/api-helpers";
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
     lastTestError: integration.lastTestError,
     maskedAccessToken: maskSecret(decrypt(integration.encryptedAccessToken)),
     hasAppSecret: !!integration.encryptedAppSecret,
-    webhookCallbackUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/whatsapp/${ctx.companyId}`,
+    webhookCallbackUrl: `${appUrl(request)}/api/webhooks/whatsapp/${ctx.companyId}`,
   });
 }
 
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
     status: "SUCCESS",
   });
 
-  return apiSuccess({ connected: true, webhookCallbackUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/whatsapp/${ctx.companyId}` }, "WhatsApp connected");
+  return apiSuccess({ connected: true, webhookCallbackUrl: `${appUrl(request)}/api/webhooks/whatsapp/${ctx.companyId}` }, "WhatsApp connected");
 }
 
 export async function DELETE(request: NextRequest) {

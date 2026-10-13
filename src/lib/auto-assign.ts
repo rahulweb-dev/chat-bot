@@ -1,3 +1,4 @@
+import { appUrl as publicAppUrl } from "@/lib/app-url";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import Conversation from "@/models/Conversation";
@@ -10,7 +11,7 @@ async function notifySlack(companyId: string, conversationId: string, visitorNam
     const settings = await Settings.findOne({ companyId }).lean<{ notifications?: { slackWebhook?: string } }>();
     const webhookUrl = settings?.notifications?.slackWebhook;
     if (!webhookUrl) return;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://your-domain.com";
+    const appUrl = publicAppUrl();
     const visitor = visitorName || "Anonymous";
     await fetch(webhookUrl, {
       method: "POST",
@@ -45,7 +46,7 @@ async function notifyOfflineAgents(companyId: string, conversationId: string, vi
       "notificationPreferences.newChat": true,
     }).select("name email").lean<{ name: string; email: string }[]>();
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://your-domain.com";
+    const appUrl = publicAppUrl();
     const convUrl = `${appUrl}/dashboard/chat`;
     const visitor = visitorName || "A visitor";
 
